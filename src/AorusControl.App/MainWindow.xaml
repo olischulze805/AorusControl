@@ -1,0 +1,661 @@
+<ui:FluentWindow x:Class="AorusControl.App.MainWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:infra="clr-namespace:AorusControl.App.Infrastructure"
+                 xmlns:ctrl="clr-namespace:AorusControl.App.Controls"
+                 Title="AORUS Control"
+                 Icon="Assets/app.ico"
+                 Width="1180"
+                 Height="880"
+                 MinWidth="900"
+                 MinHeight="640"
+                 WindowStartupLocation="CenterScreen"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica"
+                 WindowCornerPreference="Round">
+    <ui:FluentWindow.Resources>
+        <infra:StringEqualsVisibilityConverter x:Key="SectionVisible" />
+        <infra:StringEqualsBooleanConverter x:Key="IsSelected" />
+        <infra:InverseBoolConverter x:Key="InverseBool" />
+        <infra:BoolVisibilityConverter x:Key="BoolVisible" />
+        <infra:ActiveOpacityConverter x:Key="ActiveOpacity" />
+    </ui:FluentWindow.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" Title="AORUS Control · AORUS 5 SE · BIOS FB0F" ShowMaximize="True" />
+
+        <ui:NavigationView x:Name="Nav"
+                            Grid.Row="1"
+                            PaneDisplayMode="Left"
+                            IsBackButtonVisible="Collapsed"
+                            OpenPaneLength="212"
+                            SelectionChanged="OnNavigationSelectionChanged">
+            <ui:NavigationView.MenuItems>
+                <ui:NavigationViewItem Content="Dashboard" TargetPageTag="Dashboard" TargetPageType="{x:Type ctrl:DashboardPage}">
+                    <ui:NavigationViewItem.Icon><ui:SymbolIcon Symbol="Gauge24" /></ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="Kühlung" TargetPageTag="Cooling" TargetPageType="{x:Type ctrl:CoolingPage}">
+                    <ui:NavigationViewItem.Icon><ui:SymbolIcon Symbol="WeatherSnow24" /></ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="Tastatur" TargetPageTag="Lighting" TargetPageType="{x:Type ctrl:LightingPage}">
+                    <ui:NavigationViewItem.Icon><ui:SymbolIcon Symbol="Keyboard24" /></ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="Leistung &amp; Akku" TargetPageTag="Power" TargetPageType="{x:Type ctrl:PowerPage}">
+                    <ui:NavigationViewItem.Icon><ui:SymbolIcon Symbol="Battery924" /></ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+            </ui:NavigationView.MenuItems>
+            <ui:NavigationView.FooterMenuItems>
+                <ui:NavigationViewItem Content="Info &amp; Updates" TargetPageTag="About" TargetPageType="{x:Type ctrl:AboutPage}">
+                    <ui:NavigationViewItem.Icon><ui:SymbolIcon Symbol="Info24" /></ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+            </ui:NavigationView.FooterMenuItems>
+
+            <ui:NavigationView.ContentOverlay>
+            <Grid Background="{StaticResource ContentBrush}">
+                <!-- ===================== Dashboard ===================== -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28"
+                              Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisible}, ConverterParameter=Dashboard}">
+                    <StackPanel MaxWidth="880" HorizontalAlignment="Center">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0,0,9,20">
+                                <StackPanel>
+                                    <TextBlock Text="CPU" FontSize="11.5" Foreground="{StaticResource TextTertiaryBrush}" />
+                                    <TextBlock Text="{Binding CpuTemperature}" FontSize="42" FontWeight="SemiBold" Margin="0,6,0,8" />
+                                    <TextBlock Text="{Binding CpuFan}" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <TextBlock Text="{Binding CpuDuty}" FontSize="12" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,2,0,0" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="1" Style="{StaticResource Card}" Margin="9,0,0,20">
+                                <StackPanel>
+                                    <TextBlock Text="GPU" FontSize="11.5" Foreground="{StaticResource TextTertiaryBrush}" />
+                                    <TextBlock Text="{Binding GpuTemperature}" FontSize="42" FontWeight="SemiBold" Margin="0,6,0,8" />
+                                    <TextBlock Text="{Binding GpuFan}" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <TextBlock Text="{Binding GpuDuty}" FontSize="12" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,2,0,0" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <Border Style="{StaticResource Card}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="44" Height="44" CornerRadius="10" VerticalAlignment="Center"
+                                        Background="{StaticResource AccentSoftBrush}" Margin="0,0,16,0">
+                                    <ui:SymbolIcon Symbol="ArrowSync24" FontSize="22" Foreground="{StaticResource AccentBrush}" />
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="Live-Überwachung" Style="{StaticResource CardTitle}" />
+                                    <TextBlock Text="{Binding Status}" FontSize="13" Margin="0,6,0,0" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding LastUpdated}" Style="{StaticResource Hint}" />
+                                </StackPanel>
+                                <ui:Button Grid.Column="2" Style="{StaticResource PrimaryButton}"
+                                           Content="{Binding ToggleButtonText}"
+                                           Command="{Binding ToggleMonitoringCommand}"
+                                           Height="44" MinWidth="200" Margin="16,0,0,0" FontSize="14"
+                                           VerticalAlignment="Center">
+                                    <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowSync24" /></ui:Button.Icon>
+                                </ui:Button>
+                            </Grid>
+                        </Border>
+
+                        <TextBlock Style="{StaticResource Hint}" HorizontalAlignment="Center" Margin="0,4,0,0"
+                                   Text="AORUS 5 SE / FB0F Allowlist · Readback und Rollback für jede Hardwareänderung" />
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ===================== Kühlung ===================== -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28"
+                              Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisible}, ConverterParameter=Cooling}">
+                    <StackPanel MaxWidth="880" HorizontalAlignment="Center">
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Lüfterprofil" Style="{StaticResource CardTitle}" />
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Getestete Herstellerprofile. Normal ist der sichere Rückweg und wird bei Absturz automatisch wiederhergestellt. Hervorgehoben ist, was zurückgelesen wurde - nicht, was zuletzt geklickt wurde." />
+                                <WrapPanel Margin="0,16,0,-10" IsEnabled="{Binding FanControlsEnabled}">
+                                    <RadioButton Style="{StaticResource Chip}" GroupName="FanProfile" Content="Leise"
+                                                 Command="{Binding SetFanProfileCommand}" CommandParameter="Quiet"
+                                                 IsChecked="{Binding ActiveFanProfile, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Quiet}">
+                                        <RadioButton.Tag><ui:SymbolIcon Symbol="LeafOne24" FontSize="16" /></RadioButton.Tag>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource Chip}" GroupName="FanProfile" Content="Normal"
+                                                 Command="{Binding SetFanProfileCommand}" CommandParameter="Normal"
+                                                 IsChecked="{Binding ActiveFanProfile, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Normal}">
+                                        <RadioButton.Tag><ui:SymbolIcon Symbol="Gauge24" FontSize="16" /></RadioButton.Tag>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource Chip}" GroupName="FanProfile" Content="Gaming"
+                                                 Command="{Binding SetFanProfileCommand}" CommandParameter="Gaming"
+                                                 IsChecked="{Binding ActiveFanProfile, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Gaming}">
+                                        <RadioButton.Tag><ui:SymbolIcon Symbol="Rocket24" FontSize="16" /></RadioButton.Tag>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource Chip}" GroupName="FanProfile" Content="Maximal"
+                                                 Command="{Binding SetFanProfileCommand}" CommandParameter="Maximum"
+                                                 IsChecked="{Binding ActiveFanProfile, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Maximum}">
+                                        <RadioButton.Tag><ui:SymbolIcon Symbol="TopSpeed24" FontSize="16" /></RadioButton.Tag>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource Chip}" GroupName="FanProfile" Content="Dynamic (eigene Kurve)"
+                                                 Command="{Binding SetFanProfileCommand}" CommandParameter="Dynamic"
+                                                 IsChecked="{Binding ActiveFanProfile, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Dynamic}">
+                                        <RadioButton.Tag><ui:SymbolIcon Symbol="ArrowSync24" FontSize="16" /></RadioButton.Tag>
+                                    </RadioButton>
+                                </WrapPanel>
+                                <TextBlock Text="{Binding FanStatus}" Style="{StaticResource StatusText}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel IsEnabled="{Binding FanControlsEnabled}">
+                                <TextBlock Text="Fester Wert · Fixed-Modus (Test)" Style="{StaticResource CardTitle}" />
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Der Regler rastet auf die acht am Gerät vermessenen Stufen ein - die Marken sitzen dort, wo die Stufen wirklich liegen, deshalb sind die Abstände ungleich. Zwischenwerte sind nicht linear und teils firmwareseitig ungültig, sie lassen sich gar nicht erst wählen. Der Fixed-Modus läuft ausschließlich über den absturzsicheren Hardware-Worker." />
+                                <Grid Margin="0,20,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding FixedFanPercentText}" Style="{StaticResource SliderReadout}" />
+                                    <StackPanel Grid.Column="1" Margin="22,0">
+                                        <Slider Style="{StaticResource ValueSlider}" MinWidth="170"
+                                                Minimum="25" Maximum="100"
+                                                Ticks="{Binding FixedFanTicks}"
+                                                IsSnapToTickEnabled="True"
+                                                TickPlacement="BottomRight"
+                                                Value="{Binding FixedFanPercent, Mode=TwoWay}" />
+                                        <Grid Margin="0,2,0,0">
+                                            <TextBlock Style="{StaticResource SliderEndLabel}" HorizontalAlignment="Left"
+                                                       Text="25 % (leiseste getestete Stufe)" />
+                                            <TextBlock Style="{StaticResource SliderEndLabel}" HorizontalAlignment="Right" Text="100 %" />
+                                        </Grid>
+                                    </StackPanel>
+                                    <ui:Button Grid.Column="2" Style="{StaticResource SecondaryButton}" Margin="0"
+                                               Content="Fixed setzen" Command="{Binding SetFixedFanCommand}"
+                                               VerticalAlignment="Center">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Flash24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel IsEnabled="{Binding FanControlsEnabled}">
+                                <TextBlock Text="Eigene Lüfterkurve" Style="{StaticResource CardTitle}" />
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Punkte ziehen, um Temperatur und Lüfterdrehzahl anzupassen. Übernehmen schreibt die Kurve auf die EC und aktiviert Dynamic; sie bleibt danach lokal gespeichert. Der letzte Punkt ist fest (spätestens 90 °C bei 100 %) - das erzwingt die Firmware." />
+                                <TextBlock Text="{Binding FanCurveStatus}" Style="{StaticResource StatusText}" Margin="0,12,0,14" />
+                                <Border Style="{StaticResource InnerPanel}">
+                                    <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Center">
+                                        <Canvas x:Name="FanCurveCanvas" Width="660" Height="300" Cursor="Hand"
+                                                Background="Transparent"
+                                                MouseLeftButtonDown="OnFanCurveMouseDown"
+                                                MouseMove="OnFanCurveMouseMove"
+                                                MouseLeftButtonUp="OnFanCurveMouseUp" />
+                                    </Viewbox>
+                                </Border>
+                                <WrapPanel Margin="0,18,0,-10">
+                                    <ui:Button Style="{StaticResource PrimaryButton}" Content="Kurve übernehmen"
+                                               Command="{Binding ApplyFanCurveCommand}" Margin="0,0,10,10">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                    <ui:Button Style="{StaticResource SecondaryButton}" Content="Von Firmware neu laden"
+                                               Command="{Binding ReloadFanCurveFromDeviceCommand}" Margin="0,0,10,10">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowClockwise24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ===================== Tastatur ===================== -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28"
+                              Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisible}, ConverterParameter=Lighting}">
+                    <StackPanel MaxWidth="880" HorizontalAlignment="Center">
+
+                        <!-- Zustand, Live-Vorschau, Helligkeit -->
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="Tastaturbeleuchtung" Style="{StaticResource CardTitle}" />
+                                        <TextBlock Style="{StaticResource Hint}" MaxWidth="520"
+                                                   Text="Die Vorschau rechnet mit derselben Funktion, deren Ergebnis an die Tastatur geschickt wird - sie zeigt den tatsächlichen Frame, keine Nachbildung." />
+                                    </StackPanel>
+                                    <ui:Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Margin="16,0,0,0"
+                                               Content="{Binding KeyboardPowerButtonText}"
+                                               Command="{Binding ToggleKeyboardPowerCommand}"
+                                               IsEnabled="{Binding KeyboardControlsEnabled}"
+                                               VerticalAlignment="Top">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Power24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                </Grid>
+
+                                <Border Style="{StaticResource InnerPanel}" Margin="0,16,0,0">
+                                    <StackPanel>
+                                        <ctrl:KeyboardPreview Zone1Brush="{Binding PreviewZone1Brush}"
+                                                              Zone2Brush="{Binding PreviewZone2Brush}"
+                                                              Zone3Brush="{Binding PreviewZone3Brush}"
+                                                              LightingOpacity="{Binding PreviewOpacity}" />
+                                        <Grid Margin="2,8,2,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="24*" />
+                                                <ColumnDefinition Width="16*" />
+                                                <ColumnDefinition Width="36*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Background="{StaticResource SubtleFillBrush}" CornerRadius="4" Height="16" Margin="2,0">
+                                                <TextBlock Text="Zone 1" FontSize="10" Foreground="{StaticResource TextTertiaryBrush}"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <Border Grid.Column="1" Background="{StaticResource SubtleFillBrush}" CornerRadius="4" Height="16" Margin="2,0">
+                                                <TextBlock Text="Zone 2" FontSize="10" Foreground="{StaticResource TextTertiaryBrush}"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <Border Grid.Column="2" Background="{StaticResource SubtleFillBrush}" CornerRadius="4" Height="16" Margin="2,0">
+                                                <TextBlock Text="Zone 3" FontSize="10" Foreground="{StaticResource TextTertiaryBrush}"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                        </Grid>
+                                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                            <Ellipse Width="7" Height="7" Fill="{StaticResource AccentBrush}"
+                                                     VerticalAlignment="Center" Margin="0,0,8,0">
+                                                <Ellipse.Style>
+                                                    <!-- Pulses only while this section is really
+                                                         visible; the sections all stay loaded, so a
+                                                         Loaded-triggered animation would never stop. -->
+                                                    <Style TargetType="Ellipse">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsVisible, RelativeSource={RelativeSource Self}}" Value="True">
+                                                                <DataTrigger.EnterActions>
+                                                                    <BeginStoryboard Name="PulseCaption">
+                                                                        <Storyboard RepeatBehavior="Forever">
+                                                                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                                             From="0.35" To="1" Duration="0:0:0.8" AutoReverse="True" />
+                                                                        </Storyboard>
+                                                                    </BeginStoryboard>
+                                                                </DataTrigger.EnterActions>
+                                                                <DataTrigger.ExitActions>
+                                                                    <StopStoryboard BeginStoryboardName="PulseCaption" />
+                                                                </DataTrigger.ExitActions>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Ellipse.Style>
+                                            </Ellipse>
+                                            <TextBlock Text="{Binding PreviewCaption}" FontSize="12"
+                                                       Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <TextBlock Text="HELLIGKEIT" Style="{StaticResource SubLabel}" />
+                                <!-- Deliberately NOT gated on KeyboardControlsEnabled: that flag
+                                     goes false for the duration of the write this slider itself
+                                     starts, which would disable the control mid-drag and drop the
+                                     thumb. The setter already ignores a value while busy and
+                                     announces the real position back. -->
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding KeyboardBrightnessLabel}" Style="{StaticResource SliderReadoutSmall}" />
+                                    <StackPanel Grid.Column="1" Margin="22,0,0,0">
+                                        <Slider Style="{StaticResource ValueSlider}" MinWidth="170"
+                                                Minimum="0" Maximum="3" TickFrequency="1"
+                                                IsSnapToTickEnabled="True" TickPlacement="BottomRight"
+                                                Value="{Binding KeyboardBrightnessIndex, Mode=TwoWay}" />
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Style="{StaticResource SliderEndLabel}" Text="Aus" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource SliderEndLabel}" Text="Niedrig" HorizontalAlignment="Center" />
+                                            <TextBlock Grid.Column="2" Style="{StaticResource SliderEndLabel}" Text="Mittel" HorizontalAlignment="Center" />
+                                            <TextBlock Grid.Column="3" Style="{StaticResource SliderEndLabel}" Text="Hell" HorizontalAlignment="Right" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{Binding BrightnessEventStatus}" Style="{StaticResource Hint}" Margin="0,14,0,0" />
+                                <TextBlock Text="{Binding KeyboardStatus}" Style="{StaticResource Hint}" Margin="0,4,0,0" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Effekt + Tempo -->
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Effekt" Style="{StaticResource CardTitle}" />
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Neun host-gerenderte Effekte, plus manuelle Zonenfarben als zehnte Kachel. Die laufende Kachel pulsiert, damit auch ohne Blick auf die Tastatur klar ist, was gerade an ist." />
+                                <WrapPanel Margin="0,14,0,-10" IsEnabled="{Binding KeyboardControlsEnabled}">
+                                    <RadioButton Style="{StaticResource IconTile}" GroupName="Effect" Content="Atmen"
+                                                 Command="{Binding ApplyKeyboardEffectCommand}" CommandParameter="Breathing"
+                                                 IsChecked="{Binding ActiveKeyboardEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Breathing}">
+                                        <RadioButton.Tag><ui:SymbolIcon Symbol="Circle24" FontSize="22" /></RadioButton.Tag>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource IconTile}" GroupName="Effect" Content="Pulsieren"
+                                                 Command="{Binding ApplyKeyboardEffectCommand}" CommandParameter="Pulse"
+                                                 IsChecked="{Binding ActiveKeyboardEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Pulse}">
+                                        <RadioButton.Tag><ui:SymbolIcon Symbol="Pulse24" FontSize="22" /></RadioButton.Tag>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource IconTile}" GroupName="Effect" Content="Farbwechsel"
+                                                 Command="{Binding ApplyKeyboardEffectCommand}" CommandParameter="ColorCycle"
+                                                 IsChecked="{Binding ActiveKeyboardEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=ColorCycle}">
+                                        <RadioButton.Tag><ui:SymbolIcon Symbol="ColorBackground24" FontSize="22" /></RadioButton.Tag>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource IconTile}" GroupName="Effect" Content="Regenbogen"
+                                                 Command="{Binding ApplyKeyboardEffectCommand}" CommandParameter="RainbowMarquee"
+                                                 IsChecked="{Binding ActiveKeyboardEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=RainbowMarquee}">
+                                        <RadioButton.Tag><ui:SymbolIcon Symbol="ColorFill24" FontSize="22" /></RadioButton.Tag>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource IconTile}" GroupName="Effect" Content="Welle"
+                                                 Command="{Binding ApplyKeyboardEffectCommand}" CommandParameter="Wave"
+                                                 IsChecked="{Binding ActiveKeyboardEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Wave}">
+                                        <RadioButton.Tag><ui:SymbolIcon Symbol="WeatherSqualls24" FontSize="22" /></RadioButton.Tag>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource IconTile}" GroupName="Effect" Content="Lauflicht"
+                                                 Command="{Binding ApplyKeyboardEffectCommand}" CommandParameter="Marquee"
+                                                 IsChecked="{Binding ActiveKeyboardEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Marquee}">
+                                        <RadioButton.Tag><ui:SymbolIcon Symbol="MoreHorizontal24" FontSize="22" /></RadioButton.Tag>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource IconTile}" GroupName="Effect" Content="Pendel"
+                                                 Command="{Binding ApplyKeyboardEffectCommand}" CommandParameter="Rotate"
+                                                 IsChecked="{Binding ActiveKeyboardEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Rotate}">
+                                        <RadioButton.Tag><ui:SymbolIcon Symbol="ArrowRepeatAll24" FontSize="22" /></RadioButton.Tag>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource IconTile}" GroupName="Effect" Content="Regentropfen"
+                                                 Command="{Binding ApplyKeyboardEffectCommand}" CommandParameter="Raindrop"
+                                                 IsChecked="{Binding ActiveKeyboardEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Raindrop}">
+                                        <RadioButton.Tag><ui:SymbolIcon Symbol="WeatherRain24" FontSize="22" /></RadioButton.Tag>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource IconTile}" GroupName="Effect" Content="Ausblendende Welle"
+                                                 Command="{Binding ApplyKeyboardEffectCommand}" CommandParameter="FadeSweep"
+                                                 IsChecked="{Binding ActiveKeyboardEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=FadeSweep}">
+                                        <RadioButton.Tag><ui:SymbolIcon Symbol="WeatherPartlyCloudyDay24" FontSize="22" /></RadioButton.Tag>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource IconTile}" GroupName="Effect" Content="Manuell"
+                                                 Command="{Binding ApplyKeyboardEffectCommand}" CommandParameter="Manual"
+                                                 IsChecked="{Binding ActiveKeyboardEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Manual}">
+                                        <RadioButton.Tag><ui:SymbolIcon Symbol="Grid24" FontSize="22" /></RadioButton.Tag>
+                                    </RadioButton>
+                                </WrapPanel>
+
+                                <TextBlock Text="TEMPO" Style="{StaticResource SubLabel}" />
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding KeyboardEffectSpeedLabel}" Style="{StaticResource SliderReadoutSmall}" />
+                                    <StackPanel Grid.Column="1" Margin="22,0,0,0">
+                                        <Slider Style="{StaticResource ValueSlider}" MinWidth="170"
+                                                Minimum="0" Maximum="4" TickFrequency="1"
+                                                IsSnapToTickEnabled="True" TickPlacement="BottomRight"
+                                                Value="{Binding KeyboardEffectSpeedIndex, Mode=TwoWay}" />
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Style="{StaticResource SliderEndLabel}" Text="Sehr langsam" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource SliderEndLabel}" Text="Langsam" HorizontalAlignment="Center" />
+                                            <TextBlock Grid.Column="2" Style="{StaticResource SliderEndLabel}" Text="Normal" HorizontalAlignment="Center" />
+                                            <TextBlock Grid.Column="3" Style="{StaticResource SliderEndLabel}" Text="Schnell" HorizontalAlignment="Center" />
+                                            <TextBlock Grid.Column="4" Style="{StaticResource SliderEndLabel}" Text="Sehr schnell" HorizontalAlignment="Right" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+
+                                <ui:Button Style="{StaticResource SecondaryButton}" Content="Auswahl erneut senden"
+                                           Command="{Binding ReapplyKeyboardCommand}"
+                                           HorizontalAlignment="Left" Margin="0,20,0,0"
+                                           ToolTip="Stellt Farben, Helligkeit und Effekt erneut her, zum Beispiel nach einem Geräte-Reset.">
+                                    <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowSync24" /></ui:Button.Icon>
+                                </ui:Button>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Zonenfarben -->
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel IsEnabled="{Binding KeyboardControlsEnabled}">
+                                <TextBlock Text="Zonenfarben" Style="{StaticResource CardTitle}" />
+                                <TextBlock Text="{Binding KeyboardPaletteHint}" Style="{StaticResource Hint}" />
+                                <ui:ToggleSwitch Content="Alle drei Zonen gemeinsam ändern"
+                                                  IsChecked="{Binding LinkKeyboardZones, Mode=TwoWay}"
+                                                  IsEnabled="{Binding Zone2AffectsLighting}"
+                                                  Margin="0,16,0,0" />
+                                <!-- A zone the running mode does not read is dimmed rather
+                                     than disabled: the colour is still stored and still worth
+                                     setting up for manual mode, it simply has no effect right
+                                     now. One line below says so once, instead of repeating the
+                                     same sentence under all three swatches. -->
+                                <Grid Margin="0,18,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" HorizontalAlignment="Center">
+                                        <TextBlock Text="{Binding Zone1Label}" HorizontalAlignment="Center" FontSize="12.5"
+                                                   TextWrapping="Wrap" TextAlignment="Center"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <Button Tag="1" Click="OnZoneColorClick" Style="{StaticResource ZoneSwatch}"
+                                                Background="{Binding Zone1Brush}"
+                                                Opacity="{Binding Zone1AffectsLighting, Converter={StaticResource ActiveOpacity}}" />
+                                        <TextBlock Text="{Binding Zone1Hex}" HorizontalAlignment="Center" FontSize="11.5"
+                                                   FontFamily="Consolas" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+                                        <TextBlock Text="Zone 2" HorizontalAlignment="Center" FontSize="12.5"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <Button Tag="2" Click="OnZoneColorClick" Style="{StaticResource ZoneSwatch}"
+                                                Background="{Binding Zone2Brush}"
+                                                Opacity="{Binding Zone2AffectsLighting, Converter={StaticResource ActiveOpacity}}" />
+                                        <TextBlock Text="{Binding Zone2Hex}" HorizontalAlignment="Center" FontSize="11.5"
+                                                   FontFamily="Consolas" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" HorizontalAlignment="Center">
+                                        <TextBlock Text="Zone 3" HorizontalAlignment="Center" FontSize="12.5"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <Button Tag="3" Click="OnZoneColorClick" Style="{StaticResource ZoneSwatch}"
+                                                Background="{Binding Zone3Brush}"
+                                                Opacity="{Binding Zone3AffectsLighting, Converter={StaticResource ActiveOpacity}}" />
+                                        <TextBlock Text="{Binding Zone3Hex}" HorizontalAlignment="Center" FontSize="11.5"
+                                                   FontFamily="Consolas" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{Binding InactiveZoneNote}" Style="{StaticResource Hint}"
+                                           Margin="0,14,0,0" TextAlignment="Center" HorizontalAlignment="Center"
+                                           Visibility="{Binding HasInactiveZones, Converter={StaticResource BoolVisible}}" />                      </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ===================== Leistung & Akku ===================== -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28"
+                              Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisible}, ConverterParameter=Power}">
+                    <StackPanel MaxWidth="880" HorizontalAlignment="Center">
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="Windows-Leistungsmodus" Style="{StaticResource CardTitle}" />
+                                        <TextBlock Style="{StaticResource Hint}" MaxWidth="520"
+                                                   Text="Unabhängig vom Lüfterprofil · nur der getestete Netzbetrieb." />
+                                    </StackPanel>
+                                    <ui:Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Margin="16,0,0,0"
+                                               Content="Eigene Profile verwalten …" Click="OnProfilesClick" VerticalAlignment="Top">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                </Grid>
+                                <WrapPanel Margin="0,16,0,-10" IsEnabled="{Binding PowerControlsEnabled}">
+                                    <RadioButton Style="{StaticResource Chip}" GroupName="PowerMode" Content="Energieeffizienz"
+                                                 Command="{Binding SetPowerModeCommand}" CommandParameter="BestEfficiency"
+                                                 IsChecked="{Binding ActivePowerMode, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=BestEfficiency}">
+                                        <RadioButton.Tag><ui:SymbolIcon Symbol="LeafTwo24" FontSize="16" /></RadioButton.Tag>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource Chip}" GroupName="PowerMode" Content="Ausbalanciert"
+                                                 Command="{Binding SetPowerModeCommand}" CommandParameter="Balanced"
+                                                 IsChecked="{Binding ActivePowerMode, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Balanced}">
+                                        <RadioButton.Tag><ui:SymbolIcon Symbol="Gauge24" FontSize="16" /></RadioButton.Tag>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource Chip}" GroupName="PowerMode" Content="Beste Leistung"
+                                                 Command="{Binding SetPowerModeCommand}" CommandParameter="BestPerformance"
+                                                 IsChecked="{Binding ActivePowerMode, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=BestPerformance}">
+                                        <RadioButton.Tag><ui:SymbolIcon Symbol="Rocket24" FontSize="16" /></RadioButton.Tag>
+                                    </RadioButton>
+                                </WrapPanel>
+                                <TextBlock Text="{Binding PowerStatus}" Style="{StaticResource StatusText}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Akku · Ladelimit" Style="{StaticResource CardTitle}" />
+                                <TextBlock Text="{Binding Battery.ActivePolicy}" Style="{StaticResource Hint}" />
+                                <Grid Margin="0,20,0,0" IsEnabled="{Binding Battery.CanApply}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource SliderReadout}"
+                                               Text="{Binding Battery.SelectedLimit, StringFormat={}{0} %}" />
+                                    <StackPanel Grid.Column="1" Margin="22,0,0,0">
+                                        <Slider Style="{StaticResource ValueSlider}" MinWidth="170"
+                                                Minimum="60" Maximum="100" TickFrequency="10"
+                                                IsSnapToTickEnabled="False" TickPlacement="BottomRight"
+                                                Value="{Binding Battery.SelectedLimit, Mode=TwoWay}" />
+                                        <Grid Margin="0,2,0,0">
+                                            <TextBlock Style="{StaticResource SliderEndLabel}" HorizontalAlignment="Left" Text="60 %" />
+                                            <TextBlock Style="{StaticResource SliderEndLabel}" HorizontalAlignment="Right" Text="100 %" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                                <WrapPanel Margin="0,20,0,-10">
+                                    <ui:Button Style="{StaticResource PrimaryButton}" Content="Limit übernehmen"
+                                               Command="{Binding Battery.ApplyLimitCommand}"
+                                               IsEnabled="{Binding Battery.CanApply}" Margin="0,0,10,10">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                    <ui:Button Style="{StaticResource SecondaryButton}" Content="Standardladen"
+                                               Command="{Binding Battery.ApplyStandardCommand}"
+                                               IsEnabled="{Binding Battery.CanApply}" Margin="0,0,10,10">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowCounterclockwise24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                    <ui:Button Style="{StaticResource SecondaryButton}" Content="Erneut lesen"
+                                               Command="{Binding Battery.RefreshCommand}"
+                                               IsEnabled="{Binding Battery.CanRefresh}" Margin="0,0,10,10">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowClockwise24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                </WrapPanel>
+                                <TextBlock Text="{Binding Battery.Status}" Style="{StaticResource StatusText}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ===================== Info & Updates ===================== -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28"
+                              Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisible}, ConverterParameter=About}">
+                    <StackPanel MaxWidth="880" HorizontalAlignment="Center">
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="AORUS Control" Style="{StaticResource CardTitle}" />
+                                <TextBlock Margin="0,6,0,0" FontSize="13">
+                                    <Run Text="Version " /><Run Text="{Binding Updates.CurrentVersion, Mode=OneWay}" FontWeight="SemiBold" />
+                                </TextBlock>
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="AORUS 5 SE · BIOS FB0F · geprüfte Hardwaregrenzen. Lüfter, Tastatur-RGB, Ladelimit und Windows-Leistungsmodus sind auf dieses genaue Gerät gesperrt; jede Änderung wird zurückgelesen und im Fehlerfall zurückgestellt." />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Autostart" Style="{StaticResource CardTitle}" />
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Läuft über eine geplante Aufgabe (nicht den Registry-Autostart), damit bei jedem Login kein neuer Rechte-Dialog erscheint - die Aufgabe ist bereits als erhöht markiert." />
+                                <TextBlock Text="{Binding StartupStatus}" Style="{StaticResource StatusText}" />
+                                <ui:Button Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left" Margin="0,16,0,0"
+                                           Content="{Binding StartWithWindowsButtonText}"
+                                           Command="{Binding ToggleStartWithWindowsCommand}">
+                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Power24" /></ui:Button.Icon>
+                                </ui:Button>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Protokoll" Style="{StaticResource CardTitle}" />
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Jeder Fehler wird mitgeschrieben - auch der des Hardware-Workers, der erhöht und ohne sichtbares Fenster läuft. Eine Datei pro Tag und Prozess, älteres als 14 Tage wird automatisch entfernt." />
+                                <TextBlock Text="{Binding LogDirectory}" Margin="0,12,0,0" FontSize="12"
+                                           FontFamily="Consolas" TextWrapping="Wrap"
+                                           Foreground="{StaticResource TextSecondaryBrush}" />
+                                <ui:Button Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left" Margin="0,14,0,0"
+                                           Content="Protokollordner öffnen" Click="OnOpenLogFolderClick">
+                                    <ui:Button.Icon><ui:SymbolIcon Symbol="FolderOpen24" /></ui:Button.Icon>
+                                </ui:Button>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Nach Updates suchen" Style="{StaticResource CardTitle}" />
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Prüft nur, ob eine neuere Version veröffentlicht wurde. Lädt nichts herunter und installiert nichts automatisch - dafür fehlt diesem Projekt noch eine signierte Veröffentlichung." />
+                                <Grid Margin="0,18,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Updates.Status}" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="13" />
+                                    <ui:Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Margin="16,0,0,0"
+                                               Content="Jetzt prüfen"
+                                               Command="{Binding Updates.CheckCommand}"
+                                               IsEnabled="{Binding Updates.IsBusy, Converter={StaticResource InverseBool}}">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowClockwise24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                </Grid>
+                                <ui:HyperlinkButton Content="Update herunterladen"
+                                                     NavigateUri="{Binding Updates.Available.DownloadUrl}"
+                                                     Margin="0,14,0,0"
+                                                     Visibility="{Binding Updates.HasUpdate, Converter={StaticResource BoolVisible}}">
+                                    <ui:HyperlinkButton.Icon><ui:SymbolIcon Symbol="ArrowDownload24" /></ui:HyperlinkButton.Icon>
+                                </ui:HyperlinkButton>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+            </ui:NavigationView.ContentOverlay>
+        </ui:NavigationView>
+    </Grid>
+</ui:FluentWindow>

@@ -1,0 +1,268 @@
+# UI design system
+
+## Framework choice
+
+The app now uses [WPF-UI](https://github.com/lepoco/wpfui) (`WPF-UI` NuGet, v4.3.0) instead
+of the earlier hand-rolled dark-theme XAML (custom `Button`/`ComboBox`/`CheckBox`
+`ControlTemplate`s in `App.xaml`, which had already produced real bugs earlier in this
+project — e.g. unreadable button text from an implicit `TextBlock.Foreground` style, and a
+missing `SelectionBoxItemTemplate` on a `ComboBox`).
+
+Why WPF-UI over the alternatives:
+- It targets `net10.0-windows` directly (confirmed by building against it) and needs no
+  extra native runtime.
+- It gives a Windows 11 / Fluent look (Mica backdrop, rounded window corners, themed
+  `Button`/`ComboBox`/`ToggleSwitch`/`DataGrid`/`NavigationView`) for free, which is exactly
+  the "looks professional" ask, without hand-maintaining brushes and templates ourselves.
+- MIT-licensed, actively maintained, no telemetry.
+- It is a control *library*, not a framework that owns app startup or navigation — it plugs
+  into the existing hand-rolled MVVM (`ObservableObject`, `RelayCommand`,
+  `AsyncRelayCommand[<T>]`) without requiring a rewrite of that layer.
+
+`App.xaml` merges `ui:ThemesDictionary Theme="Dark"` and `ui:ControlsDictionary`, then
+**overrides both its own palette and WPF-UI's theme keys in the same dictionary** (later
+definitions win), so the framework's controls - ComboBox, ToggleSwitch, NavigationView,
+DataGrid, TitleBar - are retinted rather than retemplated. `App.xaml.cs` calls
+`ApplicationThemeManager.Apply(ApplicationTheme.Dark, WindowBackdropType.Mica)` on startup.
+
+The palette is declared once, as `Color` resources with brushes derived from them, and
+everything else references those keys - so a different accent or a future light theme is
+one block to edit, not a search across pages:
+
+| Role | Value |
+|---|---|
+| Window / nav | `#17181B` |
+| Content area | `#1B1D21` |
+| Card | `#212429`, 1px border `#2C3038`, radius 12, padding 22 |
+| Accent (+ hover / pressed) | `#35C7E6` / `#54D3EE` / `#1FA7C4` |
+| Text on accent | `#062024` (dark, not white - better contrast on a bright cyan) |
+| Text primary / secondary / tertiary | `#F1F3F5` / `#9AA3AE` / `#6C7480` |
+| Success / warning / danger | `#4CD787` / `#F2C94C` / `#F2555A` (unchanged) |
+
+Dark is fixed for now to match the existing AORUS-panel aesthetic.
+
+Shared styles (`Card`, `InnerPanel`, `CardTitle`, `Hint`, `SubLabel`, `StatusText`,
+`PrimaryButton`, `SecondaryButton`, `DangerButton`, `Chip`, `IconTile`, `ValueSlider`,
+`SliderReadout`) live in `App.xaml` and are used by all three windows, so the main window,
+the profile editor and the colour picker cannot drift apart.
+
+## Window shell
+
+Both windows (`MainWindow`, `ProfileWindow`) are `ui:FluentWindow` with
+`ExtendsContentIntoTitleBar="True"` and a `ui:TitleBar`, giving a native-feeling title bar
+that still matches the Mica/dark theme instead of the default white Win32 chrome.
+
+`MainWindow` uses `ui:NavigationView` for the left navigation rail (Dashboard, Kühlung,
+Tastatur, Leistung & Akku, Info & Updates). Its built-in *page* navigation (Frame +
+`TargetPageType`) was deliberately not used — that would mean one `Page` class per section
+wired through a `INavigationViewPageProvider`/DI container, which is a lot of extra
+machinery for five sections that all read from the same `MainWindowViewModel` and its live
+device state. Instead, `NavigationView.ContentOverlay` (an overlay slot the control renders
+regardless of Frame navigation state) hosts a single `Grid` containing all five sections,
+each an `IValueConverter`-driven `Visibility` binding
+(`StringEqualsVisibilityConverter`, keyed by `MainWindowViewModel.SelectedSection`) — so
+`NavigationView` is used purely for its pane chrome (icons, selection highlight, collapse
+button), while the actual section switching stays a plain property on the existing
+ViewModel. `NavigationView.SelectionChanged` in `MainWindow.xaml.cs` just copies the
+clicked item's `TargetPageTag` into `SelectedSection`.
+
+## Per-feature control choices
+
+The user asked explicitly to reason about which control fits which feature rather than
+using one widget type everywhere. The choices made, and why:
+
+| Feature | Control | Why |
+|---|---|---|
+| Fan profile (Quiet/Normal/Gaming/Maximum/Dynamic) | Chips - `RadioButton`s with an icon and a pill template | A small, fixed set of *named, mutually exclusive* states, so the control carries that meaning: a RadioButton group makes exclusivity structural instead of a highlight tracked by hand. `IsChecked` binds **one-way** to `ActiveFanProfile`, which comes from the EC readback - so the highlight shows what is really set, and a failed write snaps back rather than lying. (A held fixed value reports its own `"Fixed"` key, so no profile chip lights up then.) |
+| Fixed fan speed (8 firmware-tested steps) | `Slider` with `Ticks` + `IsSnapToTickEnabled`, shown in percent | Originally a ComboBox, on the reasoning that a slider implies a continuous range. A *snapping* slider gets both: it feels direct, and the tick marks sit on the percentages the tested raw steps really occupy (25/30/40/50/60/70/85/100) - hence visibly uneven, which is the honest picture of non-linear firmware steps. `FixedFanPercent`'s setter additionally snaps to the nearest tested raw value, so an unverified duty is unreachable even if the slider's own snapping were bypassed. |
+| Windows power mode (Efficiency/Balanced/Performance) | Chips, same as fan profiles | Three named, exclusive states, not a spectrum - and again highlighted from Windows' own readback (`ActivePowerMode`). |
+| Keyboard on/off | A single `ui:Button` whose `Content` text flips between "Einschalten"/"Ausschalten", not a `ToggleSwitch` | A `ToggleSwitch` implies the visible state *is* the truth and flips synchronously on click. Here the actual state only changes after a device write that can fail (and on failure the ViewModel re-reads real device state and may leave the switch not matching what the user just set). A button avoids a toggle that silently un-flips itself out from under the user. |
+| "Link all three RGB zones" | `ui:ToggleSwitch` | Purely a local UI preference (`LinkKeyboardZones`) with no device write of its own and no failure mode — it only affects how the *next* color write is fanned out. A real toggle is correct here because flipping it can never fail or need to be rolled back. |
+| Keyboard brightness / effect speed | `Slider` over the ordinal steps (0-3 and 0-4), with a **named** readout ("Hell", "Normal") | Both are small ordered sets fixed by the firmware (`KeyboardBrightnessLevels.All`, `KeyboardEffectSpeeds.All`), so the slider addresses them by index and snaps per step - no invalid value exists to land on. The readout names the step rather than showing a number, because "Mittel" means something to a reader and "2" does not. A property setter cannot be awaited, so the write it launches is published as `PendingSliderWrite` instead of being fire-and-forget. |
+| RGB effect selection | A grid of icon tiles (`RadioButton`s), applied on click | Nine named, equal-weight options belong on screen, not behind a dropdown - and "manual zone colours" is the tenth tile rather than a separate button, since choosing it is just choosing no effect. Highlighting follows `ActiveKeyboardEffect` (what is *running*), not the last pick, and the active tile carries a pulsing dot so the running effect is readable without looking at the keyboard. |
+| Battery charge limit (60-100%) | `Slider` + explicit "Limit übernehmen" button | A genuinely continuous range, so a slider is the right shape. The write stays behind an explicit apply: dragging must not hammer the EC with a verified, rollback-checked transaction per pixel. |
+| Update check | Single button ("Jetzt prüfen") + status text + conditional `ui:HyperlinkButton` | It's a one-shot, infrequent action with a clear success/failure outcome, not a setting; a hyperlink (not an auto-download) is used deliberately since the app never downloads or installs anything itself (see below). |
+| Custom fan curve (15 points) | A draggable point-and-line chart (temperature °C × fan speed %), not a grid of numbers | This is fundamentally a *shape* the user is designing, not 15 independent settings - a chart lets them see and feel that shape directly, the way the hardware vendor's own tool does, instead of cross-referencing 15 rows of raw numbers. Dragging is live-clamped against every neighbor so the curve can never even be dragged into an invalid shape; the explicit "Kurve übernehmen" button still gates the actual hardware write and Dynamic-mode activation, matching the project's "never write on drag" rule used everywhere else. |
+
+### Which colours an effect actually uses
+
+Not every lighting mode reads the stored zone colours, so the colour controls must not
+pretend otherwise - picking a colour for the rainbow marquee changes nothing on the
+keyboard. `KeyboardEffectFrames.ColorUsage` declares this per mode, right next to the
+frame function it describes:
+
+| Mode | Reads |
+|---|---|
+| Manual (no effect) | all three stored zone colours |
+| Atmen, Pulsieren | zone 1's colour only - modulated in brightness across all three zones |
+| Farbwechsel, Regenbogen, Welle, Lauflicht, Pendel, Regentropfen, Ausblendende Welle | nothing; each carries its own palette |
+
+The declaration is **verified, not trusted**: `KeyboardEffectFrameTests` renders every
+effect twice with two very different base colours across a range of timestamps, and
+asserts that it reacts exactly when `ColorUsage` says it does. A hardcoded palette added
+to `Create` without updating the table fails the suite instead of quietly making the UI
+lie.
+
+In the Tastatur section this drives the zone card: a swatch the running mode does not read
+is dimmed and labelled "wirkt bei diesem Effekt nicht", zone 1 is labelled
+"Zone 1 · Basisfarbe" while an effect is built from it, and the "link all three zones"
+toggle is disabled when only one zone is read. The swatches stay **clickable** throughout -
+the colours are still stored and still worth setting up for manual mode, they simply have
+no effect at this moment, and disabling them would block a legitimate action to make a
+point the label already makes.
+
+### The live keyboard preview
+
+The Tastatur section shows this laptop's keyboard - full layout, numeric pad, real key
+widths - with the keys lit per RGB zone. Three things about it are deliberate:
+
+- **It is one keyboard, not three pads.** The zones are vertical bands across the same key
+  field, and the boundary falls on a different key in each row, because that is where the
+  hardware puts it (zone 1 reaches ~F6/T/G/V, zone 2 ~F7-F9/Y-O/H-L/B-M, zone 3 the rest
+  including the numeric pad). `Controls/KeyboardLayout.cs` is the single transcription of
+  that; `Controls/KeyboardPreview.cs` turns it into a 76-column grid, so a 1.25u or 2.25u
+  key is still whole columns and every row's right edge stays flush.
+- **The keycaps stay black.** Only the legend and a rim of spill light carry the colour,
+  which is what the device actually looks like; flat-filled keys read as illuminated pads.
+- **The animation is the real frame, not a lookalike.** `KeyboardEffectFrames` (extracted
+  from `GigabyteHidKeyboardRgbController`, which now delegates to it) is the pure function
+  `(effect, elapsed, base colour) -> three zone colours` whose output is written to the
+  device. The preview calls that same function, with the same speed time scale, on a clock
+  started when the effect started - so it shows the frame the keyboard is being sent rather
+  than an imitation. Two honest limits: the preview samples at 20 Hz where the renderer
+  writes at 30, and brightness is rendered as opacity (the frames carry no brightness - the
+  device applies that separately), so *shape and colour* are exact while perceived intensity
+  is an approximation. The timer runs only while the section is on screen, the window is
+  visible and an effect is actually playing; a manual selection is painted once.
+
+Every button above also carries a `SymbolIcon` (WPF-UI's Fluent icon set) matching its action - e.g. `LeafOne24` for Quiet, `Rocket24` for Gaming/best performance, `Save24` for anything that persists a value, `ArrowClockwise24` for anything that re-reads live state. This was chosen over decorative icons: each icon is a second, redundant cue for what the button *does*, useful for quickly scanning a WrapPanel of buttons, not just visual polish.
+
+## Custom color picker
+
+The keyboard zone color buttons used to open `System.Windows.Forms.ColorDialog` - functional,
+but a jarring Win32-era dialog inside an otherwise Fluent/dark-themed app. It's replaced by
+`ColorPickerWindow` (`src/AorusControl.App/ColorPickerWindow.xaml[.cs]`): a themed
+`FluentWindow` with a classic layered-gradient saturation/value square (hue color, overlaid
+with a white→transparent horizontal gradient, overlaid again with a transparent→black
+vertical gradient - three `Rectangle`s, no third-party control), a vertical rainbow hue bar,
+a live hex textbox, and a row of recently-used swatches.
+
+- `AorusControl.Core.Models.HsvColor` holds the pure HSV↔RGB math (`FromRgb`/`ToRgb`),
+  tested independently of any UI (`HsvColorTests`) - primaries, black/white edge cases,
+  round-trip tolerance, and hue wraparound/clamping for out-of-range input.
+- `AorusControl.Core.Features.Keyboard.RecentColorsStore` persists the last-used colors to
+  `%LocalAppData%\AorusControl\recent-colors-v1.json`. Unlike every other store in this
+  project, it is deliberately **fail-soft**: a missing or corrupt file just means an empty
+  recent-colors list, never a thrown exception, because this is picker convenience, not a
+  device setting that must be right or refused.
+- `ColorPickerViewModel` keeps Hue/Saturation/Value, RGB, and hex text in sync from
+  whichever the user just touched (drag the square, drag the hue bar, or type a hex code)
+  without a feedback loop, since each setter recomputes the other two directly instead of
+  reacting to its own property-changed notification.
+- The picker is modal (`ShowDialog`) and only commits to the device (and to the recent-colors
+  list) when "Übernehmen" is clicked - dragging around the square never writes anything,
+  matching the project's existing "explicit apply, not write-on-drag" pattern already used
+  for battery limit and the fan curve.
+
+## Autostart: a Scheduled Task, not the registry Run key
+
+A very common complaint about RGB/OC tools is that they nag with a UAC prompt every single
+time you log in, because they autostart via the classic `HKCU\...\Run` registry key while
+also requiring administrator rights - Windows has to ask again at every trigger, since the
+Run key carries no elevation of its own. This app's `app.manifest` requires admin (needed
+for the same WMI/HID writes as manual use), so the same trap applies here too unless
+avoided deliberately.
+
+`AorusControl.Core.Features.Startup.StartupManager` avoids it by using a **Scheduled Task**
+(via `schtasks.exe`) with an "At log on" trigger and "Run with highest privileges" already
+set on the task itself - Windows takes the elevation decision from the task's own
+configuration at trigger time, not by asking again, so autostart is silent. Creating or
+removing the task needs no extra prompt either, since the app process creating it is
+already elevated. The "Info & Updates" section exposes this as a plain button (not a
+`ToggleSwitch`) whose text flips between "Autostart aktivieren"/"deaktivieren", following
+the same rule as the keyboard on/off button: the underlying action is a real Windows call
+that can fail, so the control must be able to show a failure rather than silently
+un-flipping itself.
+
+## Reapplying RGB after sleep/resume
+
+Another common weak spot in RGB software: the keyboard's USB HID lighting controller
+often power-cycles when the laptop sleeps, silently reverting to its own firmware default
+the moment it wakes - and most tools never notice, because they only ever write in
+response to a user action, never on their own initiative. `MainWindowViewModel` now
+subscribes to `Microsoft.Win32.SystemEvents.PowerModeChanged` and, on `PowerModes.Resume`,
+waits briefly (the device needs a moment to re-enumerate on USB before it will accept a
+write) and then reapplies the last known lighting state via the same `ReapplyAsync` path
+the "Auswahl erneut senden" button already uses - so a real quirk is fixed with existing,
+already-tested machinery rather than new bespoke logic. The subscription is added in the
+constructor and removed in `Dispose()`, since `SystemEvents` is a process-wide static event
+that would otherwise leak the ViewModel for the app's entire lifetime.
+
+## The fan curve chart
+
+`MainWindow.FanCurveChart.cs` is a partial-class file kept separate from the window's
+general lifecycle code, since it is a self-contained visual component: a `Canvas` drawn
+and driven entirely in code (dashed gridlines, an accent-colored area fill under the curve,
+a softly blurred duplicate line underneath the crisp one for a subtle glow, and draggable
+point markers with a drop-shadow), matching the reference screenshot's look while fitting
+the app's own dark/accent palette rather than copying its exact colors.
+
+Two things are handled deliberately, not left as loose ends:
+
+- **Percent, not raw duty bytes.** The Dashboard already reports fan duty as "Rohwert X /
+  229", so `AorusControl.Core.Features.Cooling.FanSpeedPercent` treats that same 229 as
+  100% for every percent shown anywhere in the app (`ToPercent`/`ToRaw`, tested for
+  clamping and round-trip tolerance) - including the Fixed-fan dropdown, which now shows
+  "25%"/"30%"/.../"100%" for its eight tested raw steps instead of the raw byte value. The
+  curve's own tested floor (raw 57) reads as 25%, deliberately not 0%, since 0% would read
+  as "fan off" and that is not what that value means.
+- **Every drag is clamped live**, not just validated at Apply time: dragging point *i*
+  clamps its temperature and percent between its immediate left and right neighbors (and
+  never below the firmware's 25% floor), so the chart can never even display an invalid
+  shape while the user is still dragging - `FanCurveValidation`'s own rules (57-229 raw,
+  non-decreasing, last point ≤90 °C at 100%) are mirrored directly into the drag math. The
+  last point is excluded from hit-testing entirely (rendered smaller, in a muted color,
+  with a "fest" tooltip) rather than merely being difficult to drag, since the firmware
+  requires it fixed and a curve editor that lets you drag a point it's going to reject
+  anyway is worse than one that never offers to.
+
+## Update checking
+
+`AorusControl.Core.Features.Updates` (`UpdateManifest`, `UpdateCheckResult`,
+`UpdateChecker`) adds a minimal, explicitly scoped update check:
+
+- Fetches a small static JSON manifest over **HTTPS only** (rejects `http://`), with a 16 KB
+  size cap and strict JSON parsing (`UnmappedMemberHandling.Disallow`), matching this
+  project's general "fail loud, never silently half-apply" convention.
+- Compares `System.Version` against the running assembly's version
+  (`AorusControl.App.csproj` now carries an explicit `<Version>`, bumped on every release).
+- **Never downloads or installs anything.** It reports "up to date" / "update available"
+  (with a `DownloadUrl` the user can open themselves via the `ui:HyperlinkButton` on the
+  Info & Updates page) / "check failed", full stop.
+
+This is deliberately narrow: an auto-installer needs a signed release pipeline (code
+signing, a real hosting endpoint, a rollback story) that doesn't exist for this project yet.
+`UpdateViewModel` currently points at a placeholder URL
+(`https://example.invalid/aorus-control/update-manifest.json`) that will always fail
+cleanly with a real error message — this is intentional (see the doc comment at the top of
+`UpdateViewModel.cs`) rather than a bug; point it at a real manifest once one exists, using
+the shape documented in `UpdateManifest.cs`'s own doc comment.
+
+## Known environment limitation for this change
+
+`AorusControl.App`'s `app.manifest` requests admin (`requireAdministrator`), so it always
+shows a UAC prompt on launch — including from this automated environment, where no human is
+present to approve it. That means this redesign was verified by:
+- A clean build of `AorusControl.App`, `AorusControl.Core`, and the smoke test project.
+- The full 29-test smoke suite (`tests/AorusControl.App.SmokeTests`), unaffected by this
+  change since it exercises ViewModels/Core directly, not XAML.
+- Manual review of every renamed/removed WPF-UI type and property against the installed
+  package (via `third-party/ilspy/ilspycmd.exe` decompilation, since the NuGet package ships no
+  separate XAML/doc reference for enum members like `SymbolRegular` icon names or
+  `NavigationView`'s template-part-only content model).
+
+It was **not** verified by actually running and looking at the app — that still needs a
+human to click through the UAC prompt once, same limitation already documented in
+`WORKER-ARCHITECTURE.md` for the crash-safety acceptance test. Please launch
+`AorusControl.exe` yourself and sanity-check the five sections before considering this
+done.

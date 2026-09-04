@@ -1,0 +1,21 @@
+# AORUS exact old-default Pulse request
+
+- Created: 2026-09-02 18:22:51 -03:00
+- Source: signed `GBT_Keyboard 23.03.10.01` defaults and `IteKeyBoard.SetLightEffect`
+- Exact target gate: `VID 1044 / PID 7A41 / MI_03 / 9-byte Feature report`
+- Request: Pulse/Breathing `2`, speed `5`, brightness `50`, Orange palette `5`, direction `1`
+- Expected bytes: `0008000205320501B8`
+- Persistence: deliberately left active for visual observation; static zone values were not overwritten
+- Key matrix, macros, firmware, BIOS, EC, and battery modified: **no**
+
+## Static zone state before request
+
+- Zone 1: `#00FF00`, brightness `50`
+- Zone 2: `#00FF00`, brightness `50`
+- Zone 3: `#00FF00`, brightness `50`
+
+## Request and immediate global readback
+
+- Request sent: `0008000205320501B8`
+- Readback: `008800000000000000`
+- Decoded: effect `0`, speed `0`, brightness `0`, color `0`, direction `0`

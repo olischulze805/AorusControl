@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AorusControl.App/AorusControl.App.csproj" />
+    <Project Path="src/AorusControl.Core/AorusControl.Core.csproj" />
+    <Project Path="src/AorusControl.Diagnostics/AorusControl.Diagnostics.csproj" />
+    <Project Path="src/AorusControl.Worker/AorusControl.Worker.csproj" />
+  </Folder>
+</Solution>

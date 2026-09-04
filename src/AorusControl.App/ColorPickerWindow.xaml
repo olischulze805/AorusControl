@@ -1,0 +1,106 @@
+<ui:FluentWindow x:Class="AorusControl.App.ColorPickerWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="Farbe wählen" Icon="Assets/app.ico" Width="340" Height="540" ResizeMode="NoResize"
+                 WindowStartupLocation="CenterOwner"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica"
+                 WindowCornerPreference="Round">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <ui:TitleBar Grid.Row="0" Title="Farbe wählen" ShowMaximize="False" />
+
+        <StackPanel Grid.Row="1" Margin="20,12,20,20">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Saturation/Value square: horizontal white-to-transparent over the
+                     pure hue, vertical transparent-to-black over that. Classic layered
+                     gradient trick - no third-party control needed. -->
+                <Canvas x:Name="SvCanvas" Width="260" Height="260" ClipToBounds="True" Cursor="Cross"
+                        MouseLeftButtonDown="OnSvMouseDown" MouseMove="OnSvMouseMove" MouseLeftButtonUp="OnSvMouseUp">
+                    <Rectangle Width="260" Height="260" Fill="{Binding HueTrackBrush}" />
+                    <Rectangle Width="260" Height="260">
+                        <Rectangle.Fill>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                <GradientStop Color="White" Offset="0" />
+                                <GradientStop Color="#00FFFFFF" Offset="1" />
+                            </LinearGradientBrush>
+                        </Rectangle.Fill>
+                    </Rectangle>
+                    <Rectangle Width="260" Height="260">
+                        <Rectangle.Fill>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="#00000000" Offset="0" />
+                                <GradientStop Color="Black" Offset="1" />
+                            </LinearGradientBrush>
+                        </Rectangle.Fill>
+                    </Rectangle>
+                    <Ellipse x:Name="SvThumb" Width="14" Height="14" Stroke="White" StrokeThickness="2" IsHitTestVisible="False" />
+                </Canvas>
+
+                <Canvas Grid.Column="1" x:Name="HueCanvas" Width="22" Height="260" Margin="12,0,0,0" Cursor="SizeNS"
+                        MouseLeftButtonDown="OnHueMouseDown" MouseMove="OnHueMouseMove" MouseLeftButtonUp="OnHueMouseUp">
+                    <Rectangle Width="22" Height="260">
+                        <Rectangle.Fill>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="Red" Offset="0" />
+                                <GradientStop Color="Yellow" Offset="0.167" />
+                                <GradientStop Color="Lime" Offset="0.333" />
+                                <GradientStop Color="Cyan" Offset="0.5" />
+                                <GradientStop Color="Blue" Offset="0.667" />
+                                <GradientStop Color="Magenta" Offset="0.833" />
+                                <GradientStop Color="Red" Offset="1" />
+                            </LinearGradientBrush>
+                        </Rectangle.Fill>
+                    </Rectangle>
+                    <Rectangle x:Name="HueThumb" Width="22" Height="5" Fill="White" Stroke="Black" StrokeThickness="1" IsHitTestVisible="False" />
+                </Canvas>
+            </Grid>
+
+            <Grid Margin="0,16,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Width="40" Height="40" CornerRadius="6"
+                        Background="{Binding PreviewBrush}"
+                        BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" />
+                <TextBox Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" MaxLength="7"
+                         Text="{Binding HexText, UpdateSourceTrigger=PropertyChanged}" />
+            </Grid>
+
+            <TextBlock Text="Zuletzt verwendet" Margin="0,18,0,8"
+                       Foreground="{StaticResource TextSecondaryBrush}" />
+            <ItemsControl ItemsSource="{Binding RecentColors}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Button Width="28" Height="28" Margin="0,0,8,8" BorderThickness="1"
+                                Background="{Binding Brush}"
+                                Command="{Binding DataContext.SelectRecentCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                CommandParameter="{Binding}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
+                <ui:Button Content="Abbrechen" Style="{StaticResource SecondaryButton}" Click="OnCancelClick" />
+                <ui:Button Content="Übernehmen" Style="{StaticResource PrimaryButton}" Margin="0" Click="OnOkClick">
+                    <ui:Button.Icon><ui:SymbolIcon Symbol="Checkmark24" /></ui:Button.Icon>
+                </ui:Button>
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</ui:FluentWindow>

@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <AssemblyName>AorusControl</AssemblyName>
+    <RootNamespace>AorusControl.App</RootNamespace>
+    <!-- Bump this on every user-visible release; UpdateViewModel reads it back via the
+         executing assembly to compare against the update feed's manifest. -->
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AorusControl.Core\AorusControl.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WPF-UI" Version="4.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\app.ico" />
+  </ItemGroup>
+</Project>

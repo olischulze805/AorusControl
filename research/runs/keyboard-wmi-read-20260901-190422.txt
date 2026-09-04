@@ -1,0 +1,5 @@
+﻿Method=GetKeyBoardBackLight
+WmiMethodId=0xF6
+Data=0
+DSDTSource=EC.KBLL@0xD7
+WriteMethodsInvoked=no

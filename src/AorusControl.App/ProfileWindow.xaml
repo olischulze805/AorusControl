@@ -1,0 +1,81 @@
+<ui:FluentWindow x:Class="AorusControl.App.ProfileWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="Eigene Profile" Icon="Assets/app.ico" Width="760" Height="820" MinWidth="600" MinHeight="500"
+                 WindowStartupLocation="CenterOwner"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica"
+                 WindowCornerPreference="Round">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <ui:TitleBar Grid.Row="0" Title="Eigene Profile" />
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="24" MaxWidth="720" HorizontalAlignment="Center" IsEnabled="{Binding CanEdit}">
+                <TextBlock Text="Eigene Profile" Style="{StaticResource PageTitle}" />
+                <TextBlock Text="Speichern und zuordnen · automatische Anwendung noch nicht aktiv"
+                           Style="{StaticResource Hint}" Margin="0,8,0,18" />
+
+                <ComboBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding Selected}" DisplayMemberPath="Name" MinHeight="30" />
+                <WrapPanel Margin="0,10,0,16">
+                    <ui:Button Content="Neu" Command="{Binding NewCommand}" Margin="0,0,8,0">
+                        <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                    </ui:Button>
+                    <ui:Button Content="Auswahl bearbeiten" Command="{Binding LoadSelectedCommand}" Margin="0,0,8,0">
+                        <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
+                    </ui:Button>
+                    <ui:Button Content="Auswahl löschen" Click="OnDeleteClick" Style="{StaticResource DangerButton}">
+                        <ui:Button.Icon><ui:SymbolIcon Symbol="Delete24" /></ui:Button.Icon>
+                    </ui:Button>
+                    <ui:Button Content="Datei neu laden" Command="{Binding ReloadCommand}">
+                        <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowClockwise24" /></ui:Button.Icon>
+                    </ui:Button>
+                </WrapPanel>
+
+                <TextBlock Text="Profilname" />
+                <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" MaxLength="60" Margin="0,4,0,12" />
+                <TextBlock Text="Windows-Leistungsmodus" />
+                <ComboBox ItemsSource="{Binding PowerOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding PowerMode}" Margin="0,4,0,12" />
+                <TextBlock Text="Lüftermodus" />
+                <ComboBox ItemsSource="{Binding CoolingOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding CoolingMode}" Margin="0,4,0,12" />
+                <TextBlock Text="Fester Rohwert (57–229, nur im Fixed-Modus)" />
+                <TextBox Text="{Binding FixedValue, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsFixed}" Margin="0,4,0,12" />
+                <TextBlock Style="{StaticResource Hint}"
+                           Text="Eigene Kurve: 15 aufsteigende Punkte. Rohwerte 57–229; letzter Punkt spätestens bei 90 °C mit Wert 229. Rohwerte sind keine Prozentangaben. Diese Prüfung allein garantiert keine ausreichende Kühlung." />
+                <DataGrid ItemsSource="{Binding CurveRows}" IsEnabled="{Binding IsCurve}"
+                          AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
+                          CanUserSortColumns="False" CanUserReorderColumns="False" HeadersVisibility="Column"
+                          Background="{StaticResource SubtleFillBrush}"
+                          RowBackground="{StaticResource SubtleFillBrush}"
+                          Foreground="{StaticResource TextPrimaryBrush}"
+                          BorderBrush="{StaticResource CardBorderBrush}"
+                          BorderThickness="1"
+                          Height="240" Margin="0,8,0,12">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Punkt" Binding="{Binding Number}" IsReadOnly="True" Width="70" />
+                        <DataGridTextColumn Header="Temperatur (°C)" Binding="{Binding Temperature, UpdateSourceTrigger=PropertyChanged}" Width="*" />
+                        <DataGridTextColumn Header="Lüfter-Rohwert" Binding="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Width="*" />
+                    </DataGrid.Columns>
+                </DataGrid>
+                <ui:Button Content="Profil speichern" Command="{Binding SaveCommand}" Appearance="Primary" HorizontalAlignment="Left">
+                    <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
+                </ui:Button>
+
+                <Separator Margin="0,18" />
+                <TextBlock Text="Zuordnungen vorbereiten" Style="{StaticResource CardTitle}" />
+                <TextBlock Text="Netzbetrieb" Margin="0,10,0,4" />
+                <ComboBox ItemsSource="{Binding AssignmentOptions}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding AcProfile}" />
+                <TextBlock Text="Akkubetrieb" Margin="0,10,0,4" />
+                <ComboBox ItemsSource="{Binding AssignmentOptions}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding BatteryProfile}" />
+                <ui:Button Content="Zuordnungen speichern" Command="{Binding AssignCommand}" HorizontalAlignment="Left" Margin="0,12,0,0">
+                    <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
+                </ui:Button>
+                <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Margin="0,16,0,0" />
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</ui:FluentWindow>
