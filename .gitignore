@@ -1,0 +1,53 @@
+# ---------------------------------------------------------------------------
+# Build output
+# ---------------------------------------------------------------------------
+**/bin/
+**/obj/
+
+# ---------------------------------------------------------------------------
+# Third-party material: vendor installers, extracted/decompiled vendor software
+# and downloaded analysis tools.
+#
+# None of this is ours to redistribute, and it is ~3 GB. The research documents
+# reference paths inside third-party/ so the evidence trail stays readable, but
+# the files themselves must be fetched from the vendor to reproduce the work -
+# third-party/README.md lists what belongs where.
+#
+# Ignoring the contents rather than the folder: with "third-party/" git would not
+# descend into it at all and the README below could not be un-ignored.
+# ---------------------------------------------------------------------------
+third-party/*
+!third-party/README.md
+
+# ---------------------------------------------------------------------------
+# Machine- and user-specific
+# ---------------------------------------------------------------------------
+.idea/
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Runtime state written by the app during research runs; per-machine, not source.
+research/state/
+
+# Compiled artefacts kept next to the recovery record. They were the INPUT to the
+# decompilation documented in research/DIAGNOSTICS-RECOVERY.md, not source - and both a
+# .NET assembly and its PDB embed the absolute source path of the machine that built
+# them, which is exactly the kind of detail that must not be published. The recovered and
+# decompiled C# beside them is the part that carries the evidence, and that stays.
+research/recovery/**/*.dll
+research/recovery/**/*.pdb
+
+# Log files, wherever they land. The app itself writes to %LocalAppData%, but a
+# stray copy in the tree must never be committed - logs can contain paths.
+*.log
+
+# ---------------------------------------------------------------------------
+# OS noise
+# ---------------------------------------------------------------------------
+Thumbs.db
+desktop.ini
+.DS_Store
