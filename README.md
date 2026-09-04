@@ -20,6 +20,16 @@ The first two are executable applications. `Core` is deliberately separated so b
 - The keyboard's 17-byte feature report ID `0x5A` on `MI_02/COL_07` was identified as the ITE firmware flash channel via `SHFU.ini` (`REPORTID=90`). It is never written; a single earlier passive read remains the only contact.
 - Research details and the verified ACPI method map are in `RESEARCH.md`.
 
+## License
+
+The code in this repository is MIT licensed — see `LICENSE`. Use it, change it, ship it;
+just keep the copyright notice.
+
+This covers the code and documentation written here. It says nothing about Gigabyte's own
+software or firmware: none of that is part of this repository (see `third-party/`), and the
+research under `research/` documents findings about the hardware rather than reproducing
+vendor source.
+
 ## Repository layout
 
 | Path | Contents |
