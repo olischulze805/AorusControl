@@ -165,6 +165,39 @@ a live hex textbox, and a row of recently-used swatches.
   modal dialog already *is* the confirmation gesture, and a picker that wrote continuously
   would repaint the keyboard for every pixel crossed on the way to the colour wanted.
 
+## The dashboard: what is in force, not just what is measured
+
+The first version showed CPU and GPU temperature, fan RPM and the raw duty byte, in two
+fixed columns capped at 880 px. It answered "how hot is it" and nothing else, and the layout
+was squeezed on a narrow window and half empty on a wide one.
+
+It is six tiles now, and the four new ones all answer the same question in different words -
+*what is actually set right now*: the fan mode with a sentence naming what regulates the fans,
+the Windows power mode with the power source next to it, the charge limit, and whether the
+lighting is on. Duty leads with a percentage; the raw byte stays as the footnote, since
+"Rohwert 66 / 229" is a fact about the firmware rather than an answer.
+
+`TilePanel` lays them out in as many equal columns as fit at a minimum width, so they reflow
+from four across to one without ragged gaps. A `WrapPanel` with a fixed `ItemWidth` wraps
+correctly but leaves a gap on the right; computing that width from the panel's own
+`ActualWidth` feeds the layout back into itself and settles on one column.
+
+## Saying what a setting actually changes
+
+Under the Windows power modes there is a panel naming what the running mode does - and, just
+as deliberately, what it does not. Vendor tools routinely imply that a "performance mode"
+also drives the fans. On this laptop it does not: the curve is ours, on the EC. So the panel
+says that in words and shows the curve that IS in force right beside it, plus the cooling
+state currently running.
+
+Both texts follow the device readback, like every chip in the app, so a mode that failed to
+apply cannot describe itself as if it had.
+
+That is also why `FanCurveChart` became a control: the same implementation draws the editable
+chart under Kühlung and the read-only one here, so the picture next to the explanation can
+never drift from the editor. Read-only omits the point markers - fifteen dots on a small
+chart read as a dotted line rather than as points.
+
 ## Debounced apply instead of apply buttons
 
 An "Einstellung übernehmen" button is honest but tiring: the app knows perfectly well when

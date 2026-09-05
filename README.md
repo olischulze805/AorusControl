@@ -18,7 +18,8 @@ than in my review of every statement:
   USB keyboard interface. On anything else the app refuses to write rather than guessing.
 - The panel shows what the device reports, not what was last clicked. A write that fails moves
   the highlight back instead of pretending it worked.
-- 51 automated checks run without any hardware attached.
+- 56 automated checks run without any hardware attached, and the real window is laid out
+  offscreen at three widths so layout mistakes are caught rather than shipped.
 
 ## ⚠️ Before you use this
 
@@ -34,25 +35,43 @@ killed, that process still returns the fans to firmware control on its own.
 
 | Section | |
 |---|---|
-| **Dashboard** | CPU/GPU temperature, fan RPM and duty, live |
+| **Dashboard** | CPU and GPU temperature, fan RPM and duty, plus what is actually in force: fan mode, Windows power mode and power source, charge limit, lighting |
 | **Kühlung** | Fan profiles, a fixed speed limited to the eight tested steps, and a draggable 15-point fan curve |
 | **Tastatur** | Three RGB zones, nine effects, four brightness steps, plus a live preview of the actual keyboard |
-| **Leistung & Akku** | Windows power mode and the battery charge limit |
-| **Info & Updates** | Version, autostart, logs |
+| **Leistung & Akku** | Windows power mode - with what it changes and the fan curve that is in force next to it - and the battery charge limit |
+| **Info & Updates** | Version, autostart, logs, update check |
 
-## Build and run
+## Install
+
+Run `AorusControl-win-Setup.exe` from the releases page. It installs into your own user
+folder, brings its own .NET, and the app updates itself from there - checking and installing
+are separate buttons, and a downloaded version only takes effect on the next start. The
+installer is not code-signed, so Windows SmartScreen will warn about an unknown publisher;
+"Weitere Informationen" then "Trotzdem ausführen" gets past it.
+
+Hardware access needs administrator rights, so Windows shows its normal UAC prompt on
+launch. Autostart uses a scheduled task instead of the registry Run key precisely so that
+prompt does not reappear at every login.
+
+## Build
 
 Requires the .NET SDK pinned in `global.json`; Windows only.
 
 ```powershell
 dotnet build AorusControl.slnx --configuration Release
 dotnet run --project tests/AorusControl.App.SmokeTests
+dotnet run --project tests/AorusControl.UiChecks
 ```
 
-Start it with `tools\Start-AorusControl.cmd`. Hardware access needs administrator rights,
-so Windows shows its normal UAC prompt. `tools\` also holds a launcher for each hardware
-experiment, and `tools\Start-FanNormalRestore.cmd` puts the fans back under firmware
-control if anything ever goes sideways.
+To build a release installer:
+
+```powershell
+powershell -File tools\Build-Release.ps1 -Version 0.2.0
+```
+
+For a build tree, `tools\Start-AorusControl.cmd` starts the app, and
+`tools\Start-FanNormalRestore.cmd` puts the fans back under firmware control if anything
+ever goes sideways.
 
 Settings and logs live under `%LocalAppData%\AorusControl\`.
 
@@ -60,8 +79,8 @@ Settings and logs live under `%LocalAppData%\AorusControl\`.
 
 | Path | |
 |---|---|
-| `src/` | `Core` (device gates and guarded setters), `App` (the WPF panel), `Worker` (keeps fixed fan mode crash-safe), `Diagnostics` (read-only reports) |
-| `tests/` | One console suite, no test framework, no hardware needed |
+| `src/` | `Core` (device gates and guarded setters), `App` (the WPF panel, one folder per feature under `Features/`), `Worker` (keeps fixed fan mode crash-safe), `Diagnostics` (read-only reports) |
+| `tests/` | Console suites, no test framework, no hardware needed - logic, worker IPC, and offscreen window rendering |
 | `tools/` | Launchers for the app and for each experiment |
 | `research/` | How the hardware was worked out, and why each decision went the way it did |
 | `third-party/` | Not in version control — vendor installers and analysis tools; see its README |
