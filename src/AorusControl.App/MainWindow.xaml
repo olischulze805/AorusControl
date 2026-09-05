@@ -198,13 +198,11 @@
                                            Text="Punkte ziehen, um Temperatur und Lüfterdrehzahl anzupassen. Kurz nach dem Loslassen schreibt sich die Kurve von selbst auf die EC, aktiviert Dynamic und wird lokal gespeichert - kein Übernehmen-Knopf nötig. Der letzte Punkt ist fest (spätestens 90 °C bei 100 %) - das erzwingt die Firmware." />
                                 <TextBlock Text="{Binding FanCurveStatus}" Style="{StaticResource StatusText}" Margin="0,12,0,14" />
                                 <Border Style="{StaticResource InnerPanel}">
-                                    <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Center">
-                                        <Canvas x:Name="FanCurveCanvas" Width="660" Height="300" Cursor="Hand"
-                                                Background="Transparent"
-                                                MouseLeftButtonDown="OnFanCurveMouseDown"
-                                                MouseMove="OnFanCurveMouseMove"
-                                                MouseLeftButtonUp="OnFanCurveMouseUp" />
-                                    </Viewbox>
+                                    <!-- Drawn at its real size instead of a fixed canvas in a Viewbox, so the
+                                         chart grows with the window without the labels going fuzzy. -->
+                                    <ctrl:FanCurveChart Rows="{Binding FanCurveRows}" IsEditable="True"
+                                                        MinHeight="220" Height="300" Cursor="Hand"
+                                                        CurveEdited="OnFanCurveEdited" />
                                 </Border>
                                 <WrapPanel Margin="0,18,0,-10">
                                     <ui:Button Style="{StaticResource SecondaryButton}" Content="Von Firmware neu laden"
@@ -530,6 +528,32 @@
                                     </RadioButton>
                                 </WrapPanel>
                                 <TextBlock Text="{Binding PowerStatus}" Style="{StaticResource StatusText}" />
+
+                                <!-- What changing the mode really does. Vendor tools tend to imply a
+                                     performance mode also drives the fans; on this laptop it does not,
+                                     and showing the curve that IS in force next to it is the honest
+                                     answer to "what did I just change?". -->
+                                <Border Style="{StaticResource InnerPanel}" Margin="0,20,0,0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" MinWidth="240" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,18,0">
+                                            <TextBlock Text="Was dieser Modus verändert" Style="{StaticResource SubLabel}" />
+                                            <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
+                                                       Text="{Binding PowerModeEffect}" TextWrapping="Wrap" />
+                                            <TextBlock Style="{StaticResource SubLabel}" Margin="0,18,0,0" Text="Kühlung gerade" />
+                                            <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
+                                                       Text="{Binding CoolingSummary}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" MinWidth="280">
+                                            <ctrl:FanCurveChart Rows="{Binding FanCurveRows}" Height="150" />
+                                            <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0" HorizontalAlignment="Center"
+                                                       Text="Kurve auf der EC · änderbar unter Kühlung" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
                             </StackPanel>
                         </Border>
 

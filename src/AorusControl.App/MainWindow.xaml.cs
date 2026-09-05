@@ -26,8 +26,11 @@ public partial class MainWindow : FluentWindow
         // IsVisible stays true while minimized, so without this the live preview and the
         // telemetry poll would keep running for a window nobody can see.
         StateChanged += (_, _) => UpdateVisibilityForViewModel();
-        _viewModel.FanCurveRows.CollectionChanged += (_, _) => DrawFanCurveChart();
     }
+
+    /// <summary>The chart edited the curve rows; the write itself is the ViewModel's,
+    /// debounced so a burst of small drags is one device transaction.</summary>
+    private void OnFanCurveEdited(object sender, EventArgs eventArgs) => _viewModel.ScheduleFanCurveApply();
 
     public void RequestExit()
     {
@@ -64,7 +67,6 @@ public partial class MainWindow : FluentWindow
         // SelectedItem is read-only on NavigationView - Navigate is how a selection is
         // made programmatically, and it raises SelectionChanged like a click would.
         Nav.Navigate("Dashboard");
-        DrawFanCurveChart();
         await _viewModel.StartAsync();
     }
 

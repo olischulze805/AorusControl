@@ -230,7 +230,39 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     /// <summary>Highlighted power-mode chip, again from Windows' own readback rather
     /// than from the last click.</summary>
-    public string? ActivePowerMode { get => _activePowerMode; private set => SetProperty(ref _activePowerMode, value); }
+    public string? ActivePowerMode
+    {
+        get => _activePowerMode;
+        private set { if (SetProperty(ref _activePowerMode, value)) OnPropertyChanged(nameof(PowerModeEffect)); }
+    }
+
+    /// <summary>
+    /// Spells out what the running mode actually changes. Tools in this category routinely
+    /// imply that a "performance mode" also drives the fans; here it does not - the fan
+    /// curve is ours, on the EC - and saying so plainly is worth more than a louder label.
+    /// </summary>
+    public string PowerModeEffect => _activePowerMode switch
+    {
+        "BestEfficiency" =>
+            "Windows hält Takt und Boost niedrig und schiebt Last bevorzugt auf sparsame Kerne. Weniger Abwärme, dadurch drehen die Lüfter meist niedriger - die Kurve selbst bleibt unverändert.",
+        "BestPerformance" =>
+            "Windows lässt Boost länger zu und hält die Taktziele hoch. Mehr Abwärme, dadurch erreicht die Kurve ihre höheren Stufen früher - die Kurve selbst bleibt unverändert.",
+        "Balanced" =>
+            "Windows regelt Takt und Boost nach Last. Die Lüfterkurve bleibt unverändert; sie reagiert nur auf die Temperatur, die sich dadurch ergibt.",
+        _ => "Noch kein Modus gelesen."
+    } + " Nur für den Netzbetrieb getestet; GPU-Limits und EC-Einstellungen fasst Windows dabei nicht an.";
+
+    /// <summary>The cooling that is actually in force, next to the mode - so "was habe ich
+    /// gerade geändert?" has an answer that includes the part Windows does not control.</summary>
+    public string CoolingSummary => ActiveFanProfile switch
+    {
+        "Fixed" => $"Fester Wert {FanSpeedPercent.ToPercent(_fixedFanRaw)} % · die Kurve unten ist gespeichert, aber gerade außer Kraft.",
+        "Maximum" => "Maximum · Lüfter laufen unabhängig von der Kurve auf voller Stufe.",
+        "Dynamic" => "Dynamic · die Kurve unten regelt die Lüfter.",
+        "Quiet" => "Quiet · Firmware-Regelung, leiser als die Kurve unten.",
+        "Gaming" => "Gaming · Firmware-Regelung, aggressiver als die Kurve unten.",
+        _ => "Normal · Firmware-Standardregelung, nicht die Kurve unten."
+    };
 
     /// <summary>Where the log files are, so "look in the log" is an actionable
     /// instruction rather than a scavenger hunt.</summary>
@@ -833,6 +865,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             ? checked((byte)state.FixedSpeedRaw)
             : FixedFanRaw;
         ActiveFanProfile = DescribeFanProfileKey(state);
+        OnPropertyChanged(nameof(CoolingSummary));
         FanStatus = $"Aktiv: {profile} · Fixed {state.FixedStatusRaw} · Step {state.StepStatusRaw} · Auto {state.AutoStatusRaw} · Thermal {state.NvidiaThermalTargetRaw}";
     }
 

@@ -223,6 +223,17 @@ await Run("Fan profile chip follows the readback, not the click", async (vm, rea
     await vm.SetFixedFanAsync();
     Check(vm.ActiveFanProfile == "Fixed", "a held fixed value is its own state, not one of the profiles");
 });
+await Run("The power section says what the mode does and what the fans are doing", async (vm, reader, fan) =>
+{
+    // The point of this text is that it never claims the power mode drives the fans, and
+    // that it describes the cooling that is really in force - both follow the readback.
+    Check(vm.CoolingSummary.Contains("Normal"), "a freshly read Normal state must be summarised as Normal");
+    await vm.SetFanProfileAsync("Gaming");
+    Check(vm.CoolingSummary.Contains("Gaming"), "the summary must follow the profile that was read back");
+    await vm.SetFixedFanAsync();
+    Check(vm.CoolingSummary.Contains("%"), "a held fixed value must be summarised with its percentage");
+    Check(vm.PowerModeEffect.Contains("Netzbetrieb"), "the effect text must name the tested power source");
+});
 await Run("The Fixed slider can only land on tested steps", async (vm, reader, fan) =>
 {
     await Task.CompletedTask;
