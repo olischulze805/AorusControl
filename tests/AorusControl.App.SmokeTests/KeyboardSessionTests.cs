@@ -64,8 +64,7 @@ internal static class KeyboardSessionTests
         Console.WriteLine("PASS: RGB initialization, power memory, brightness/effect, colors, off/resume, concurrent changes, failure and shutdown");
 
         var uiTransport = new FakeTransport();
-        using var vm = new MainWindowViewModel(new FakeReader(), uiTransport, new FakeFan(), new WindowsPowerOverlayController(),
-            observationPath: Path.Combine(Path.GetTempPath(), "AorusControlTests", $"fan-observations-{Guid.NewGuid():N}.json"));
+        using var vm = new MainWindowViewModel(new FakeReader(), uiTransport, new FakeFan(), new WindowsPowerOverlayController());
         await vm.Keyboard.StartAsync();
         await vm.Keyboard.SetBrightnessAsync(KeyboardBrightnessLevel.Low);
         await vm.Keyboard.StartEffectAsync(KeyboardRgbEffect.Breathing);
@@ -110,8 +109,7 @@ internal static class KeyboardSessionTests
 
         var savedStore = new MemoryStore { Settings = initial with { Enabled = false, OnBrightness = KeyboardBrightnessLevel.Low } };
         using var restoredVm = new MainWindowViewModel(new FakeReader(), new FakeTransport(), new FakeFan(),
-            new WindowsPowerOverlayController(), keyboardSettingsStore: savedStore,
-            observationPath: Path.Combine(Path.GetTempPath(), "AorusControlTests", $"fan-observations-{Guid.NewGuid():N}.json"));
+            new WindowsPowerOverlayController(), keyboardSettingsStore: savedStore);
         await restoredVm.Keyboard.StartAsync();
         Assert(!restoredVm.Keyboard.PowerOn, "stored off restored on initialization");
         await restoredVm.Keyboard.SetPowerAsync(true);
@@ -125,8 +123,7 @@ internal static class KeyboardSessionTests
 
         var resumeTransport = new FakeTransport();
         using var resumeVm = new MainWindowViewModel(new FakeReader(), resumeTransport, new FakeFan(), new WindowsPowerOverlayController(),
-            resumeReapplyDelay: _ => Task.CompletedTask,
-            observationPath: Path.Combine(Path.GetTempPath(), "AorusControlTests", $"fan-observations-{Guid.NewGuid():N}.json"));
+            resumeReapplyDelay: _ => Task.CompletedTask);
         await resumeVm.Keyboard.ReapplyAfterResumeAsync();
         Assert(resumeTransport.Writes == 0, "resume before the keyboard has ever initialized must not write");
         await resumeVm.Keyboard.StartAsync();
@@ -141,8 +138,7 @@ internal static class KeyboardSessionTests
         Console.WriteLine("PASS: resume-from-sleep reapplies lighting once initialized, skips before init and after close");
 
         var uiVm2Transport = new FakeTransport();
-        using var uiVm2 = new MainWindowViewModel(new FakeReader(), uiVm2Transport, new FakeFan(), new WindowsPowerOverlayController(),
-            observationPath: Path.Combine(Path.GetTempPath(), "AorusControlTests", $"fan-observations-{Guid.NewGuid():N}.json"));
+        using var uiVm2 = new MainWindowViewModel(new FakeReader(), uiVm2Transport, new FakeFan(), new WindowsPowerOverlayController());
         await uiVm2.Keyboard.StartAsync();
 
         // The tile highlight follows what runs on the device, so manual colours are the

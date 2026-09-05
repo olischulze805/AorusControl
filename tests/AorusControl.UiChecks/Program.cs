@@ -88,21 +88,10 @@ static void RenderProfileWindow(string output)
 
 static void RenderMainWindow(string output)
 {
-    // Measurements for the profile the stub reports, so the "what does this profile do" trace
-    // has something to draw. Written to a temporary file: invented readings have no business
-    // in the user's own measurements.
-    string observations = Path.Combine(Path.GetTempPath(), "AorusControlUiChecks", $"fan-observations-{Guid.NewGuid():N}.json");
-    Directory.CreateDirectory(Path.GetDirectoryName(observations)!);
-    var measured = new FanProfileObservations();
-    foreach ((byte temperature, byte percent) in new (byte, byte)[] { (42, 25), (48, 27), (54, 33), (60, 45), (66, 58), (72, 71), (78, 86) })
-        measured.Record("Dynamic", temperature, percent);
-    File.WriteAllText(observations, measured.ToJson());
-
     var vm = new MainWindowViewModel(new StubReader(), new StubKeyboard(), new StubFan(), new WindowsPowerOverlayController(),
-        batteryController: new StubBattery(), fanCurveStore: new StubCurveStore(), startupManager: new StubStartup(),
-        observationPath: observations);
-    // The same read a launch does, so the curve rows and the measured trace both have real
-    // geometry to lay out rather than an empty canvas.
+        batteryController: new StubBattery(), fanCurveStore: new StubCurveStore(), startupManager: new StubStartup());
+    // The same read a launch does, so the curve chart has real geometry to lay out rather
+    // than an empty canvas.
     vm.Cooling.StartAsync().GetAwaiter().GetResult();
     var window = new MainWindow(vm);
     var content = (FrameworkElement)window.Content;

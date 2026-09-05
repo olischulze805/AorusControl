@@ -23,6 +23,7 @@ public static class AppLog
     private static readonly object Gate = new();
     private static string _role = "app";
     private static bool _prepared;
+    private static bool _started;
 
     /// <summary>The folder shown to the user, so "where are the logs" has one answer.</summary>
     public static string Directory { get; } = Path.Combine(AppData.Directory, "logs");
@@ -35,6 +36,7 @@ public static class AppLog
         {
             _role = string.IsNullOrWhiteSpace(role) ? "app" : role;
             _prepared = false;
+            _started = true;
         }
         Info("start", $"AORUS Control ({_role}) gestartet.");
     }
@@ -47,6 +49,12 @@ public static class AppLog
 
     private static void Write(string level, string area, string message, Exception? error)
     {
+        // Nothing is written before a process says who it is. Only the app and the worker do
+        // that; the test suites never do, which is what keeps their invented failures - fake
+        // hardware, simulated write errors - out of the log the user reads when something
+        // real goes wrong.
+        lock (Gate) { if (!_started) return; }
+
         try
         {
             var line = new StringBuilder()

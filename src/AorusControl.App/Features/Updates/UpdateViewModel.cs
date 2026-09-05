@@ -2,6 +2,7 @@ using System.Reflection;
 using AorusControl.App.Infrastructure;
 using AorusControl.Core.Features.Diagnostics;
 using Velopack;
+using Velopack.Exceptions;
 using Velopack.Sources;
 
 namespace AorusControl.App.Features.Updates;
@@ -25,9 +26,12 @@ public sealed class UpdateViewModel : ObservableObject
     private readonly UpdateManager? _updates;
     private readonly Func<TimeSpan, CancellationToken, Task> _wait;
     private readonly CancellationTokenSource _closing = new();
+    private const string NotAnInstallation =
+        "Diese Version läuft nicht aus einer Installation - Updates gelten nur für die per Setup installierte App.";
+
     private readonly string _unavailableReason;
     private UpdateInfo? _available;
-    private bool _busy, _downloaded;
+    private bool _busy, _downloaded, _notInstalled;
     private string _status = "Noch nicht geprüft.";
 
     public UpdateViewModel(IUpdateSource? source = null, Func<TimeSpan, CancellationToken, Task>? wait = null)
@@ -36,7 +40,7 @@ public sealed class UpdateViewModel : ObservableObject
         try
         {
             _updates = new UpdateManager(source ?? new GithubSource("https://github.com/olischulze805/AorusControl", null, prerelease: false));
-            _unavailableReason = string.Empty;
+            _unavailableReason = NotAnInstallation;
         }
         catch (Exception error)
         {
@@ -45,7 +49,7 @@ public sealed class UpdateViewModel : ObservableObject
             // it must be said out loud rather than silently doing nothing.
             _updates = null;
             AppLog.Info("update", "Kein installiertes Paket gefunden: " + error.Message);
-            _unavailableReason = "Diese Version läuft nicht aus einer Installation - Updates gelten nur für die per Setup installierte App.";
+            _unavailableReason = NotAnInstallation;
             _status = _unavailableReason;
         }
 
@@ -60,7 +64,13 @@ public sealed class UpdateViewModel : ObservableObject
 
     public bool IsBusy { get => _busy; private set { SetProperty(ref _busy, value); Raise(); } }
     public string Status { get => _status; private set => SetProperty(ref _status, value); }
-    public bool IsSupported => _updates is not null;
+    /// <summary>
+    /// False in a build tree or an unzipped folder. Velopack only reports that when a check is
+    /// actually attempted - constructing the manager succeeds either way - so this is set the
+    /// first time a check comes back with "not installed", and the section then says so
+    /// instead of offering buttons that cannot work.
+    /// </summary>
+    public bool IsSupported => _updates is not null && !_notInstalled;
     public bool HasUpdate => _available is not null;
     public bool IsDownloaded { get => _downloaded; private set { SetProperty(ref _downloaded, value); Raise(); } }
     public string? AvailableVersion => _available?.TargetFullRelease.Version.ToString();
@@ -149,12 +159,20 @@ public sealed class UpdateViewModel : ObservableObject
                 ? $"Version {CurrentVersion} ist aktuell."
                 : $"Version {AvailableVersion} verfügbar.";
         }
+        catch (NotInstalledException)
+        {
+            // Not a failure: nobody can update a copy that was never installed. Said once, in
+            // the section itself, and logged as information rather than as something broken.
+            _notInstalled = true;
+            Status = _unavailableReason;
+            AppLog.Info("update", "Läuft nicht aus einer Installation; Update-Prüfung entfällt.");
+        }
         catch (Exception error)
         {
             AppLog.Error("update", "Update-Prüfung fehlgeschlagen.", error);
             if (announceFailure) Status = "Update-Prüfung fehlgeschlagen: " + error.Message;
         }
-        finally { IsBusy = false; }
+        finally { IsBusy = false; Raise(); }
     }
 
     /// <summary>Stops a pending automatic check from firing into a closing app.</summary>

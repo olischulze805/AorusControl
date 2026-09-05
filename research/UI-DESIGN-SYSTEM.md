@@ -188,25 +188,25 @@ The obvious feature request is "show me the curve behind Leise / Normal / Gaming
 It cannot be answered as asked. Those profiles write no curve: they set four status flags and
 the firmware regulates internally, and the EC's fifteen curve points are provably untouched by
 the switch - the write tests in `research/FAN-POWER-GPU-CONTROL.md` confirmed the curve came
-back identical after every profile change. Drawing the stored points under a Gaming chip would
-be showing the user's own last curve and calling it Gigabyte's.
+back identical after every profile change.
 
-What can be known is what the fans were observed doing while a profile ran. Every telemetry
-tick contributes one temperature/duty pair to `FanProfileObservations`, kept per profile and
-per whole degree, persisted, and drawn as a second amber trace beside the cyan configured
-curve - with a legend, because two unexplained lines are a riddle. The caption says how many
-samples it rests on and that it is measured rather than specified, so a picture built from
-four readings cannot pass for a specification.
+The first attempt was to measure it: every telemetry tick contributed one temperature/duty
+pair, accumulated per profile. It was honest and it did not work. Fan duty has hysteresis and
+lags temperature, so at two samples a second the picture came out as a jagged scatter that
+told the user less than the flat statement "these modes do not publish a curve" would have.
+It is gone; the code it needed is gone with it.
 
-Three rules keep it honest:
+What replaced it is the curve Gigabyte itself draws, taken from its own software rather than
+guessed: `GigabyteReferenceCurve`, lifted from the decompiled notebook module
+(`ucNotebook.Views/FanControlNb.cs`). GCC hardcodes one curve per model family - the 16-inch H
+models and the Aorus 15/17 B/9/SF have one per fan mode, and everything else in the AORUS
+family, this laptop included, gets a single default. So GCC never showed a per-mode curve on
+this machine either, and that single curve is the whole of what it had.
 
-- **Nothing is recorded for Fixed.** A pinned fan is the user's decision, not the profile's.
-- **The first reading after a profile change is dropped**, since it can still show the
-  previous profile's duty.
-- **The newest reading for a degree wins, and is not averaged.** The firmware has hysteresis,
-  so the same degree genuinely carries different duties depending on which way the temperature
-  was moving; averaging would smooth a real behaviour into a fake one. The sample count is
-  shown so a single reading never looks like an established fact.
+It is drawn dashed and amber beside the edited curve, with a legend, and can be loaded into
+the editor. Two of its values cannot be used as stated, and both are adjusted in the open
+rather than quietly: GCC starts at 0 % below 55 °C where this firmware's lowest verified duty
+is 25 %, and it ends at 99 % at 92 °C where the firmware requires full speed by 90 °C.
 
 ## Saying what a setting actually changes
 
