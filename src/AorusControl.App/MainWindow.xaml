@@ -197,6 +197,7 @@
                                                         IsEditable="{Binding Cooling.IsCurveEditable}"
                                                         ConstantPercent="{Binding Cooling.ConstantPercent}"
                                                         Reference="{Binding Cooling.GigabyteCurve}"
+                                                        CurveEdited="OnFanCurveEdited"
                                                         MinHeight="220" Height="300" />
                                 </Border>
                                 <StackPanel Orientation="Horizontal" Margin="0,10,0,0" HorizontalAlignment="Center">
@@ -207,25 +208,35 @@
                                     <TextBlock Style="{StaticResource Hint}" Margin="6,0,0,0"
                                                Text="Kurve aus Gigabytes Control Center" />
                                 </StackPanel>
-                                <TextBlock Text="{Binding Cooling.CurveStatus}" Style="{StaticResource StatusText}" Margin="0,14,0,0" />
+                                <!-- Nur sichtbar, solange sich die Kurve überhaupt bearbeiten lässt:
+                                     unter den Firmware-Profilen wäre eine Bedienanleitung für etwas,
+                                     das man nicht anfassen kann, bloß Lärm. -->
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,10,0,0" TextWrapping="Wrap"
+                                           Visibility="{Binding Cooling.IsCurveEditable, Converter={StaticResource BoolVisible}}"
+                                           Text="Punkt ziehen · Klick ins Leere setzt einen neuen · Rechtsklick oder Entf entfernt den gewählten · Pfeiltasten verschieben ihn genau, mit Strg in Fünferschritten · der letzte Punkt gehört der Firmware." />
+                                <TextBlock Text="{Binding Cooling.CurveStatus}" Style="{StaticResource StatusText}" Margin="0,12,0,0" />
                                 <WrapPanel Margin="0,10,0,-10" IsEnabled="{Binding Cooling.IsCurveEditable}">
-                                    <ui:Button Style="{StaticResource SecondaryButton}" Content="Gigabyte-Kurve übernehmen"
+                                    <ui:Button Style="{StaticResource PrimaryButton}" Content="Kurve übernehmen"
+                                               Command="{Binding Cooling.ApplyCurveCommand}"
+                                               IsEnabled="{Binding Cooling.CanApplyCurve}" Margin="0,0,10,10">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                    <ui:Button Style="{StaticResource SecondaryButton}" Content="Gigabyte-Kurve laden"
                                                Command="{Binding Cooling.LoadGigabyteCurveCommand}" Margin="0,0,10,10">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowImport24" /></ui:Button.Icon>
                                     </ui:Button>
-                                    <ui:Button Style="{StaticResource SecondaryButton}" Content="Von Firmware neu laden"
+                                    <ui:Button Style="{StaticResource SecondaryButton}" Content="Verwerfen und neu lesen"
                                                Command="{Binding Cooling.ReloadCurveCommand}" Margin="0,0,10,10">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowClockwise24" /></ui:Button.Icon>
                                     </ui:Button>
                                 </WrapPanel>
-                            </StackPanel>
-                        </Border>
-
-                        <Border Style="{StaticResource Card}">
-                            <StackPanel IsEnabled="{Binding Cooling.ControlsEnabled}">
-                                <TextBlock Text="Fester Wert · Fixed-Modus (Test)" Style="{StaticResource CardTitle}" />
+                                <!-- Der feste Wert gehört in dieselbe Karte: er ist eine weitere
+                                     Antwort auf dieselbe Frage, nämlich wie die Lüfter gerade laufen
+                                     sollen - nur eine, die die Kurve außer Kraft setzt. -->
+                                <Border Height="1" Background="{StaticResource CardBorderBrush}" Margin="0,24,0,20" />
+                                <TextBlock Text="Fester Wert" Style="{StaticResource SubLabel}" />
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="Der Regler rastet auf die acht am Gerät vermessenen Stufen ein - die Marken sitzen dort, wo die Stufen wirklich liegen, deshalb sind die Abstände ungleich. Zwischenwerte sind nicht linear und teils firmwareseitig ungültig, sie lassen sich gar nicht erst wählen. Der Fixed-Modus läuft ausschließlich über den absturzsicheren Hardware-Worker. Aktivieren ist bewusst ein Knopfdruck; läuft Fixed erst einmal, folgt der Regler dann von selbst." />
+                                           Text="Hält die Lüfter unabhängig von der Temperatur. Der Regler rastet auf die acht am Gerät vermessenen Stufen ein, deshalb sind die Abstände ungleich. Läuft über den absturzsicheren Hardware-Worker; Aktivieren ist bewusst ein Knopfdruck, danach folgt der Regler von selbst." />
                                 <Grid Margin="0,20,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -255,6 +266,7 @@
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="Flash24" /></ui:Button.Icon>
                                     </ui:Button>
                                 </Grid>
+
                             </StackPanel>
                         </Border>
 

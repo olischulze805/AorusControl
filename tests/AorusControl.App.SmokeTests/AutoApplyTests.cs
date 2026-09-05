@@ -15,13 +15,13 @@ internal static class AutoApplyTests
 {
     public static async Task RunAsync()
     {
-        await FanCurveAppliesItselfAsync();
+        await FanCurveWaitsForTheButtonAsync();
         await FixedSliderOnlyFollowsAnActiveModeAsync();
         await ChargeLimitAppliesItselfAsync();
-        Console.WriteLine("PASS: curve, Fixed value and charge limit apply themselves without an apply button");
+        Console.WriteLine("PASS: the curve waits for its button; Fixed value and charge limit apply themselves");
     }
 
-    private static async Task FanCurveAppliesItselfAsync()
+    private static async Task FanCurveWaitsForTheButtonAsync()
     {
         var clock = new ManualWait();
         var fan = new FakeFan();
@@ -31,30 +31,34 @@ internal static class AutoApplyTests
             startupManager: new FakeStartupManager(),
             debounceWait: clock.Wait);
         await vm.Cooling.StartAsync();
+        await vm.Cooling.SetProfileAsync("Dynamic");
         int before = fan.CurveWrites;
 
-        vm.Cooling.CurveRows[3].TemperatureNumber = 50;
-        vm.Cooling.ScheduleCurveApply();
-        Check(fan.CurveWrites == before, "the curve must not be written while the drag is still settling");
-        Check(vm.Cooling.CurveStatus.Contains("übernommen"), "the user is told the change is on its way");
+        // Shaping a curve is many small edits and one decision. Writing is a fifteen-point EC
+        // transaction plus a mode switch and takes seconds, so no edit may trigger one.
+        vm.Cooling.CurveRows[1].TemperatureNumber = 50;
+        vm.Cooling.NoteCurveEdited();
+        Check(fan.CurveWrites == before, "editing the curve must not write anything");
+        Check(vm.Cooling.HasUnsavedCurve && vm.Cooling.CanApplyCurve, "but the change must be offered for applying");
+        Check(vm.Cooling.CurveStatus.Contains("nicht übernommen"), "and said out loud, so nobody thinks it is live");
 
-        await clock.ElapseAsync(vm.Cooling.PendingCurveWrite);
-        Check(fan.CurveWrites == before + 1, $"one settled drag writes once, got {fan.CurveWrites - before}");
+        await vm.Cooling.ApplyCurveAsync();
+        Check(fan.CurveWrites == before + 1, $"the button writes once, got {fan.CurveWrites - before}");
+        Check(!vm.Cooling.HasUnsavedCurve && !vm.Cooling.CanApplyCurve, "and there is nothing left to apply afterwards");
 
-        // Reloading from the device discards edits - a write scheduled a moment earlier
-        // must not land afterwards and undo the reload.
-        vm.Cooling.CurveRows[3].TemperatureNumber = 51;
-        vm.Cooling.ScheduleCurveApply();
+        // Re-reading the device is the way out of a shape you no longer want.
+        vm.Cooling.CurveRows[1].TemperatureNumber = 51;
+        vm.Cooling.NoteCurveEdited();
         await vm.Cooling.ReloadCurveFromDeviceAsync();
-        int afterReload = fan.CurveWrites;
-        await clock.ElapseAsync(vm.Cooling.PendingCurveWrite);
-        Check(fan.CurveWrites == afterReload, "a reload cancels the pending write instead of racing it");
+        Check(!vm.Cooling.HasUnsavedCurve, "reloading from the device discards the edits with them");
 
-        // Closing must flush, not drop: a value set moments before closing still counts.
-        vm.Cooling.CurveRows[3].TemperatureNumber = 48;
-        vm.Cooling.ScheduleCurveApply();
+        // Closing writes nothing: an unapplied curve was never accepted, and the window is not
+        // the place to decide it was.
+        vm.Cooling.CurveRows[1].TemperatureNumber = 48;
+        vm.Cooling.NoteCurveEdited();
+        int beforeClose = fan.CurveWrites;
         await vm.PrepareToCloseAsync();
-        Check(fan.CurveWrites == afterReload + 1, "closing writes the change that was still waiting");
+        Check(fan.CurveWrites == beforeClose, "closing must not apply a curve the user never confirmed");
     }
 
     private static async Task FixedSliderOnlyFollowsAnActiveModeAsync()

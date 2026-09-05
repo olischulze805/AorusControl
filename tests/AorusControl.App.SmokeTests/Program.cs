@@ -41,6 +41,7 @@ KeyboardEffectFrameTests.Run();
 KeyboardLayoutTests.Run();
 AppDataTests.Run();
 GigabyteCurveTests.Run();
+FanCurveShapeTests.Run();
 SliderGeometryTests.Run();
 UpdateRestartTests.Run();
 await UpdateRestartTests.RunStartupCheckAsync();
@@ -153,39 +154,50 @@ await Run("Normal cancels manual close restoration", async (vm, reader, fan) =>
     await vm.PrepareToCloseAsync();
     Check(fan.NormalWrites == 2, "closing must not write normal a third time");
 });
-await Run("Fan curve loads from live device on startup when nothing is saved", async (vm, reader, fan) =>
+await Run("A device curve is read back as handles, not as fifteen dots", async (vm, reader, fan) =>
 {
     await Task.CompletedTask;
-    Check(vm.Cooling.CurveRows.Count == 15, "all 15 points must load");
-    Check(vm.Cooling.CurveRows[0].Temperature == "40" && vm.Cooling.CurveRows[0].Value == "57", "first point reflects live device state");
-    Check(vm.Cooling.CurveRows[14].Value == "229", "last point reflects live device state");
+    // The stub's curve is a straight line, and a straight line is two decisions however many
+    // points the firmware stores it in. Handing the user fifteen dots to express it would be
+    // handing them thirteen that do nothing.
+    Check(vm.Cooling.CurveRows.Count >= 2, "a curve always has at least its two ends");
+    Check(vm.Cooling.CurveRows.Count < 15, $"a straight line must not read back as fifteen handles, got {vm.Cooling.CurveRows.Count}");
+    Check(vm.Cooling.CurveRows[0].TemperatureNumber == 40, "the first handle sits where the device says it does");
+    Check(vm.Cooling.CurveRows[^1].Percent == 100, "and the last is the firmware's full-speed point");
 });
 await Run("Applying an edited curve writes it, activates Dynamic and persists it", async (vm, reader, fan) =>
 {
-    vm.Cooling.CurveRows[3].Value = (byte.Parse(vm.Cooling.CurveRows[3].Value) + 1).ToString();
-    for (int i = 4; i < 15; i++)
-    {
-        byte current = byte.Parse(vm.Cooling.CurveRows[i].Value);
-        byte previous = byte.Parse(vm.Cooling.CurveRows[i - 1].Value);
-        if (current < previous) vm.Cooling.CurveRows[i].Value = previous.ToString();
-    }
+    await vm.Cooling.SetProfileAsync("Dynamic");
+    vm.Cooling.CurveRows[0].Percent += 5;
+    vm.Cooling.NoteCurveEdited();
     await vm.Cooling.ApplyCurveAsync();
     Check(fan.CurveWrites == 1, "editing and applying must write the curve exactly once");
-    Check(fan.DynamicWrites == 1, "applying a curve must activate Dynamic mode");
-    Check(vm.Cooling.CurveStatus.Contains("übernommen"), "success must be visible");
+    Check(fan.DynamicWrites >= 1, "applying a curve must activate Dynamic mode");
+    Check(fan.LastWrittenCurve!.Count == 15, "whatever was drawn, the firmware gets its fifteen points");
+    FanCurveValidation.Validate(fan.LastWrittenCurve!);
+    Check(vm.Cooling.CurveStatus.Contains("Übernommen"), "success must be visible");
+    Check(!vm.Cooling.HasUnsavedCurve, "and nothing is left pending");
 });
-await Run("Invalid curve edits are rejected before any hardware write", async (vm, reader, fan) =>
+await Run("A curve too small to be a curve is refused before any hardware write", async (vm, reader, fan) =>
 {
-    vm.Cooling.CurveRows[7].Value = "nicht-numerisch";
+    while (vm.Cooling.CurveRows.Count > 1) vm.Cooling.CurveRows.RemoveAt(vm.Cooling.CurveRows.Count - 1);
     await vm.Cooling.ApplyCurveAsync();
-    Check(fan.CurveWrites == 0, "malformed input must never reach the device");
-    Check(vm.Cooling.CurveStatus.Contains("Ungültige Kurve"), "validation failure must be visible");
+    Check(fan.CurveWrites == 0, "a single point is not a curve and must never reach the device");
+    Check(vm.Cooling.CurveStatus.Contains("Ungültige Kurve"), "and the refusal must be visible");
 });
-await Run("A curve that violates monotonic/last-point rules is rejected before any write", async (vm, reader, fan) =>
+await Run("A shape the firmware would reject is corrected on the way out, not sent and refused", async (vm, reader, fan) =>
 {
-    vm.Cooling.CurveRows[^1].Value = "200"; // Last point must force 229; this violates FanCurveValidation.
+    // Out of order, below the tested floor, and falling in the middle: all three are things
+    // the editor clamps live, but nothing stops a stored file or a future caller from holding
+    // them, and the device must never be the thing that finds out.
+    vm.Cooling.CurveRows.Clear();
+    vm.Cooling.CurveRows.Add(new FanCurveRowViewModel(1) { TemperatureNumber = 80, Percent = 90 });
+    vm.Cooling.CurveRows.Add(new FanCurveRowViewModel(2) { TemperatureNumber = 40, Percent = 5 });
+    vm.Cooling.CurveRows.Add(new FanCurveRowViewModel(3) { TemperatureNumber = 60, Percent = 70 });
+    vm.Cooling.CurveRows.Add(new FanCurveRowViewModel(4) { TemperatureNumber = 70, Percent = 30 });
     await vm.Cooling.ApplyCurveAsync();
-    Check(fan.CurveWrites == 0, "a curve failing hardware-safety validation must never reach the device");
+    Check(fan.CurveWrites == 1, "the corrected curve is written rather than the write being refused");
+    FanCurveValidation.Validate(fan.LastWrittenCurve!);
 });
 await Run("A failed curve write leaves the fan controller queryable and is surfaced", async (vm, reader, fan) =>
 {
@@ -197,11 +209,14 @@ await Run("A failed curve write leaves the fan controller queryable and is surfa
 });
 await Run("Reloading from device discards edits and shows current firmware state", async (vm, reader, fan) =>
 {
-    vm.Cooling.CurveRows[0].Temperature = "99";
+    await vm.Cooling.SetProfileAsync("Dynamic");
+    vm.Cooling.CurveRows[0].TemperatureNumber = 99;
+    vm.Cooling.NoteCurveEdited();
     await vm.Cooling.ReloadCurveFromDeviceAsync();
-    Check(vm.Cooling.CurveRows[0].Temperature == "40", "reload must reflect the device, not the discarded edit");
+    Check(vm.Cooling.CurveRows[0].TemperatureNumber == 40, "reload must reflect the device, not the discarded edit");
+    Check(!vm.Cooling.HasUnsavedCurve, "and nothing may still look unsaved afterwards");
 });
-Console.WriteLine("PASS: fan curve startup load, apply/activate/persist, invalid input, hardware-safety rejection, write failure, and reload-from-device");
+Console.WriteLine("PASS: fan curve read back as handles, apply/activate/persist, refusal, correction, write failure, and reload-from-device");
 
 await RunWithStartup("Startup state is read on launch and toggling enables/disables it", async (vm, reader, fan, startup) =>
 {
@@ -256,7 +271,7 @@ await Run("The curve below the profiles shows that profile, and only Dynamic can
 
     await vm.Cooling.SetProfileAsync("Dynamic");
     Check(vm.Cooling.IsCurveEditable, "the stored curve is editable exactly when it regulates the fans");
-    Check(vm.Cooling.DisplayedCurve.Count() == 15, "and is the curve on show");
+    Check(vm.Cooling.DisplayedCurve.SequenceEqual(vm.Cooling.CurveRows), "and is exactly the curve on show");
 
     reader.Temperature = 50;
     await vm.Cooling.SetFixedAsync();

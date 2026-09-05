@@ -82,7 +82,7 @@ using one widget type everywhere. The choices made, and why:
 | RGB effect selection | A grid of icon tiles (`RadioButton`s), applied on click | Nine named, equal-weight options belong on screen, not behind a dropdown - and "manual zone colours" is the tenth tile rather than a separate button, since choosing it is just choosing no effect. Highlighting follows `ActiveKeyboardEffect` (what is *running*), not the last pick, and the active tile carries a pulsing dot so the running effect is readable without looking at the keyboard. |
 | Battery charge limit (60-100%) | `Slider`, self-applying via `Debouncer` (700 ms) | A genuinely continuous range, so a slider is the right shape. The apply button is gone: the write fires once the slider comes to rest, so a drag across the range is still one verified, rollback-checked EC transaction, not one per pixel. The slider deliberately stays enabled during that write (`CanAdjust`, not `CanApply`) so it cannot go dead under the user's own hand. |
 | Update check | Single button ("Jetzt prüfen") + status text + conditional `ui:HyperlinkButton` | It's a one-shot, infrequent action with a clear success/failure outcome, not a setting; a hyperlink (not an auto-download) is used deliberately since the app never downloads or installs anything itself (see below). |
-| Custom fan curve (15 points) | A draggable point-and-line chart (temperature °C × fan speed %), not a grid of numbers | This is fundamentally a *shape* the user is designing, not 15 independent settings - a chart lets them see and feel that shape directly, the way the hardware vendor's own tool does, instead of cross-referencing 15 rows of raw numbers. Dragging is live-clamped against every neighbor so the curve can never even be dragged into an invalid shape; the write itself is scheduled on mouse-up and debounced by 900 ms, so a user who pauses mid-gesture never has the fan mode switched underneath them, and several quick corrections still collapse into one EC transaction. |
+| Custom fan curve (15 points) | A draggable point-and-line chart (temperature °C × fan speed %), not a grid of numbers | This is fundamentally a *shape* the user is designing, not 15 independent settings - a chart lets them see and feel that shape directly, the way the hardware vendor's own tool does, instead of cross-referencing 15 rows of raw numbers. Dragging is live-clamped against every neighbour so the curve can never even be dragged into an invalid shape; the write itself waits for an explicit button, because writing a curve takes seconds and switches the fan mode, and shaping one is a dozen small edits. |
 
 ### Which colours an effect actually uses
 
@@ -283,29 +283,64 @@ having no effect:
   repeat buttons, which is why the filled part of the track never appeared. `Style="{x:Null}"`
   on those buttons is what makes them ours.
 
-## Debounced apply instead of apply buttons
+## Debounced apply, and the one place it was wrong
 
-An "Einstellung übernehmen" button is honest but tiring: the app knows perfectly well when
-a gesture has finished, and making the user say so again is friction that RGB and fan tools
-are rightly criticised for. `AorusControl.App.Infrastructure.Debouncer` replaces those
-buttons: every `Schedule()` restarts the wait, so a drag becomes exactly one device write
-at the value the user settled on.
+An "Einstellung übernehmen" button is honest but tiring: the app usually knows when a gesture
+has finished, and making the user say so again is friction that RGB and fan tools are rightly
+criticised for. `AorusControl.App.Infrastructure.Debouncer` replaces those buttons for the
+charge limit and the Fixed value: every `Schedule()` restarts the wait, so a drag becomes one
+device write at the value the user settled on.
 
-What the mechanism has to get right to be an improvement rather than a hazard:
+**The fan curve is the exception, and it was a mistake to include it.** Writing a curve is a
+fifteen-point EC transaction plus a mode switch - seconds, not milliseconds - and shaping a
+curve is a dozen small edits. Debouncing turned an editing session into a queue of slow
+writes, each one switching the fan mode underneath the person still drawing. It has an
+explicit "Kurve übernehmen" button again, enabled only while there is something unapplied, and
+the state says so in words.
 
-- **Nothing fires mid-gesture.** The curve schedules on mouse-up, not on every move, so a
-  pause while shaping the curve cannot trigger a mode switch under the user's hand.
-- **Nothing is silently lost.** `PrepareToCloseAsync` flushes the curve, the Fixed value and
-  the charge limit before closing, so a value set a moment earlier still reaches the device.
-  A write that lands while the controller is busy reschedules itself instead of being
-  dropped - with no button, there is nobody left to retry it.
-- **Nothing writes back what was just read.** Populating a control from the device is
-  wrapped (`_applyingDeviceState`), and `ReloadFanCurveFromDeviceAsync` cancels a pending
-  write so a reload cannot be undone by a change scheduled a moment before it.
+The rule that separates the two: debounce a *value*, not a *composition*. One number the user
+drags to a place is finished when the drag stops. A shape built from several points is not
+finished until the person says it is.
+
+What the mechanism still has to get right where it is used:
+
+- **Nothing is silently lost.** `PrepareToCloseAsync` flushes the Fixed value and the charge
+  limit before closing. The curve is deliberately *not* flushed: an unapplied curve was never
+  confirmed, and closing a window is not a way of confirming it.
+- **Nothing writes back what was just read.** Populating a control from the device is wrapped
+  (`_applyingDeviceState`), and reloading the curve from the device clears the unsaved flag
+  with the edits.
 - **Entering a mode stays explicit.** The Fixed slider follows the drag only when Fixed is
-  *already* running; brushing it never pins the fans on its own. That is still a button.
+  *already* running; brushing it never pins the fans on its own.
 - **The wait is injected**, not a `DispatcherTimer`, so `DebouncerTests` and `AutoApplyTests`
   drive it directly and the behaviour above is checked without sleeping on a real clock.
+
+## The curve editor: handles, not fifteen dots
+
+The firmware stores exactly fifteen points, and for a long time the editor showed exactly
+fifteen draggable dots. That is the wrong unit: a fan curve is three or four decisions - idle
+here, ramp there, full speed by then - and thirteen of those dots existed only because the EC
+table has that many rows.
+
+The editor works on handles now, two to fifteen of them, and `FanCurveShape` translates:
+expanding a drawn shape into the fifteen points the device demands, and collapsing a curve
+read back from the device by dropping every point that sits on the straight line between its
+neighbours. A curve drawn with four handles comes back as four handles. Both directions are
+pure functions, which is what makes the round trip testable without hardware.
+
+Editing has four ways in, because each answers something the others cannot:
+
+| Gesture | What it does | Why it exists |
+|---|---|---|
+| Drag a handle | moves it | the obvious one, and the imprecise one |
+| Click empty plot | adds a handle there | without it the editor could only ever lose handles, which makes removing one a decision nobody dares take |
+| Right-click, or Delete | removes the selected handle | simplifying a curve is as much a part of shaping it as adding to it |
+| Arrow keys | move the selected handle by one, or five with Ctrl | the only way to place a value exactly; no mouse reliably hits one degree |
+
+The selected handle wears a ring rather than growing - a dot that changes size when you touch
+it is harder to place, not easier to see. The first handle and the last are anchors and cannot
+be removed, and the last cannot be moved at all: the firmware requires full speed by 90 °C, so
+that point is not the user's to choose.
 
 ## Autostart: a Scheduled Task, not the registry Run key
 

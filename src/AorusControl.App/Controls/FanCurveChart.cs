@@ -1,7 +1,9 @@
+using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Shapes;
@@ -12,6 +14,7 @@ using Color = System.Windows.Media.Color;
 using Brush = System.Windows.Media.Brush;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using MouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using Cursors = System.Windows.Input.Cursors;
 using Brushes = System.Windows.Media.Brushes;
 using Size = System.Windows.Size;
@@ -19,18 +22,24 @@ using Size = System.Windows.Size;
 namespace AorusControl.App.Controls;
 
 /// <summary>
-/// The fan curve as temperature °C × fan speed %, drawn at whatever size it is given.
+/// The fan curve as temperature °C × fan speed %, drawn at whatever size it is given and -
+/// where the running profile allows it - edited in place.
 ///
-/// It is a control rather than window code because the curve is shown twice: editable in
-/// the Cooling section, and read-only under the power modes, where the point is to see at
-/// a glance what the fans will actually do. One implementation means the read-only view
-/// can never drift from the editor.
+/// It is a control rather than window code because the curve appears in several states: the
+/// editable one under Dynamic, a flat line under Maximum and Fixed, and Gigabyte's own curve
+/// as a dashed comparison in all of them. One implementation means those views cannot drift.
 ///
-/// While <see cref="IsEditable"/> is set, every drag is clamped live against
-/// FanCurveValidation's real rules (25-100%, non-decreasing temperature and speed) using
-/// the point's immediate neighbours, so the chart cannot even display an invalid shape.
-/// The last point is not draggable at all - the firmware requires it fixed - and is drawn
-/// muted rather than merely being hard to hit.
+/// Editing works on handles, not on the firmware's fifteen points. A fan curve is usually
+/// three or four decisions, and fifteen draggable dots is a worse way to express them: points
+/// are added by clicking empty plot, removed with a right-click or Delete, dragged, and nudged
+/// with the arrow keys once selected - the last being the only way to place a value exactly,
+/// since no mouse reliably hits one degree. FanCurveShape turns whatever was drawn into the
+/// fifteen points the EC demands.
+///
+/// Every move is clamped live against the real rules (25-100%, non-decreasing in both axes)
+/// using the neighbours, so the chart cannot even display a shape the firmware would reject.
+/// The last handle is not the user's: full speed by 90 °C is required, so it is drawn muted
+/// and can be neither moved nor removed.
 /// </summary>
 public sealed class FanCurveChart : Canvas
 {
@@ -61,7 +70,14 @@ public sealed class FanCurveChart : Canvas
 
     public static readonly DependencyProperty IsEditableProperty = DependencyProperty.Register(
         nameof(IsEditable), typeof(bool), typeof(FanCurveChart),
-        new PropertyMetadata(false, (chart, _) => ((FanCurveChart)chart).Redraw()));
+        new PropertyMetadata(false, (chart, _) => ((FanCurveChart)chart).OnEditableChanged()));
+
+    /// <summary>Which handle is selected, or -1. Selection is what makes the keyboard useful,
+    /// and what a right-click or Delete acts on.</summary>
+    public static readonly DependencyProperty SelectedIndexProperty = DependencyProperty.Register(
+        nameof(SelectedIndex), typeof(int), typeof(FanCurveChart),
+        new FrameworkPropertyMetadata(-1, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault,
+            (chart, _) => ((FanCurveChart)chart).Redraw()));
 
     public IEnumerable<FanCurveRowViewModel>? Rows
     {
@@ -87,25 +103,40 @@ public sealed class FanCurveChart : Canvas
         set => SetValue(IsEditableProperty, value);
     }
 
-    /// <summary>Raised when a drag ends, so the owner can schedule the device write. The
-    /// chart deliberately does not write anything itself.</summary>
+    public int SelectedIndex
+    {
+        get => (int)GetValue(SelectedIndexProperty);
+        set => SetValue(SelectedIndexProperty, value);
+    }
+
+    /// <summary>Raised whenever the curve changed - moved, added or removed. The chart writes
+    /// nothing itself; the owner decides when a change reaches the device.</summary>
     public event EventHandler? CurveEdited;
 
     public FanCurveChart()
     {
         Background = Brushes.Transparent;
         ClipToBounds = true;
+        Focusable = true;
+        FocusVisualStyle = null;
         SizeChanged += (_, _) => Redraw();
+    }
+
+    private void OnEditableChanged()
+    {
+        if (!IsEditable) SelectedIndex = -1;
+        Redraw();
     }
 
     private void OnRowsChanged(DependencyPropertyChangedEventArgs args)
     {
-        // Follow the collection AND each row: the curve is repopulated on load and edited
-        // in place afterwards, and both have to reach the drawing.
+        // Follow the collection AND each row: the curve is repopulated on load and edited in
+        // place afterwards, and both have to reach the drawing.
         if (args.OldValue is INotifyCollectionChanged oldCollection) oldCollection.CollectionChanged -= OnCollectionChanged;
         foreach (FanCurveRowViewModel row in Enumerate(args.OldValue)) row.PropertyChanged -= OnRowPropertyChanged;
         if (args.NewValue is INotifyCollectionChanged newCollection) newCollection.CollectionChanged += OnCollectionChanged;
         foreach (FanCurveRowViewModel row in Enumerate(args.NewValue)) row.PropertyChanged += OnRowPropertyChanged;
+        SelectedIndex = -1;
         Redraw();
     }
 
@@ -143,34 +174,45 @@ public sealed class FanCurveChart : Canvas
     private int PercentFromCanvasY(double y) =>
         (int)Math.Round(PercentMin + Math.Clamp((PlotBottom - y) / (PlotBottom - PlotTop), 0, 1) * (PercentMax - PercentMin));
 
-    // ---- dragging ------------------------------------------------------------------
+    // ---- editing -------------------------------------------------------------------
+    private List<FanCurveRowViewModel> Handles => Rows?.ToList() ?? [];
+    private ObservableCollection<FanCurveRowViewModel>? Editable => Rows as ObservableCollection<FanCurveRowViewModel>;
+
+    /// <summary>The last handle belongs to the firmware, not the user: full speed by 90 °C is
+    /// required, so it cannot be moved or removed.</summary>
+    private static bool IsLocked(int index, int count) => index == count - 1;
+
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs eventArgs)
     {
         base.OnMouseLeftButtonDown(eventArgs);
         if (!IsEditable) return;
-        var rows = Rows?.ToList();
-        if (rows is null || rows.Count == 0) return;
+        Focus();
+        List<FanCurveRowViewModel> handles = Handles;
+        if (handles.Count == 0) return;
 
         Point position = eventArgs.GetPosition(this);
-        // The last point is excluded: the firmware pins it, so offering it for dragging
-        // would be offering an edit that is going to be rejected.
-        for (int index = 0; index < rows.Count - 1; index++)
+        int hit = HandleAt(handles, position);
+        if (hit >= 0)
         {
-            var center = new Point(ToCanvasX(rows[index].TemperatureNumber), ToCanvasY(rows[index].Percent));
-            if ((position - center).Length > PointHitRadius) continue;
-            _dragging = index;
+            SelectedIndex = hit;
+            if (IsLocked(hit, handles.Count)) return;
+            _dragging = hit;
             CaptureMouse();
-            UpdatePoint(rows, index, position);
+            Set(handles, hit, TemperatureFromCanvasX(position.X), PercentFromCanvasY(position.Y));
             return;
         }
+
+        // A click on empty plot adds a point there. Without it the editor could only ever lose
+        // handles, which would make removing one a decision nobody dares take.
+        Add(position);
     }
 
     protected override void OnMouseMove(MouseEventArgs eventArgs)
     {
         base.OnMouseMove(eventArgs);
         if (_dragging is not { } index) return;
-        var rows = Rows?.ToList();
-        if (rows is not null) UpdatePoint(rows, index, eventArgs.GetPosition(this));
+        Point position = eventArgs.GetPosition(this);
+        Set(Handles, index, TemperatureFromCanvasX(position.X), PercentFromCanvasY(position.Y));
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs eventArgs)
@@ -179,26 +221,134 @@ public sealed class FanCurveChart : Canvas
         bool wasDragging = _dragging is not null;
         _dragging = null;
         ReleaseMouseCapture();
-        // Raised on release rather than on every move: a user who pauses mid-drag is still
-        // shaping the curve, and writing there would switch the fan mode underneath the
-        // gesture. The owner's debouncer still collapses several quick drags into one.
         if (wasDragging) CurveEdited?.Invoke(this, EventArgs.Empty);
     }
 
-    private void UpdatePoint(IReadOnlyList<FanCurveRowViewModel> rows, int index, Point position)
+    protected override void OnMouseRightButtonUp(MouseButtonEventArgs eventArgs)
     {
-        if (index < 0 || index >= rows.Count - 1) return;
+        base.OnMouseRightButtonUp(eventArgs);
+        if (!IsEditable) return;
+        List<FanCurveRowViewModel> handles = Handles;
+        int hit = HandleAt(handles, eventArgs.GetPosition(this));
+        if (hit < 0) return;
+        SelectedIndex = hit;
+        Remove(handles, hit);
+        eventArgs.Handled = true;
+    }
 
-        // Clamp against the immediate neighbours so the curve is always valid while
-        // dragging - and never below the firmware's tested floor (25% / raw 57), which
-        // every point must respect, not only the first.
-        double minTemperature = index == 0 ? TemperatureMin : rows[index - 1].TemperatureNumber;
-        double maxTemperature = rows[index + 1].TemperatureNumber;
-        int minPercent = Math.Max(25, index == 0 ? 25 : rows[index - 1].Percent);
-        int maxPercent = rows[index + 1].Percent;
+    protected override void OnKeyDown(KeyEventArgs eventArgs)
+    {
+        base.OnKeyDown(eventArgs);
+        if (!IsEditable) return;
+        List<FanCurveRowViewModel> handles = Handles;
+        if (handles.Count == 0) return;
 
-        rows[index].TemperatureNumber = Math.Clamp(TemperatureFromCanvasX(position.X), minTemperature, maxTemperature);
-        rows[index].Percent = Math.Clamp(PercentFromCanvasY(position.Y), minPercent, maxPercent);
+        // Home and End reach the ends without the mouse; the arrow keys then walk from there.
+        if (eventArgs.Key is Key.Home or Key.End)
+        {
+            SelectedIndex = eventArgs.Key == Key.Home ? 0 : handles.Count - 1;
+            eventArgs.Handled = true;
+            return;
+        }
+
+        if (SelectedIndex < 0 || SelectedIndex >= handles.Count) return;
+
+        if (eventArgs.Key is Key.Delete or Key.Back)
+        {
+            Remove(handles, SelectedIndex);
+            eventArgs.Handled = true;
+            return;
+        }
+
+        // The arrow keys are the only way to place a value exactly - no mouse reliably hits one
+        // degree. Ctrl moves in fives, for crossing the chart without forty keystrokes.
+        int step = (Keyboard.Modifiers & ModifierKeys.Control) != 0 ? 5 : 1;
+        (double temperature, int percent) = eventArgs.Key switch
+        {
+            Key.Left => (-step, 0),
+            Key.Right => (step, 0),
+            Key.Up => (0, step),
+            Key.Down => (0, -step),
+            _ => (0.0, 0)
+        };
+        if (temperature == 0 && percent == 0) return;
+
+        FanCurveRowViewModel handle = handles[SelectedIndex];
+        Set(handles, SelectedIndex, handle.TemperatureNumber + temperature, handle.Percent + percent);
+        CurveEdited?.Invoke(this, EventArgs.Empty);
+        eventArgs.Handled = true;
+    }
+
+    private int HandleAt(IReadOnlyList<FanCurveRowViewModel> handles, Point position)
+    {
+        for (int index = 0; index < handles.Count; index++)
+        {
+            var center = new Point(ToCanvasX(handles[index].TemperatureNumber), ToCanvasY(handles[index].Percent));
+            if ((position - center).Length <= PointHitRadius) return index;
+        }
+        return -1;
+    }
+
+    private void Add(Point position)
+    {
+        if (Editable is not { } collection || collection.Count >= FanCurveShape.FirmwarePoints) return;
+
+        double temperature = Math.Round(TemperatureFromCanvasX(position.X));
+        // Only between existing handles: a point past the last one would sit beyond the
+        // firmware's own end, which is fixed.
+        int at = -1;
+        for (int index = 0; index < collection.Count; index++)
+        {
+            if (collection[index].TemperatureNumber <= temperature) continue;
+            at = index;
+            break;
+        }
+        if (at <= 0) return;
+
+        collection.Insert(at, new FanCurveRowViewModel(at + 1)
+        {
+            TemperatureNumber = temperature,
+            Percent = PercentFromCanvasY(position.Y)
+        });
+        Renumber(collection);
+        SelectedIndex = at;
+        // Clamped like any other move, so an added point cannot break the shape either.
+        Set(Handles, at, temperature, PercentFromCanvasY(position.Y));
+        CurveEdited?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void Remove(List<FanCurveRowViewModel> handles, int index)
+    {
+        if (Editable is not { } collection) return;
+        // The ends anchor the curve, and the firmware owns the last one.
+        if (handles.Count <= FanCurveShape.MinimumHandles || index <= 0 || IsLocked(index, handles.Count)) return;
+
+        collection.RemoveAt(index);
+        Renumber(collection);
+        SelectedIndex = Math.Min(index, collection.Count - 1);
+        CurveEdited?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static void Renumber(ObservableCollection<FanCurveRowViewModel> collection)
+    {
+        for (int index = 0; index < collection.Count; index++) collection[index].Number = index + 1;
+    }
+
+    /// <summary>
+    /// Places a handle, clamped against its neighbours and the firmware's floor, so the chart
+    /// can never display a shape that would be rejected on write.
+    /// </summary>
+    private void Set(List<FanCurveRowViewModel> handles, int index, double temperature, double percent)
+    {
+        if (index < 0 || index >= handles.Count || IsLocked(index, handles.Count)) return;
+
+        double minTemperature = index == 0 ? TemperatureMin : handles[index - 1].TemperatureNumber + 1;
+        double maxTemperature = handles[index + 1].TemperatureNumber - 1;
+        int minPercent = index == 0 ? FanCurveShape.MinimumPercent : Math.Max(FanCurveShape.MinimumPercent, handles[index - 1].Percent);
+        int maxPercent = handles[index + 1].Percent;
+
+        handles[index].TemperatureNumber = Math.Clamp(Math.Round(temperature), minTemperature, Math.Max(minTemperature, maxTemperature));
+        handles[index].Percent = Math.Clamp((int)Math.Round(percent), minPercent, Math.Max(minPercent, maxPercent));
     }
 
     // ---- drawing -------------------------------------------------------------------
@@ -206,7 +356,7 @@ public sealed class FanCurveChart : Canvas
     {
         Children.Clear();
         if (ActualWidth <= 0 || ActualHeight <= 0) return;
-        var rows = Rows?.ToList() ?? [];
+        List<FanCurveRowViewModel> handles = Handles;
         var reference = Reference?.OrderBy(point => point.TemperatureCelsius).ToList() ?? [];
 
         Brush gridBrush = new SolidColorBrush(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF));
@@ -229,15 +379,15 @@ public sealed class FanCurveChart : Canvas
 
         DrawReference(reference);
         DrawConstant();
-        // An empty chart still shows its axes: a blank box reads as broken, while an empty
-        // grid reads as "nothing measured yet", which is what it is.
-        if (rows.Count == 0) return;
+        // An empty chart still shows its axes: a blank box reads as broken, while an empty grid
+        // reads as "nothing to show here", which is what it is.
+        if (handles.Count == 0) return;
 
-        var points = new PointCollection(rows.Select(row => new Point(ToCanvasX(row.TemperatureNumber), ToCanvasY(row.Percent))));
+        var points = new PointCollection(handles.Select(handle => new Point(ToCanvasX(handle.TemperatureNumber), ToCanvasY(handle.Percent))));
 
-        // Carry the curve out to both edges of the plot. Below the first point and above
-        // the last one the fan does not stop existing - the firmware holds those values -
-        // so drawing the line only between the points left the chart ending in mid-air.
+        // Carry the curve out to both edges of the plot. Below the first handle and above the
+        // last one the fan does not stop existing - the firmware holds those values - so
+        // drawing only between them left the chart ending in mid-air.
         points.Insert(0, new Point(PlotLeft, points[0].Y));
         points.Add(new Point(ToCanvasX(TemperatureMax), points[^1].Y));
 
@@ -253,39 +403,55 @@ public sealed class FanCurveChart : Canvas
                 new Point(0, 0), new Point(0, 1))
         });
 
-        // A soft blurred duplicate underneath gives the line a gentle glow rather than a
-        // flat, static-looking stroke.
+        // A soft blurred duplicate underneath gives the line a gentle glow rather than a flat,
+        // static-looking stroke.
         Children.Add(Line(points, 7, 0.35, new BlurEffect { Radius = 8 }));
         Children.Add(Line(points, 3, 1.0, null));
 
-        // Read-only: the line and its fill say everything, and fifteen dots on a small
-        // chart read as a dotted line rather than as points.
         if (!IsEditable) return;
+        for (int index = 0; index < handles.Count; index++) DrawHandle(handles, index, points[index + 1]);
+    }
 
-        for (int index = 0; index < rows.Count; index++)
+    private void DrawHandle(IReadOnlyList<FanCurveRowViewModel> handles, int index, Point center)
+    {
+        bool locked = IsLocked(index, handles.Count);
+        bool selected = index == SelectedIndex;
+        Color color = locked ? LockedColor : AccentColor;
+        double radius = locked ? 6 : 7;
+
+        // The selection is a ring around the handle rather than a bigger handle: a dot that
+        // changes size when you touch it is harder to place, not easier to see.
+        if (selected)
         {
-            bool locked = index == rows.Count - 1;
-            // +1: points[0] is the synthetic left edge, not a real curve point.
-            Point center = points[index + 1];
-            Color color = locked ? LockedColor : AccentColor;
-            double radius = locked ? 6 : 7;
-            var dot = new Ellipse
+            var ring = new Ellipse
             {
-                Width = radius * 2,
-                Height = radius * 2,
-                Fill = new SolidColorBrush(color),
-                Stroke = new SolidColorBrush(Color.FromRgb(0x0E, 0x10, 0x13)),
+                Width = radius * 2 + 12,
+                Height = radius * 2 + 12,
+                Stroke = new SolidColorBrush(color),
                 StrokeThickness = 2,
-                Cursor = locked ? Cursors.Arrow : Cursors.Hand,
-                Effect = new DropShadowEffect { Color = color, BlurRadius = 10, ShadowDepth = 0, Opacity = 0.7 },
-                ToolTip = locked
-                    ? $"Fest: {rows[index].TemperatureNumber:0} °C / {rows[index].Percent}% (Firmware-Vorgabe)"
-                    : $"{rows[index].TemperatureNumber:0} °C / {rows[index].Percent}%"
+                Opacity = 0.6
             };
-            SetLeft(dot, center.X - radius);
-            SetTop(dot, center.Y - radius);
-            Children.Add(dot);
+            SetLeft(ring, center.X - radius - 6);
+            SetTop(ring, center.Y - radius - 6);
+            Children.Add(ring);
         }
+
+        var dot = new Ellipse
+        {
+            Width = radius * 2,
+            Height = radius * 2,
+            Fill = new SolidColorBrush(color),
+            Stroke = new SolidColorBrush(Color.FromRgb(0x0E, 0x10, 0x13)),
+            StrokeThickness = 2,
+            Cursor = locked ? Cursors.Arrow : Cursors.Hand,
+            Effect = new DropShadowEffect { Color = color, BlurRadius = 10, ShadowDepth = 0, Opacity = 0.7 },
+            ToolTip = locked
+                ? $"Fest: {handles[index].TemperatureNumber:0} °C / {handles[index].Percent} % - die Firmware verlangt volle Drehzahl spätestens hier"
+                : $"{handles[index].TemperatureNumber:0} °C / {handles[index].Percent} % · Ziehen, Pfeiltasten verschieben, Rechtsklick entfernt"
+        };
+        SetLeft(dot, center.X - radius);
+        SetTop(dot, center.Y - radius);
+        Children.Add(dot);
     }
 
     /// <summary>A profile that holds one speed is one straight line, and drawing it is more

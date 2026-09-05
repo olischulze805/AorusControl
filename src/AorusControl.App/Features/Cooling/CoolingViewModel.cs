@@ -27,10 +27,9 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     private readonly IFanCurveStore _curveStore;
     private readonly Func<Task> _refreshTelemetry;
     private readonly Action _startMonitoring;
-    private readonly Debouncer _applyCurve;
     private readonly Debouncer _applyFixed;
 
-    private bool _busy, _closing, _disposed, _controlsEnabled, _restoreNormalOnExit, _fixedActive;
+    private bool _busy, _closing, _disposed, _controlsEnabled, _restoreNormalOnExit, _fixedActive, _unsavedCurve;
     private Guid? _fixedLease;
     private byte _fixedRaw = 114;
     private string _status = "Lüftersteuerung wird geprüft …";
@@ -53,13 +52,10 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         SetProfileCommand = new AsyncRelayCommand<string>(SetProfileAsync);
         SetFixedCommand = new AsyncRelayCommand(SetFixedAsync);
         ReloadCurveCommand = new AsyncRelayCommand(ReloadCurveFromDeviceAsync);
+        ApplyCurveCommand = new AsyncRelayCommand(ApplyCurveAsync);
         LoadGigabyteCurveCommand = new RelayCommand(LoadGigabyteCurve);
         FixedFanTicks = new System.Windows.Media.DoubleCollection(
             FixedFanRawChoices.Select(raw => (double)FanSpeedPercent.ToPercent(raw)));
-        // Dragging applies by itself once the gesture settles. The curve waits a little
-        // longer than a single value would: shaping it means many small drags, and each
-        // write is a fifteen-point EC transaction plus a mode switch.
-        _applyCurve = new Debouncer(TimeSpan.FromMilliseconds(900), ApplyPendingCurveAsync, debounceWait);
         // Only ever reschedules an ALREADY active Fixed mode - entering it stays an
         // explicit act, see SetFixedAsync.
         _applyFixed = new Debouncer(TimeSpan.FromMilliseconds(600), ReapplyFixedAsync, debounceWait);
@@ -68,6 +64,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     public AsyncRelayCommand<string> SetProfileCommand { get; }
     public AsyncRelayCommand SetFixedCommand { get; }
     public AsyncRelayCommand ReloadCurveCommand { get; }
+    public AsyncRelayCommand ApplyCurveCommand { get; }
     public RelayCommand LoadGigabyteCurveCommand { get; }
 
     /// <summary>
@@ -162,6 +159,23 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     public System.Windows.Media.DoubleCollection FixedFanTicks { get; }
 
     /// <summary>
+    /// Edits that have not reached the device. Writing a curve is a fifteen-point EC
+    /// transaction plus a mode switch and takes noticeable time, so shaping one must not
+    /// trigger a write per gesture - the user says when.
+    /// </summary>
+    public bool HasUnsavedCurve
+    {
+        get => _unsavedCurve;
+        private set
+        {
+            if (!SetProperty(ref _unsavedCurve, value)) return;
+            OnPropertyChanged(nameof(CanApplyCurve));
+        }
+    }
+
+    public bool CanApplyCurve => IsCurveEditable && HasUnsavedCurve && !_busy;
+
+    /// <summary>
     /// Whether the curve below the profile chips can be dragged. Only "Dynamic" runs the
     /// stored curve; under every other profile the chart is showing something the user does
     /// not control, and a chart that can be dragged but changes nothing is a lie told with a
@@ -192,7 +206,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     /// </summary>
     public string CurveNote => ActiveProfile switch
     {
-        "Dynamic" => "Die eigene Kurve regelt die Lüfter. Punkte ziehen; kurz nach dem Loslassen wird sie übernommen.",
+        "Dynamic" => "Die eigene Kurve regelt die Lüfter. Änderungen gelten erst nach \"Kurve übernehmen\" - das Schreiben dauert ein paar Sekunden und schaltet den Lüftermodus um, deshalb passiert es nicht bei jedem Handgriff.",
         "Maximum" => "Maximal hält die Lüfter unabhängig von jeder Kurve auf voller Stufe.",
         "Fixed" => $"Fester Wert: {FanSpeedPercent.ToPercent(_fixedRaw)} %, unabhängig von der Temperatur. Die eigene Kurve ist gespeichert, aber außer Kraft.",
         _ => $"{ActiveProfile} regelt in der Firmware und gibt keine Kurve preis - es gibt hier nichts anzuzeigen, was stimmen würde. " +
@@ -200,14 +214,12 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
              "Zum Bearbeiten oben auf \"Dynamic (eigene Kurve)\" wechseln."
     };
 
-    /// <summary>The 15 editable curve points. Text-backed like FanCurveRowViewModel
-    /// elsewhere, so invalid or incomplete typing survives until it is validated, instead of
-    /// being silently clamped as the user types.</summary>
+    /// <summary>
+    /// The curve as the user shapes it: two to fifteen handles, not the firmware's fifteen
+    /// points. FanCurveShape expands them on the way to the device and collapses them on the
+    /// way back, so a curve drawn with four decisions still reads as four handles afterwards.
+    /// </summary>
     public ObservableCollection<FanCurveRowViewModel> CurveRows { get; } = new();
-
-    /// <summary>The waiting curve write, so shutdown and tests can observe it rather than
-    /// guess at a clock.</summary>
-    internal Debouncer PendingCurveWrite => _applyCurve;
 
     /// <summary>The waiting Fixed re-apply, exposed for the same reason.</summary>
     internal Debouncer PendingFixedWrite => _applyFixed;
@@ -272,6 +284,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         {
             _busy = false;
             ControlsEnabled = true;
+            OnPropertyChanged(nameof(CanApplyCurve));
             OnPropertyChanged(nameof(ActiveProfile));
         }
     }
@@ -308,6 +321,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         {
             _busy = false;
             ControlsEnabled = true;
+            OnPropertyChanged(nameof(CanApplyCurve));
             OnPropertyChanged(nameof(ActiveProfile));
         }
     }
@@ -322,8 +336,8 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     {
         if (_closing || _busy || !ControlsEnabled) return;
 
-        FanCurvePoint[] points;
-        try { points = ParseCurveRows(); }
+        IReadOnlyList<FanCurvePoint> points;
+        try { points = FanCurveShape.ToFirmwareCurve(ReadHandles()); }
         catch (Exception exception)
         {
             CurveStatus = $"Ungültige Kurve: {exception.Message}";
@@ -341,7 +355,8 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
             _restoreNormalOnExit = true;
             Show(activated.VerifiedState, "Eigene Kurve (Dynamic)");
             _curveStore.Save(points);
-            CurveStatus = "Eigene Kurve übernommen, aktiv und gespeichert.";
+            HasUnsavedCurve = false;
+            CurveStatus = $"Übernommen, aktiv und gespeichert · {CurveRows.Count} Punkte.";
             await _refreshTelemetry();
         }
         catch (Exception exception)
@@ -354,6 +369,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         {
             _busy = false;
             ControlsEnabled = true;
+            OnPropertyChanged(nameof(CanApplyCurve));
         }
     }
 
@@ -364,19 +380,21 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     /// </summary>
     private void LoadGigabyteCurve()
     {
-        if (_closing || _disposed || !ControlsEnabled) return;
+        if (_closing || _disposed || !IsCurveEditable) return;
         PopulateCurveRows(GigabyteReferenceCurve.ForThisFirmware());
-        CurveStatus = "Gigabytes Standardkurve geladen, an die Grenzen dieser Firmware angepasst. Wird gleich übernommen …";
-        _applyCurve.Schedule();
+        HasUnsavedCurve = true;
+        CurveStatus = "Gigabytes Kurve geladen, an die Grenzen dieser Firmware angepasst · noch nicht übernommen.";
     }
 
-    /// <summary>Called by the chart after a drag: the curve writes itself once the user stops
-    /// moving points, so there is no apply button to forget.</summary>
-    public void ScheduleCurveApply()
+    /// <summary>
+    /// Called by the chart after every edit. It only marks the curve as changed: writing takes
+    /// seconds and switches the fan mode, which is far too much to happen behind a drag.
+    /// </summary>
+    public void NoteCurveEdited()
     {
-        if (_closing || _disposed || !ControlsEnabled) return;
-        CurveStatus = "Änderung wird gleich übernommen …";
-        _applyCurve.Schedule();
+        if (_closing || _disposed || !IsCurveEditable) return;
+        HasUnsavedCurve = true;
+        CurveStatus = $"{CurveRows.Count} Punkte · noch nicht übernommen.";
     }
 
     /// <summary>Discards edits and re-reads whatever curve is on the EC - an escape hatch
@@ -388,10 +406,8 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         try
         {
             FanControlState state = await _fan.ReadAsync();
-            // A write scheduled a moment ago must not land afterwards and undo the reload.
-            _applyCurve.Cancel();
             PopulateCurveRows(state.Curve);
-            CurveStatus = "Aktuelle Firmware-Kurve geladen (noch nicht gespeichert oder aktiviert).";
+            CurveStatus = $"Firmware-Kurve gelesen · {CurveRows.Count} Punkte, unverändert.";
         }
         catch (Exception exception)
         {
@@ -454,6 +470,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         {
             _busy = false;
             ControlsEnabled = true;
+            OnPropertyChanged(nameof(CanApplyCurve));
         }
     }
 
@@ -461,7 +478,6 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     /// value they just set is not lost to the timing of the close.</summary>
     public async Task FlushPendingWritesAsync()
     {
-        try { await _applyCurve.FlushAsync(); } catch (Exception error) { AppLog.Error("fan", "Ausstehende Kurve nicht mehr geschrieben.", error); }
         try { await _applyFixed.FlushAsync(); } catch (Exception error) { AppLog.Error("fan", "Ausstehender Fixed-Wert nicht mehr geschrieben.", error); }
     }
 
@@ -512,7 +528,6 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     {
         if (_disposed) return;
         _disposed = true;
-        _applyCurve.Cancel();
         _applyFixed.Cancel();
         RestoreFansToFirmware();
         _fan.Dispose();
@@ -526,15 +541,6 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         catch { /* Worker's own supervisor remains responsible. */ }
         _fixedActive = false;
         _fixedLease = null;
-    }
-
-    private Task ApplyPendingCurveAsync()
-    {
-        if (_closing || _disposed) return Task.CompletedTask;
-        // With no apply button there is nobody left to retry a write that lands while the
-        // controller is busy, so it waits its turn instead of being dropped.
-        if (_busy || !ControlsEnabled) { _applyCurve.Schedule(); return Task.CompletedTask; }
-        return ApplyCurveAsync();
     }
 
     private async Task ReapplyFixedAsync()
@@ -563,32 +569,22 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     private void PopulateCurveRows(IReadOnlyList<FanCurvePoint> curve)
     {
         CurveRows.Clear();
-        foreach (FanCurvePoint point in curve)
+        int number = 1;
+        foreach (FanCurveHandle handle in FanCurveShape.FromFirmwareCurve(curve))
         {
-            CurveRows.Add(new FanCurveRowViewModel(point.Index + 1)
+            CurveRows.Add(new FanCurveRowViewModel(number++)
             {
-                Temperature = point.Temperature.ToString(),
-                Value = point.Value.ToString()
+                TemperatureNumber = handle.TemperatureCelsius,
+                Percent = handle.Percent
             });
         }
+        HasUnsavedCurve = false;
     }
 
-    private FanCurvePoint[] ParseCurveRows()
-    {
-        if (CurveRows.Count != 15) throw new InvalidOperationException("Es müssen genau 15 Punkte vorhanden sein.");
-        var points = new FanCurvePoint[15];
-        for (int index = 0; index < 15; index++)
-        {
-            FanCurveRowViewModel row = CurveRows[index];
-            if (!byte.TryParse(row.Temperature, out byte temperature))
-                throw new FormatException($"Punkt {index + 1}: ungültige Temperatur.");
-            if (!byte.TryParse(row.Value, out byte value))
-                throw new FormatException($"Punkt {index + 1}: ungültiger Rohwert.");
-            points[index] = new FanCurvePoint((byte)index, temperature, value);
-        }
-        FanCurveValidation.Validate(points);
-        return points;
-    }
+    /// <summary>The handles as the shape code wants them. Reading the numeric views rather than
+    /// the text ones: the chart only ever sets numbers, and a half-typed value cannot occur.</summary>
+    private IReadOnlyList<FanCurveHandle> ReadHandles() =>
+        CurveRows.Select(row => new FanCurveHandle(row.TemperatureNumber, row.Percent)).ToArray();
 
     private async Task AppendReadbackAsync()
     {
@@ -615,7 +611,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     /// <summary>Everything the chart and its caption read, announced together whenever the
     /// running profile changes - the chart follows the device, like the chips do.</summary>
     private static readonly string[] CurveView =
-        [nameof(IsCurveEditable), nameof(DisplayedCurve), nameof(ConstantPercent), nameof(CurveNote)];
+        [nameof(IsCurveEditable), nameof(DisplayedCurve), nameof(ConstantPercent), nameof(CurveNote), nameof(CanApplyCurve)];
 
     /// <summary>The chip identity for a read-back state. "Fixed" is its own key so no profile
     /// chip lights up while a manual fixed value is held.</summary>
