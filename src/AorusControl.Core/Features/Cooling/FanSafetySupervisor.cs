@@ -27,7 +27,10 @@ public sealed class FanSafetySupervisor(
 
     public async Task<Guid> AcquireFixedAsync(byte rawValue)
     {
-        if (rawValue is < 57 or > 229) throw new ArgumentOutOfRangeException(nameof(rawValue));
+        // Zero is allowed: the fans really do stop, and the supervision below - a temperature
+        // check on acquisition and on every renewal - is what makes holding any low value safe,
+        // not a floor on the value itself.
+        if (rawValue > 229) throw new ArgumentOutOfRangeException(nameof(rawValue));
         await _gate.WaitAsync().ConfigureAwait(false);
         try
         {

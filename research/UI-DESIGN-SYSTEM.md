@@ -391,14 +391,19 @@ Two things are handled deliberately, not left as loose ends:
   229", so `AorusControl.Core.Features.Cooling.FanSpeedPercent` treats that same 229 as
   100% for every percent shown anywhere in the app (`ToPercent`/`ToRaw`, tested for
   clamping and round-trip tolerance) - including the Fixed-fan slider, which now shows
-  "25%"/"30%"/.../"100%" for its eight tested raw steps instead of the raw byte value. The
-  curve's own tested floor (raw 57) reads as 25%, deliberately not 0%, since 0% would read
-  as "fan off" and that is not what that value means.
+  "Aus"/"25%"/"30%"/.../"100%" for its tested raw steps instead of the raw byte value.
+  Raw 0 really is fans off and is offered as the left end of that slider: it was measured
+  on the device (both fans at 0 RPM, research/runs/fan-floor-rpm-test-20260905-135015.md)
+  and the vendor's Quiet profile does the same. What makes it safe is not a floor on the
+  value but the hardware worker's lease, which refuses to hold any fixed value at 65 °C and
+  restores Normal by itself.
 - **Every drag is clamped live**, not just validated at Apply time: dragging point *i*
-  clamps its temperature and percent between its immediate left and right neighbors (and
-  never below the firmware's 25% floor), so the chart can never even display an invalid
-  shape while the user is still dragging - `FanCurveValidation`'s own rules (57-229 raw,
-  non-decreasing, last point ≤90 °C at 100%) are mirrored directly into the drag math. The
+  clamps its temperature and percent between its immediate left and right neighbors and
+  against the floor for the temperature it lands on - 0% below `PassiveBelowCelsius`
+  (60 °C), where the fans were measured to genuinely stop, and 25% from there upwards, so a
+  curve can never be silent into the temperatures where silence stops being harmless. The
+  chart therefore can never even display an invalid shape while the user is still dragging -
+  `FanCurveValidation`'s own rules are mirrored directly into the drag math. The
   last point is excluded from hit-testing entirely (rendered smaller, in a muted color,
   with a "fest" tooltip) rather than merely being difficult to drag, since the firmware
   requires it fixed and a curve editor that lets you drag a point it's going to reject

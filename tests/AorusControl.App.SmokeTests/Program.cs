@@ -308,7 +308,9 @@ await Run("The Fixed slider can only land on tested steps", async (vm, reader, f
     vm.Cooling.FixedFanPercent = 78;
     Check(vm.Cooling.FixedFanRaw == 194, $"78 % must snap to the 85 % step (raw 194), got {vm.Cooling.FixedFanRaw}");
     vm.Cooling.FixedFanPercent = 0;
-    Check(vm.Cooling.FixedFanRaw == 57, "below the floor must snap up to the lowest tested step");
+    Check(vm.Cooling.FixedFanRaw == 0, "the left end of the slider is fans off");
+    vm.Cooling.FixedFanPercent = 20;
+    Check(vm.Cooling.FixedFanRaw == 57, "between off and the lowest step it snaps to the nearer one");
     vm.Cooling.FixedFanPercent = 500;
     Check(vm.Cooling.FixedFanRaw == 229, "above the ceiling must snap down to the highest tested step");
     Check(vm.Cooling.FixedFanTicks.Count == vm.Cooling.FixedFanRawChoices.Count, "one tick per tested step");

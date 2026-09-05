@@ -26,7 +26,8 @@ public sealed class LaptopProfile
         if (!Enum.IsDefined(coolingMode)) throw new ArgumentOutOfRangeException(nameof(coolingMode));
         if (coolingMode == ProfileCoolingMode.Fixed)
         {
-            if (fixedRawValue is null or < 57 or > 229) throw new ArgumentOutOfRangeException(nameof(fixedRawValue));
+            // 0 is fans off, which this device does and the worker's lease supervises.
+            if (fixedRawValue is null or > 229) throw new ArgumentOutOfRangeException(nameof(fixedRawValue));
         }
         else if (fixedRawValue is not null) throw new ArgumentException("Fixed-Wert nur im Fixed-Modus erlaubt.", nameof(fixedRawValue));
 

@@ -8,7 +8,14 @@ namespace AorusControl.Core.Services;
 
 public sealed class GigabyteWmiFanController : IAorusFanController
 {
-    public const byte MinimumCurrentlyTestableFixedRaw = 57;
+    /// <summary>
+    /// Fans off is a legitimate fixed value on this device: raw 0 was measured as both stored
+    /// and driven, with both fans reporting 0 RPM
+    /// (research/runs/fan-floor-rpm-test-20260905-135015.md), and the vendor's own Quiet profile
+    /// does the same. What keeps it safe is not a floor here but the worker's lease: it refuses
+    /// to hold any fixed value at 65 °C and restores Normal on its own.
+    /// </summary>
+    public const byte MinimumFixedRaw = 0;
     public const byte MaximumFixedRaw = 229;
     private readonly SemaphoreSlim _operationLock = new(1, 1);
     private ManagementObject? _getterInstance;
@@ -128,12 +135,12 @@ public sealed class GigabyteWmiFanController : IAorusFanController
         byte rawValue,
         CancellationToken cancellationToken = default)
     {
-        if (rawValue is < MinimumCurrentlyTestableFixedRaw or > MaximumFixedRaw)
+        if (rawValue > MaximumFixedRaw)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(rawValue),
                 rawValue,
-                $"Der noch experimentelle Fixed-Modus erlaubt vorerst nur Rohwerte {MinimumCurrentlyTestableFixedRaw}–{MaximumFixedRaw}.");
+                $"Der Fixed-Modus erlaubt Rohwerte {MinimumFixedRaw}–{MaximumFixedRaw}.");
         }
 
         ThrowIfDisposed();

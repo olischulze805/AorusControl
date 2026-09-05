@@ -102,6 +102,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     /// part Windows does not control.</summary>
     public string Summary => ActiveProfile switch
     {
+        "Fixed" when _fixedRaw == 0 => "Lüfter aus · der Worker stellt bei 65 °C selbsttätig auf Normal zurück.",
         "Fixed" => $"Fester Wert {FanSpeedPercent.ToPercent(_fixedRaw)} % · die Kurve unten ist gespeichert, aber gerade außer Kraft.",
         "Maximum" => "Maximum · Lüfter laufen unabhängig von der Kurve auf voller Stufe.",
         "Dynamic" => "Dynamic · die Kurve unten regelt die Lüfter.",
@@ -124,7 +125,9 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         }
     }
 
-    public IReadOnlyList<byte> FixedFanRawChoices { get; } = [57, 68, 91, 114, 137, 160, 194, 229];
+    /// <summary>The eight steps measured on the device, plus fans off - which was measured
+    /// too, at 0 RPM on both fans, and is what the vendor's Quiet profile does anyway.</summary>
+    public IReadOnlyList<byte> FixedFanRawChoices { get; } = [0, 57, 68, 91, 114, 137, 160, 194, 229];
 
     /// <summary>
     /// The Fixed slider's value. Reads and writes percent, but can only ever land on one of
@@ -208,6 +211,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     {
         "Dynamic" => "Die eigene Kurve regelt die Lüfter. Änderungen gelten erst nach \"Kurve übernehmen\" - das Schreiben dauert ein paar Sekunden und schaltet den Lüftermodus um, deshalb passiert es nicht bei jedem Handgriff.",
         "Maximum" => "Maximal hält die Lüfter unabhängig von jeder Kurve auf voller Stufe.",
+        "Fixed" when _fixedRaw == 0 => "Lüfter stehen. Der Hardware-Worker prüft die Temperatur und stellt bei 65 °C von sich aus auf Normal zurück, auch wenn die App abstürzt.",
         "Fixed" => $"Fester Wert: {FanSpeedPercent.ToPercent(_fixedRaw)} %, unabhängig von der Temperatur. Die eigene Kurve ist gespeichert, aber außer Kraft.",
         _ => $"{ActiveProfile} regelt in der Firmware und gibt keine Kurve preis - es gibt hier nichts anzuzeigen, was stimmen würde. " +
              "Gestrichelt liegt darunter die einzige Kurve, die Gigabytes eigene Software für dieses Modell hatte. " +

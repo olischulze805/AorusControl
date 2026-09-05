@@ -22,7 +22,10 @@ internal static class LaptopProfileTests
         Reject(() => Make(ProfileCoolingMode.CustomCurve));
         Reject(() => Make(ProfileCoolingMode.Normal, curve: profile.Curve));
         Reject(() => Make(ProfileCoolingMode.Fixed));
-        Reject(() => Make(ProfileCoolingMode.Fixed, 56));
+        // Fans off is a real setting on this device, so only values the firmware cannot take
+        // are refused.
+        _ = Make(ProfileCoolingMode.Fixed, 0);
+        Reject(() => Make(ProfileCoolingMode.Fixed, 230));
         Reject(() => Make(ProfileCoolingMode.Normal, 100));
         Reject(() => Make((ProfileCoolingMode)99));
         Reject(() => new LaptopProfile(Guid.Empty, "Test", WindowsPowerOverlayMode.Balanced, ProfileCoolingMode.Normal));

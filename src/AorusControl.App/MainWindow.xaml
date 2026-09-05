@@ -236,7 +236,7 @@
                                 <Border Height="1" Background="{StaticResource CardBorderBrush}" Margin="0,24,0,20" />
                                 <TextBlock Text="Fester Wert" Style="{StaticResource SubLabel}" />
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="Hält die Lüfter unabhängig von der Temperatur. Der Regler rastet auf die acht am Gerät vermessenen Stufen ein, deshalb sind die Abstände ungleich. Läuft über den absturzsicheren Hardware-Worker; Aktivieren ist bewusst ein Knopfdruck, danach folgt der Regler von selbst." />
+                                           Text="Hält die Lüfter unabhängig von der Temperatur, ganz links auch komplett aus. Der Regler rastet auf die am Gerät vermessenen Stufen ein, deshalb sind die Abstände ungleich. Läuft über den absturzsicheren Hardware-Worker, der bei 65 °C von sich aus auf Normal zurückstellt; Aktivieren ist bewusst ein Knopfdruck, danach folgt der Regler von selbst." />
                                 <Grid Margin="0,20,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -246,17 +246,17 @@
                                     <TextBlock Grid.Column="0" Text="{Binding Cooling.FixedFanPercentText}" Style="{StaticResource SliderReadout}" />
                                     <StackPanel Grid.Column="1" Margin="22,0">
                                         <Slider Style="{StaticResource ValueSlider}" MinWidth="170"
-                                                Minimum="25" Maximum="100"
+                                                Minimum="0" Maximum="100"
                                                 Ticks="{Binding Cooling.FixedFanTicks}"
                                                 IsSnapToTickEnabled="True"
                                                 Value="{Binding Cooling.FixedFanPercent, Mode=TwoWay}" />
                                         <!-- Ticks on the tested steps, which really are unevenly spaced;
                                              only the two ends are labelled, since the paragraph above
                                              already explains what the lowest step means. -->
-                                        <ctrl:SliderScale Minimum="25" Maximum="100" Margin="0,2,0,0"
+                                        <ctrl:SliderScale Minimum="0" Maximum="100" Margin="0,2,0,0"
                                                           Ticks="{Binding Cooling.FixedFanTicks}"
                                                           TickBrush="{StaticResource TickBrush}">
-                                            <TextBlock Style="{StaticResource SliderEndLabel}" Text="25 %" />
+                                            <TextBlock Style="{StaticResource SliderEndLabel}" Text="Aus" />
                                             <TextBlock Style="{StaticResource SliderEndLabel}" Text="100 %" />
                                         </ctrl:SliderScale>
                                     </StackPanel>

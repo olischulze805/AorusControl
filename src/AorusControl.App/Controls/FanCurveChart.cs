@@ -36,8 +36,10 @@ namespace AorusControl.App.Controls;
 /// since no mouse reliably hits one degree. FanCurveShape turns whatever was drawn into the
 /// fifteen points the EC demands.
 ///
-/// Every move is clamped live against the real rules (25-100%, non-decreasing in both axes)
-/// using the neighbours, so the chart cannot even display a shape the firmware would reject.
+/// Every move is clamped live against the real rules using the neighbours, so the chart cannot
+/// even display a shape the firmware would reject: non-decreasing in both axes, and never below
+/// the floor for that temperature - zero below 60 °C, where the fans were measured to actually
+/// stand still, and 25 % from there upwards.
 /// The last handle is not the user's: full speed by 90 °C is required, so it is drawn muted
 /// and can be neither moved nor removed.
 /// </summary>
@@ -344,10 +346,14 @@ public sealed class FanCurveChart : Canvas
 
         double minTemperature = index == 0 ? TemperatureMin : handles[index - 1].TemperatureNumber + 1;
         double maxTemperature = handles[index + 1].TemperatureNumber - 1;
-        int minPercent = index == 0 ? FanCurveShape.MinimumPercent : Math.Max(FanCurveShape.MinimumPercent, handles[index - 1].Percent);
-        int maxPercent = handles[index + 1].Percent;
-
         handles[index].TemperatureNumber = Math.Clamp(Math.Round(temperature), minTemperature, Math.Max(minTemperature, maxTemperature));
+
+        // The floor follows the temperature the handle actually ended up at, so it has to be
+        // taken after the clamp above: zero while the machine is cool enough for the fans to
+        // stand still, the verified 25 % from 60 °C upwards.
+        int floor = FanCurveShape.MinimumPercentAt(handles[index].TemperatureNumber);
+        int minPercent = index == 0 ? floor : Math.Max(floor, handles[index - 1].Percent);
+        int maxPercent = handles[index + 1].Percent;
         handles[index].Percent = Math.Clamp((int)Math.Round(percent), minPercent, Math.Max(minPercent, maxPercent));
     }
 
