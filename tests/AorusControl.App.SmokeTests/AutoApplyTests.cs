@@ -29,29 +29,29 @@ internal static class AutoApplyTests
             fanCurveStore: new FakeFanCurveStore(),
             startupManager: new FakeStartupManager(),
             debounceWait: clock.Wait);
-        await Invoke(vm, "LoadFanAsync");
+        await vm.Cooling.StartAsync();
         int before = fan.CurveWrites;
 
-        vm.FanCurveRows[3].TemperatureNumber = 50;
-        vm.ScheduleFanCurveApply();
+        vm.Cooling.CurveRows[3].TemperatureNumber = 50;
+        vm.Cooling.ScheduleCurveApply();
         Check(fan.CurveWrites == before, "the curve must not be written while the drag is still settling");
-        Check(vm.FanCurveStatus.Contains("übernommen"), "the user is told the change is on its way");
+        Check(vm.Cooling.CurveStatus.Contains("übernommen"), "the user is told the change is on its way");
 
-        await clock.ElapseAsync(vm.PendingFanCurveWrite);
+        await clock.ElapseAsync(vm.Cooling.PendingCurveWrite);
         Check(fan.CurveWrites == before + 1, $"one settled drag writes once, got {fan.CurveWrites - before}");
 
         // Reloading from the device discards edits - a write scheduled a moment earlier
         // must not land afterwards and undo the reload.
-        vm.FanCurveRows[3].TemperatureNumber = 51;
-        vm.ScheduleFanCurveApply();
-        await vm.ReloadFanCurveFromDeviceAsync();
+        vm.Cooling.CurveRows[3].TemperatureNumber = 51;
+        vm.Cooling.ScheduleCurveApply();
+        await vm.Cooling.ReloadCurveFromDeviceAsync();
         int afterReload = fan.CurveWrites;
-        await clock.ElapseAsync(vm.PendingFanCurveWrite);
+        await clock.ElapseAsync(vm.Cooling.PendingCurveWrite);
         Check(fan.CurveWrites == afterReload, "a reload cancels the pending write instead of racing it");
 
         // Closing must flush, not drop: a value set moments before closing still counts.
-        vm.FanCurveRows[3].TemperatureNumber = 48;
-        vm.ScheduleFanCurveApply();
+        vm.Cooling.CurveRows[3].TemperatureNumber = 48;
+        vm.Cooling.ScheduleCurveApply();
         await vm.PrepareToCloseAsync();
         Check(fan.CurveWrites == afterReload + 1, "closing writes the change that was still waiting");
     }
@@ -65,11 +65,11 @@ internal static class AutoApplyTests
             fanCurveStore: new FakeFanCurveStore(),
             startupManager: new FakeStartupManager(),
             debounceWait: clock.Wait);
-        await Invoke(vm, "LoadFanAsync");
+        await vm.Cooling.StartAsync();
 
         // Brushing the slider must not pin the fans: entering Fixed stays a deliberate act.
-        vm.FixedFanPercent = 75;
-        await clock.ElapseAsync(vm.PendingFixedFanWrite);
+        vm.Cooling.FixedFanPercent = 75;
+        await clock.ElapseAsync(vm.Cooling.PendingFixedWrite);
         Check(fan.FixedWrites == 0, "moving the slider must not enter Fixed mode on its own");
     }
 

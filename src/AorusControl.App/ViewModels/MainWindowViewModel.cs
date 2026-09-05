@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows.Threading;
 using System.Windows.Input;
 using MediaBrush = System.Windows.Media.Brush;
+using AorusControl.App.Features.Cooling;
 using AorusControl.App.Features.Keyboard;
 using AorusControl.App.Features.Updates;
 using AorusControl.App.Infrastructure;
@@ -18,7 +19,6 @@ namespace AorusControl.App.ViewModels;
 public sealed class MainWindowViewModel : ObservableObject, IDisposable
 {
     private readonly IAorusTelemetryReader _reader;
-    private readonly IAorusFanController _fanController;
     private readonly WindowsPowerOverlayController _powerOverlay;
     private readonly DispatcherTimer _timer;
     private bool _isReading;
@@ -34,28 +34,15 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private string _powerSource = "Stromquelle wird gelesen …";
     private string _lastUpdated = "Noch keine Messung";
     private string _toggleButtonText = "Überwachung starten";
-    private bool _fanControlsEnabled;
-    private bool _fanBusy;
-    private bool _restoreNormalFanOnDispose;
-    private bool _fixedFanActive;
-    private Guid? _fixedFanLease;
-    private readonly IFixedFanLeaseClient _fixedFanLeaseClient;
     private bool _closing;
     private bool _starting;
-    private byte _fixedFanRaw = 114;
-    private string _fanStatus = "Lüftersteuerung wird geprüft …";
     private bool _powerControlsEnabled;
     private bool _powerBusy;
     private string _powerStatus = "Windows-Leistungsmodus wird gelesen …";
-    private readonly IFanCurveStore _fanCurveStore;
-    private string _fanCurveStatus = "Kurve wird gelesen …";
     private readonly IStartupManager _startupManager;
     private bool _startWithWindows;
     private bool _startupBusy;
     private string _startupStatus = "Autostart wird geprüft …";
-    private readonly Debouncer _applyFanCurve;
-    private readonly Debouncer _applyFixedFan;
-    private bool _disposed;
 
     public MainWindowViewModel()
         : this(
@@ -88,15 +75,19 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         _reader = reader;
         Keyboard = new KeyboardViewModel(keyboardRgb, keyboardSettingsStore, brightnessListener, resumeReapplyDelay);
-        // Defaults to the real out-of-process worker client: only that implementation
-        // survives this process crashing, which is the entire point of Fixed-mode safety.
-        _fixedFanLeaseClient = fixedFanLeaseClient ?? new WorkerFixedFanLeaseClient();
-        _fanCurveStore = fanCurveStore ?? new FanCurveStore(System.IO.Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AorusControl", "fan-curve-v1.json"));
+        Cooling = new CoolingViewModel(
+            fanController,
+            // Defaults to the real out-of-process worker client: only that implementation
+            // survives this process crashing, which is the entire point of Fixed-mode safety.
+            fixedFanLeaseClient ?? new WorkerFixedFanLeaseClient(),
+            fanCurveStore ?? new FanCurveStore(System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AorusControl", "fan-curve-v1.json")),
+            RefreshAsync,
+            StartMonitoring,
+            debounceWait);
         _startupManager = startupManager ?? new StartupManager(Environment.ProcessPath ?? "AorusControl.exe");
         Battery = new BatteryViewModel(batteryController ?? new GigabyteWmiBatteryChargeController(), debounceWait);
         Updates = new UpdateViewModel();
-        _fanController = fanController;
         _powerOverlay = powerOverlay;
         _timer = new DispatcherTimer(DispatcherPriority.Background)
         {
@@ -104,27 +95,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         };
         _timer.Tick += OnTimerTick;
         ToggleMonitoringCommand = new RelayCommand(ToggleMonitoring);
-        SetFanProfileCommand = new AsyncRelayCommand<string>(SetFanProfileAsync);
-        SetFixedFanCommand = new AsyncRelayCommand(SetFixedFanAsync);
         SetPowerModeCommand = new AsyncRelayCommand<string>(modeName =>
             Enum.TryParse(modeName, ignoreCase: true, out WindowsPowerOverlayMode mode)
                 ? SetWindowsPowerModeAsync(mode)
                 : Task.CompletedTask);
-        ApplyFanCurveCommand = new AsyncRelayCommand(ApplyFanCurveAsync);
-        ReloadFanCurveFromDeviceCommand = new AsyncRelayCommand(ReloadFanCurveFromDeviceAsync);
         ToggleStartWithWindowsCommand = new AsyncRelayCommand(() => SetStartWithWindowsAsync(!StartWithWindows));
-        FixedFanTicks = new System.Windows.Media.DoubleCollection(
-            FixedFanRawChoices.Select(raw => (double)FanSpeedPercent.ToPercent(raw)));
-        // Dragging applies by itself once the gesture settles. The curve waits a little
-        // longer than a single value would: shaping it means many small drags, and each
-        // write is a fifteen-point EC transaction plus a mode switch.
-        _applyFanCurve = new Debouncer(TimeSpan.FromMilliseconds(900), ApplyPendingFanCurveAsync, debounceWait);
-        // Only ever reschedules an ALREADY active Fixed mode - entering it stays an
-        // explicit act, see SetFixedFanAsync.
-        _applyFixedFan = new Debouncer(TimeSpan.FromMilliseconds(600), ReapplyFixedFanAsync, debounceWait);
     }
 
-    private string _activeFanProfile = "Normal";
     private string? _activePowerMode;
     private string _selectedSection = "Dashboard";
 
@@ -141,18 +118,15 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     public ICommand ToggleMonitoringCommand { get; }
-    public AsyncRelayCommand<string> SetFanProfileCommand { get; }
-    public AsyncRelayCommand SetFixedFanCommand { get; }
     public AsyncRelayCommand<string> SetPowerModeCommand { get; }
-    public AsyncRelayCommand ApplyFanCurveCommand { get; }
-    public AsyncRelayCommand ReloadFanCurveFromDeviceCommand { get; }
     public AsyncRelayCommand ToggleStartWithWindowsCommand { get; }
     /// <summary>The attached feature modules. Everything the shell does to all of them -
     /// start them, wait for them, release them - goes through this list, so a new feature
     /// is a class plus one entry rather than another branch in three methods.</summary>
-    private IReadOnlyList<IFeatureModule> Modules => [Keyboard, Battery];
+    private IReadOnlyList<IFeatureModule> Modules => [Keyboard, Cooling, Battery];
 
     public KeyboardViewModel Keyboard { get; }
+    public CoolingViewModel Cooling { get; }
     public BatteryViewModel Battery { get; }
     public UpdateViewModel Updates { get; }
 
@@ -169,68 +143,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public string PowerSource { get => _powerSource; private set => SetProperty(ref _powerSource, value); }
     public string LastUpdated { get => _lastUpdated; private set => SetProperty(ref _lastUpdated, value); }
     public string ToggleButtonText { get => _toggleButtonText; private set => SetProperty(ref _toggleButtonText, value); }
-    public bool FanControlsEnabled { get => _fanControlsEnabled; private set => SetProperty(ref _fanControlsEnabled, value); }
-    public string FanStatus { get => _fanStatus; private set => SetProperty(ref _fanStatus, value); }
 
-    // A note that applies to ActiveFanProfile, ActivePowerMode and
-    // ActiveKeyboardEffectName alike: the chips and tiles bind to them ONE-WAY, and a
-    // RadioButton sets its own IsChecked locally the moment it is clicked. Only a
-    // PropertyChanged pushes the real value back over that local one - so every command
-    // that touches them re-announces in its finally block even when the value did not
-    // change. Relying on SetProperty's equality gate would leave the clicked chip lit
-    // after a write that failed and left the device exactly where it was.
-
-    /// <summary>
-    /// Which profile chip is highlighted. Derived from what was actually read back from
-    /// the EC, not from what was last clicked, so an externally changed profile (vendor
-    /// tool, Fn shortcut, our own safety restore) shows up honestly.
-    /// </summary>
-    public string ActiveFanProfile { get => _activeFanProfile; private set => SetProperty(ref _activeFanProfile, value); }
-
-    public byte FixedFanRaw
-    {
-        get => _fixedFanRaw;
-        set
-        {
-            if (!SetProperty(ref _fixedFanRaw, value)) return;
-            OnPropertyChanged(nameof(FixedFanPercent));
-            OnPropertyChanged(nameof(FixedFanPercentText));
-        }
-    }
-
-    public IReadOnlyList<byte> FixedFanRawChoices { get; } = [57, 68, 91, 114, 137, 160, 194, 229];
-
-    /// <summary>
-    /// The Fixed slider's value. Reads and writes percent, but can only ever land on one
-    /// of <see cref="FixedFanRawChoices"/>: the setter snaps to the nearest tested raw
-    /// step, so a value the firmware was never measured at is unreachable even if the
-    /// slider's own snapping were bypassed.
-    /// </summary>
-    public double FixedFanPercent
-    {
-        get => FanSpeedPercent.ToPercent(_fixedFanRaw);
-        set
-        {
-            byte nearest = FixedFanRawChoices
-                .OrderBy(raw => Math.Abs(FanSpeedPercent.ToPercent(raw) - value))
-                .First();
-            bool changed = nearest != _fixedFanRaw;
-            FixedFanRaw = nearest;
-            OnPropertyChanged(nameof(FixedFanPercent));
-            // Following the slider while Fixed is already held is what the user expects;
-            // silently ENTERING a mode that pins the fans because a slider was brushed is
-            // not, so that still needs the button.
-            if (changed && _fixedFanActive) _applyFixedFan.Schedule();
-        }
-    }
-
-    public string FixedFanPercentText => $"{FanSpeedPercent.ToPercent(_fixedFanRaw)} %";
-
-    /// <summary>Tick positions for the Fixed slider, on the percentages the tested raw
-    /// steps really sit at - hence unevenly spaced, which is the honest picture. Derived
-    /// from FixedFanRawChoices rather than restated, so the marks cannot come to show
-    /// values the slider can no longer reach.</summary>
-    public System.Windows.Media.DoubleCollection FixedFanTicks { get; }
     public bool PowerControlsEnabled { get => _powerControlsEnabled; private set => SetProperty(ref _powerControlsEnabled, value); }
     public string PowerStatus { get => _powerStatus; private set => SetProperty(ref _powerStatus, value); }
 
@@ -272,28 +185,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _ => "Noch kein Modus gelesen."
     } + " Nur für den Netzbetrieb getestet; GPU-Limits und EC-Einstellungen fasst Windows dabei nicht an.";
 
-    /// <summary>The cooling that is actually in force, next to the mode - so "was habe ich
-    /// gerade geändert?" has an answer that includes the part Windows does not control.</summary>
-    public string CoolingSummary => ActiveFanProfile switch
-    {
-        "Fixed" => $"Fester Wert {FanSpeedPercent.ToPercent(_fixedFanRaw)} % · die Kurve unten ist gespeichert, aber gerade außer Kraft.",
-        "Maximum" => "Maximum · Lüfter laufen unabhängig von der Kurve auf voller Stufe.",
-        "Dynamic" => "Dynamic · die Kurve unten regelt die Lüfter.",
-        "Quiet" => "Quiet · Firmware-Regelung, leiser als die Kurve unten.",
-        "Gaming" => "Gaming · Firmware-Regelung, aggressiver als die Kurve unten.",
-        _ => "Normal · Firmware-Standardregelung, nicht die Kurve unten."
-    };
+
 
     /// <summary>Where the log files are, so "look in the log" is an actionable
     /// instruction rather than a scavenger hunt.</summary>
     public string LogDirectory => AppLog.Directory;
 
 
-    /// <summary>The 15 editable curve points shown in the Cooling section. Text-backed
-    /// like FanCurveRowViewModel elsewhere, so invalid/incomplete typing survives until
-    /// an explicit Apply, instead of being silently clamped as the user types.</summary>
-    public ObservableCollection<FanCurveRowViewModel> FanCurveRows { get; } = new();
-    public string FanCurveStatus { get => _fanCurveStatus; private set => SetProperty(ref _fanCurveStatus, value); }
 
     public bool StartWithWindows { get => _startWithWindows; private set => SetProperty(ref _startWithWindows, value); }
     public string StartWithWindowsButtonText => StartWithWindows ? "Autostart deaktivieren" : "Autostart aktivieren";
@@ -306,7 +204,6 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         try
         {
             foreach (IFeatureModule module in Modules) await module.StartAsync();
-            await LoadFanAsync();
             await LoadPowerModeAsync();
             await LoadStartupStateAsync();
 
@@ -335,14 +232,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         // Flush BEFORE _closing goes up: a value the user set a moment ago must reach the
         // device rather than vanish because the window happened to close right after.
-        try { await _applyFanCurve.FlushAsync(); } catch (Exception error) { AppLog.Error("fan", "Ausstehende Kurve nicht mehr geschrieben.", error); }
-        try { await _applyFixedFan.FlushAsync(); } catch (Exception error) { AppLog.Error("fan", "Ausstehender Fixed-Wert nicht mehr geschrieben.", error); }
+        await Cooling.FlushPendingWritesAsync();
         try { await Battery.PendingLimitWrite.FlushAsync(); } catch (Exception error) { AppLog.Error("battery", "Ausstehendes Ladelimit nicht mehr geschrieben.", error); }
 
         _closing = true;
         await Keyboard.StopListeningAsync();
         _timer.Stop();
-        while (_starting || _fanBusy || _powerBusy || _isReading || Modules.Any(module => module.IsBusy))
+        Cooling.BeginClose();
+        while (_starting || _powerBusy || _isReading || Modules.Any(module => module.IsBusy))
             await Task.Delay(50);
         _timer.Stop();
         try { await Keyboard.SuspendAsync(); }
@@ -351,171 +248,37 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             // The lighting stayed with us, so the window stays open and everything that was
             // stopped for the close has to come back up.
             _closing = false;
+            Cooling.CancelClose();
             Keyboard.ResumeAfterFailedClose();
             if (_isRunning) _timer.Start();
             throw;
         }
-        if (_fixedFanActive && _fixedFanLease is { } closingLease)
+        try { await Cooling.HandBackAsync(); }
+        catch
         {
-            // Best-effort only: never block shutdown on this. The worker's own
-            // supervisor keeps the lease's guarantee regardless of whether the app
-            // reaches it in time, so a failure here is not a reason to stay open.
-            try { await _fixedFanLeaseClient.ReleaseAsync(closingLease); }
-            catch { /* Worker's own supervisor remains responsible. */ }
-            _fixedFanActive = false;
-            _fixedFanLease = null;
-        }
-        if (_restoreNormalFanOnDispose)
-        {
-            try
-            {
-                await _fanController.SetNormalAsync();
-                _restoreNormalFanOnDispose = false;
-            }
-            catch
-            {
-                _closing = false;
-                Keyboard.ResumeAfterFailedClose();
-                if (_isRunning) _timer.Start();
-                throw;
-            }
+            // The fans stayed where they were, so the window stays open and says so rather
+            // than closing over a machine left running pinned.
+            _closing = false;
+            Cooling.CancelClose();
+            Keyboard.ResumeAfterFailedClose();
+            if (_isRunning) _timer.Start();
+            throw;
         }
     }
 
-    /// <summary>
-    /// Hands the fans back to the firmware, synchronously and best-effort.
-    ///
-    /// Called both on dispose and when Windows is shutting down or logging off: without the
-    /// second case a machine that shut down while Fixed or Maximum was held would come back
-    /// up with the fans still pinned there, with nothing running that knows why. Windows
-    /// gives a process a few seconds at SessionEnding, which is enough for one EC write.
-    /// </summary>
-    public void RestoreFansToFirmware()
-    {
-        if (_fixedFanActive && _fixedFanLease is { } lease)
-        {
-            try { _fixedFanLeaseClient.ReleaseAsync(lease).GetAwaiter().GetResult(); }
-            catch { /* Worker's own supervisor remains responsible. */ }
-            _fixedFanActive = false;
-            _fixedFanLease = null;
-        }
-
-        if (!_restoreNormalFanOnDispose) return;
-        try
-        {
-            _fanController.SetNormalAsync().GetAwaiter().GetResult();
-            _restoreNormalFanOnDispose = false;
-        }
-        catch (Exception error)
-        {
-            // The independent Start-FanNormalRestore.ps1 remains available.
-            AppLog.Error("fan", "Lüfter konnten nicht auf Normal zurückgestellt werden.", error);
-        }
-    }
+    /// <summary>Best-effort hardware handback for a Windows shutdown or logoff, where there
+    /// is no time for the normal close sequence.</summary>
+    public void RestoreFansToFirmware() => Cooling.RestoreFansToFirmware();
 
     public void Dispose()
     {
-        _disposed = true;
-        _applyFanCurve.Cancel();
-        _applyFixedFan.Cancel();
+        _closing = true;
         _timer.Stop();
         _timer.Tick -= OnTimerTick;
         _reader.Dispose();
         foreach (IFeatureModule module in Modules) module.Dispose();
-        RestoreFansToFirmware();
-        _fanController.Dispose();
     }
 
-
-    public async Task SetFanProfileAsync(string profile)
-    {
-        if (_closing || _fanBusy || !FanControlsEnabled)
-        {
-            return;
-        }
-
-        _fanBusy = true;
-        FanControlsEnabled = false;
-        FanStatus = $"{profile} wird gesetzt und geprüft …";
-        try
-        {
-            if (_fixedFanActive && _fixedFanLease is { } activeLease)
-            {
-                // Best effort: releasing already restores Normal through the worker, so
-                // switching straight to the Normal preset costs one harmless extra write
-                // below rather than needing special-cased logic to skip it.
-                try { await _fixedFanLeaseClient.ReleaseAsync(activeLease); }
-                catch { /* Worker's own supervisor remains responsible. */ }
-                _fixedFanActive = false;
-                _fixedFanLease = null;
-            }
-
-            FanProfileChangeResult result = profile switch
-            {
-                "Quiet" => await _fanController.SetQuietAsync(),
-                "Gaming" => await _fanController.SetGamingAsync(),
-                "Maximum" => await _fanController.SetMaximumAsync(),
-                "Dynamic" => await _fanController.SetDynamicAsync(),
-                _ => await _fanController.SetNormalAsync()
-            };
-            _restoreNormalFanOnDispose = profile is "Maximum" or "Dynamic";
-            ApplyFanState(result.VerifiedState, profile);
-            await RefreshAsync();
-        }
-        catch (Exception exception)
-        {
-            AppLog.Error("fan", $"Profil {profile} fehlgeschlagen.", exception);
-            FanStatus = $"Lüfteränderung fehlgeschlagen: {exception.Message}";
-            await TryReloadFanStateAsync();
-        }
-        finally
-        {
-            _fanBusy = false;
-            FanControlsEnabled = true;
-        }
-    }
-
-    public async Task SetFixedFanAsync()
-    {
-        if (_closing || _fanBusy || !FanControlsEnabled)
-        {
-            return;
-        }
-
-        _fanBusy = true;
-        FanControlsEnabled = false;
-        FanStatus = $"Fixed {FixedFanRaw} wird gesetzt und geprüft …";
-        try
-        {
-            // The lease client validates telemetry itself before writing; Fixed mode is
-            // never authorized on stale or unsafe temperatures. Ensuring a backing
-            // worker process exists is that client's own concern (WorkerFixedFanLeaseClient
-            // does it internally), not something this ViewModel should know about - it
-            // must stay agnostic to which IFixedFanLeaseClient implementation is in use.
-            _fixedFanLease = await _fixedFanLeaseClient.AcquireAsync(FixedFanRaw);
-            _fixedFanActive = true;
-            _isRunning = true;
-            ToggleButtonText = "Überwachung stoppen";
-            _timer.Start();
-            FanControlState state = await _fanController.ReadAsync();
-            ApplyFanState(state, $"Fixed {FixedFanRaw}");
-            await RefreshAsync();
-        }
-        catch (Exception exception)
-        {
-            AppLog.Error("fan", $"Fixed {FixedFanRaw} fehlgeschlagen.", exception);
-            FanStatus = $"Fixed fehlgeschlagen: {exception.Message}";
-            await TryReloadFanStateAsync();
-        }
-        finally
-        {
-            _fanBusy = false;
-            FanControlsEnabled = true;
-            // Unconditional: see ReannounceSelection's note on why equality-gated
-            // notifications are not enough for a one-way bound selection.
-            OnPropertyChanged(nameof(ActiveFanProfile));
-        }
-    }
 
     public async Task SetWindowsPowerModeAsync(WindowsPowerOverlayMode mode)
     {
@@ -566,18 +329,29 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Starts the telemetry clock on a module's behalf. Holding a pinned fan
+    /// without supervision is exactly what this app exists to avoid.</summary>
+    private void StartMonitoring()
+    {
+        _isRunning = true;
+        ToggleButtonText = "Überwachung stoppen";
+        _timer.Start();
+    }
+
     private async void OnTimerTick(object? sender, EventArgs eventArgs) =>
         await RefreshAsync();
 
     private async void ToggleMonitoring()
     {
-        if (_closing || _fanBusy) return;
+        if (_closing || Cooling.IsBusy) return;
         if (_isRunning)
         {
-            if (_fixedFanActive)
+            if (Cooling.IsFixedActive)
             {
-                await AbandonFixedLeaseAsync("Überwachung wird beendet");
-                if (_fixedFanActive) return;
+                // Stopping the clock while a fixed value is held would remove the very
+                // supervision that makes holding it safe, so the value goes first.
+                await Cooling.AbandonFixedAsync("Überwachung wird beendet");
+                if (Cooling.IsFixedActive) return;
             }
             _timer.Stop();
             _isRunning = false;
@@ -596,7 +370,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private async Task RefreshAsync()
     {
-        if (_closing || _isReading || (!_dashboardVisible && !_fixedFanActive))
+        if (_closing || _isReading || (!_dashboardVisible && !Cooling.IsFixedActive))
         {
             return;
         }
@@ -617,18 +391,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             // The worker's own lease re-validates temperature on every renewal, using its
             // own independent telemetry read; a failure there already means it has
             // restored Normal by itself before this call returns.
-            if (_fixedFanActive && _fixedFanLease is { } activeLease)
-            {
-                try { await _fixedFanLeaseClient.RenewAsync(activeLease); }
-                catch (Exception renewalError) { await AbandonFixedLeaseAsync(renewalError.Message); }
-            }
+            await Cooling.RenewFixedLeaseAsync();
         }
         catch (Exception exception)
         {
-            if (_fixedFanActive) await AbandonFixedLeaseAsync("Temperaturmessung ausgefallen");
+            if (Cooling.IsFixedActive) await Cooling.AbandonFixedAsync("Temperaturmessung ausgefallen");
             // Keep retrying the safety restoration if WMI temporarily fails.
-            if (!_fixedFanActive) _timer.Stop();
-            _isRunning = _fixedFanActive;
+            if (!Cooling.IsFixedActive) _timer.Stop();
+            _isRunning = Cooling.IsFixedActive;
             ToggleButtonText = "Erneut versuchen";
             Status = $"Messfehler: {exception.Message}";
         }
@@ -644,295 +414,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         UpdateModuleVisibility();
         // Never pause the existing safety sampling for a manually fixed fan.
         if (visible && _isRunning) _timer.Start();
-        else if (!visible && !_fixedFanActive) _timer.Stop();
+        else if (!visible && !Cooling.IsFixedActive) _timer.Stop();
     }
 
-    /// <summary>
-    /// Gives up the app's own claim to Fixed mode. Never retries a failed release itself:
-    /// once a lease is acquired, the worker's own supervisor is unconditionally
-    /// responsible for eventually restoring Normal, independent of this app's state or
-    /// even its continued existence. Retrying from here would just race that guarantee.
-    /// </summary>
-    /// <summary>Tells each module whether its own section is actually on screen, so
-    /// nothing animates or polls for a view nobody is looking at.</summary>
+    /// <summary>Tells each module whether its own section is actually on screen, so nothing
+    /// animates or polls for a view nobody is looking at.</summary>
     private void UpdateModuleVisibility() =>
         Keyboard.IsVisible = _dashboardVisible && SelectedSection == "Lighting";
-
-    private async Task AbandonFixedLeaseAsync(string reason)
-    {
-        if (_fanBusy) return;
-        AppLog.Warn("fan", $"Fixed-Freigabe wird aufgegeben: {reason}");
-        _fanBusy = true;
-        FanControlsEnabled = false;
-        try
-        {
-            string? releaseFailure = null;
-            if (_fixedFanLease is { } lease)
-            {
-                try { await _fixedFanLeaseClient.ReleaseAsync(lease); }
-                catch (Exception releaseError) { releaseFailure = releaseError.Message; }
-            }
-
-            _fixedFanActive = false;
-            _fixedFanLease = null;
-            try
-            {
-                FanControlState state = await _fanController.ReadAsync();
-                ApplyFanState(state, DescribeFanState(state));
-            }
-            catch
-            {
-                // Display only; the worker's supervisor remains responsible for the
-                // actual hardware state regardless of whether this read succeeds.
-            }
-
-            FanStatus = releaseFailure is null
-                ? $"{FanStatus} · Sicherheitsrückstellung: {reason}"
-                : $"{FanStatus} · {releaseFailure}";
-        }
-        finally
-        {
-            _fanBusy = false;
-            FanControlsEnabled = true;
-        }
-    }
-
-
-    private async Task LoadFanAsync()
-    {
-        try
-        {
-            DeviceCompatibility compatibility = _fanController.CheckCompatibility();
-            if (!compatibility.IsSupported)
-            {
-                FanStatus = compatibility.Message;
-                FanCurveStatus = compatibility.Message;
-                return;
-            }
-            FanControlState state = await _fanController.ReadAsync();
-            ApplyFanState(state, DescribeFanState(state));
-            FanControlsEnabled = true;
-            LoadFanCurveOnStartup(state.Curve);
-        }
-        catch (Exception exception)
-        {
-            AppLog.Error("fan", "Lüftersteuerung nicht verfügbar.", exception);
-            FanStatus = $"Lüftersteuerung nicht verfügbar: {exception.Message}";
-            FanCurveStatus = FanStatus;
-        }
-    }
-
-    private void LoadFanCurveOnStartup(IReadOnlyList<FanCurvePoint> liveCurve)
-    {
-        try
-        {
-            IReadOnlyList<FanCurvePoint>? saved = _fanCurveStore.Load();
-            PopulateFanCurveRows(saved ?? liveCurve);
-            FanCurveStatus = saved is null
-                ? "Aktuelle Firmware-Kurve geladen. Noch keine eigene Kurve gespeichert."
-                : "Gespeicherte eigene Kurve geladen (erst nach Übernehmen aktiv).";
-        }
-        catch (Exception exception)
-        {
-            PopulateFanCurveRows(liveCurve);
-            FanCurveStatus = $"Gespeicherte Kurve nicht geladen, Firmware-Kurve angezeigt: {exception.Message}";
-        }
-    }
-
-    private void PopulateFanCurveRows(IReadOnlyList<FanCurvePoint> curve)
-    {
-        FanCurveRows.Clear();
-        foreach (FanCurvePoint point in curve)
-        {
-            FanCurveRows.Add(new FanCurveRowViewModel(point.Index + 1)
-            {
-                Temperature = point.Temperature.ToString(),
-                Value = point.Value.ToString()
-            });
-        }
-    }
-
-    private FanCurvePoint[] ParseFanCurveRows()
-    {
-        if (FanCurveRows.Count != 15)
-            throw new InvalidOperationException("Es müssen genau 15 Punkte vorhanden sein.");
-        var points = new FanCurvePoint[15];
-        for (int index = 0; index < 15; index++)
-        {
-            FanCurveRowViewModel row = FanCurveRows[index];
-            if (!byte.TryParse(row.Temperature, out byte temperature))
-                throw new FormatException($"Punkt {index + 1}: ungültige Temperatur.");
-            if (!byte.TryParse(row.Value, out byte value))
-                throw new FormatException($"Punkt {index + 1}: ungültiger Rohwert.");
-            points[index] = new FanCurvePoint((byte)index, temperature, value);
-        }
-        FanCurveValidation.Validate(points);
-        return points;
-    }
-
-    /// <summary>
-    /// Writes the 15 edited points to the EC and switches into Dynamic mode so they take
-    /// immediate effect, then persists them locally. Writing and activating are one user
-    /// action rather than two, because a written-but-inactive curve is easy to forget
-    /// about and mistake for "not working".
-    /// </summary>
-    public async Task ApplyFanCurveAsync()
-    {
-        if (_closing || _fanBusy || !FanControlsEnabled)
-        {
-            return;
-        }
-
-        FanCurvePoint[] points;
-        try
-        {
-            points = ParseFanCurveRows();
-        }
-        catch (Exception exception)
-        {
-            FanCurveStatus = $"Ungültige Kurve: {exception.Message}";
-            return;
-        }
-
-        _fanBusy = true;
-        FanControlsEnabled = false;
-        FanCurveStatus = "Kurve wird geschrieben und aktiviert …";
-        try
-        {
-            if (_fixedFanActive && _fixedFanLease is { } activeLease)
-            {
-                try { await _fixedFanLeaseClient.ReleaseAsync(activeLease); }
-                catch { /* Worker's own supervisor remains responsible. */ }
-                _fixedFanActive = false;
-                _fixedFanLease = null;
-            }
-
-            await _fanController.SetCurveAsync(points);
-            FanProfileChangeResult activated = await _fanController.SetDynamicAsync();
-            _restoreNormalFanOnDispose = true;
-            ApplyFanState(activated.VerifiedState, "Eigene Kurve (Dynamic)");
-            _fanCurveStore.Save(points);
-            FanCurveStatus = "Eigene Kurve übernommen, aktiv und gespeichert.";
-            await RefreshAsync();
-        }
-        catch (Exception exception)
-        {
-            AppLog.Error("fan", "Kurve fehlgeschlagen.", exception);
-            FanCurveStatus = $"Kurve fehlgeschlagen: {exception.Message}";
-            await TryReloadFanStateAsync();
-        }
-        finally
-        {
-            _fanBusy = false;
-            FanControlsEnabled = true;
-        }
-    }
-
-    /// <summary>Discards edits and re-reads whatever curve is currently on the EC —
-    /// an escape hatch back to known hardware truth, not a guessed default.</summary>
-    /// <summary>The waiting curve write, so shutdown and tests can observe it rather than
-    /// guess at a clock.</summary>
-    internal Debouncer PendingFanCurveWrite => _applyFanCurve;
-
-    /// <summary>The waiting Fixed re-apply, exposed for the same reason.</summary>
-    internal Debouncer PendingFixedFanWrite => _applyFixedFan;
-
-    /// <summary>Called by the chart after a drag: the curve writes itself once the user
-    /// stops moving points, so there is no apply button to forget.</summary>
-    public void ScheduleFanCurveApply()
-    {
-        if (_closing || _disposed || !FanControlsEnabled) return;
-        FanCurveStatus = "Änderung wird gleich übernommen …";
-        _applyFanCurve.Schedule();
-    }
-
-    /// <summary>The debounced curve write. With the apply button gone there is nobody to
-    /// retry a change that lands while the fan controller is busy, so it waits its turn.</summary>
-    private Task ApplyPendingFanCurveAsync()
-    {
-        if (_closing || _disposed) return Task.CompletedTask;
-        if (_fanBusy || !FanControlsEnabled) { _applyFanCurve.Schedule(); return Task.CompletedTask; }
-        return ApplyFanCurveAsync();
-    }
-
-    /// <summary>Re-applies a Fixed value while Fixed mode is already held.</summary>
-    private async Task ReapplyFixedFanAsync()
-    {
-        if (_closing || _disposed || !_fixedFanActive) return;
-        await SetFixedFanAsync();
-    }
-
-    public async Task ReloadFanCurveFromDeviceAsync()
-    {
-        if (_closing || _fanBusy)
-        {
-            return;
-        }
-
-        _fanBusy = true;
-        try
-        {
-            FanControlState state = await _fanController.ReadAsync();
-            _applyFanCurve.Cancel();
-            PopulateFanCurveRows(state.Curve);
-            FanCurveStatus = "Aktuelle Firmware-Kurve geladen (noch nicht gespeichert oder aktiviert).";
-        }
-        catch (Exception exception)
-        {
-            FanCurveStatus = $"Kurve konnte nicht gelesen werden: {exception.Message}";
-        }
-        finally
-        {
-            _fanBusy = false;
-        }
-    }
-
-    private async Task TryReloadFanStateAsync()
-    {
-        try
-        {
-            FanControlState state = await _fanController.ReadAsync();
-            FanStatus += $" · Rückgelesen: {DescribeFanState(state)}";
-        }
-        catch
-        {
-            // Keep the original, rollback-aware error.
-        }
-    }
-
-    private void ApplyFanState(FanControlState state, string profile)
-    {
-        FixedFanRaw = state.FixedSpeedRaw is >= 57 and <= 229
-            ? checked((byte)state.FixedSpeedRaw)
-            : FixedFanRaw;
-        ActiveFanProfile = DescribeFanProfileKey(state);
-        OnPropertyChanged(nameof(CoolingSummary));
-        FanStatus = $"Aktiv: {profile} · Fixed {state.FixedStatusRaw} · Step {state.StepStatusRaw} · Auto {state.AutoStatusRaw} · Thermal {state.NvidiaThermalTargetRaw}";
-    }
-
-    /// <summary>The chip identity for a read-back state. "Fixed" is its own key so no
-    /// profile chip lights up while a manual fixed value is held.</summary>
-    private static string DescribeFanProfileKey(FanControlState state) =>
-        state.FixedStatusRaw == 1
-            ? state.FixedSpeedRaw == 229 ? "Maximum" : "Fixed"
-            : state.NvidiaThermalTargetRaw == 1
-                ? "Quiet"
-                : state.AutoStatusRaw == 1
-                    ? "Gaming"
-                    : state.StepStatusRaw == 1
-                        ? "Dynamic"
-                        : "Normal";
-
-    private static string DescribeFanState(FanControlState state) =>
-        state.FixedStatusRaw == 1
-            ? state.FixedSpeedRaw == 229 ? "Maximum" : $"Fixed {state.FixedSpeedRaw}"
-            : state.NvidiaThermalTargetRaw == 1
-                ? "Quiet"
-                : state.AutoStatusRaw == 1
-                    ? "Gaming"
-                    : state.StepStatusRaw == 1
-                        ? "Dynamic"
-                        : "Normal";
 
     private async Task LoadPowerModeAsync()
     {

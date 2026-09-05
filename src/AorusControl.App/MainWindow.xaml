@@ -86,8 +86,8 @@
                             <Border Style="{StaticResource Tile}">
                                 <StackPanel>
                                     <TextBlock Text="LÜFTER" Style="{StaticResource TileLabel}" />
-                                    <TextBlock Text="{Binding ActiveFanProfile}" Style="{StaticResource TileValueSmall}" />
-                                    <TextBlock Text="{Binding CoolingSummary}" Style="{StaticResource TileLine}" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding Cooling.ActiveProfile}" Style="{StaticResource TileValueSmall}" />
+                                    <TextBlock Text="{Binding Cooling.Summary}" Style="{StaticResource TileLine}" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
                             <Border Style="{StaticResource Tile}">
@@ -156,39 +156,39 @@
                                 <TextBlock Text="Lüfterprofil" Style="{StaticResource CardTitle}" />
                                 <TextBlock Style="{StaticResource Hint}"
                                            Text="Getestete Herstellerprofile. Normal ist der sichere Rückweg und wird bei Absturz automatisch wiederhergestellt. Hervorgehoben ist, was zurückgelesen wurde - nicht, was zuletzt geklickt wurde." />
-                                <WrapPanel Margin="0,16,0,-10" IsEnabled="{Binding FanControlsEnabled}">
+                                <WrapPanel Margin="0,16,0,-10" IsEnabled="{Binding Cooling.ControlsEnabled}">
                                     <RadioButton Style="{StaticResource Chip}" GroupName="FanProfile" Content="Leise"
-                                                 Command="{Binding SetFanProfileCommand}" CommandParameter="Quiet"
-                                                 IsChecked="{Binding ActiveFanProfile, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Quiet}">
+                                                 Command="{Binding Cooling.SetProfileCommand}" CommandParameter="Quiet"
+                                                 IsChecked="{Binding Cooling.ActiveProfile, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Quiet}">
                                         <RadioButton.Tag><ui:SymbolIcon Symbol="LeafOne24" FontSize="16" /></RadioButton.Tag>
                                     </RadioButton>
                                     <RadioButton Style="{StaticResource Chip}" GroupName="FanProfile" Content="Normal"
-                                                 Command="{Binding SetFanProfileCommand}" CommandParameter="Normal"
-                                                 IsChecked="{Binding ActiveFanProfile, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Normal}">
+                                                 Command="{Binding Cooling.SetProfileCommand}" CommandParameter="Normal"
+                                                 IsChecked="{Binding Cooling.ActiveProfile, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Normal}">
                                         <RadioButton.Tag><ui:SymbolIcon Symbol="Gauge24" FontSize="16" /></RadioButton.Tag>
                                     </RadioButton>
                                     <RadioButton Style="{StaticResource Chip}" GroupName="FanProfile" Content="Gaming"
-                                                 Command="{Binding SetFanProfileCommand}" CommandParameter="Gaming"
-                                                 IsChecked="{Binding ActiveFanProfile, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Gaming}">
+                                                 Command="{Binding Cooling.SetProfileCommand}" CommandParameter="Gaming"
+                                                 IsChecked="{Binding Cooling.ActiveProfile, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Gaming}">
                                         <RadioButton.Tag><ui:SymbolIcon Symbol="Rocket24" FontSize="16" /></RadioButton.Tag>
                                     </RadioButton>
                                     <RadioButton Style="{StaticResource Chip}" GroupName="FanProfile" Content="Maximal"
-                                                 Command="{Binding SetFanProfileCommand}" CommandParameter="Maximum"
-                                                 IsChecked="{Binding ActiveFanProfile, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Maximum}">
+                                                 Command="{Binding Cooling.SetProfileCommand}" CommandParameter="Maximum"
+                                                 IsChecked="{Binding Cooling.ActiveProfile, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Maximum}">
                                         <RadioButton.Tag><ui:SymbolIcon Symbol="TopSpeed24" FontSize="16" /></RadioButton.Tag>
                                     </RadioButton>
                                     <RadioButton Style="{StaticResource Chip}" GroupName="FanProfile" Content="Dynamic (eigene Kurve)"
-                                                 Command="{Binding SetFanProfileCommand}" CommandParameter="Dynamic"
-                                                 IsChecked="{Binding ActiveFanProfile, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Dynamic}">
+                                                 Command="{Binding Cooling.SetProfileCommand}" CommandParameter="Dynamic"
+                                                 IsChecked="{Binding Cooling.ActiveProfile, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Dynamic}">
                                         <RadioButton.Tag><ui:SymbolIcon Symbol="ArrowSync24" FontSize="16" /></RadioButton.Tag>
                                     </RadioButton>
                                 </WrapPanel>
-                                <TextBlock Text="{Binding FanStatus}" Style="{StaticResource StatusText}" />
+                                <TextBlock Text="{Binding Cooling.Status}" Style="{StaticResource StatusText}" />
                             </StackPanel>
                         </Border>
 
                         <Border Style="{StaticResource Card}">
-                            <StackPanel IsEnabled="{Binding FanControlsEnabled}">
+                            <StackPanel IsEnabled="{Binding Cooling.ControlsEnabled}">
                                 <TextBlock Text="Fester Wert · Fixed-Modus (Test)" Style="{StaticResource CardTitle}" />
                                 <TextBlock Style="{StaticResource Hint}"
                                            Text="Der Regler rastet auf die acht am Gerät vermessenen Stufen ein - die Marken sitzen dort, wo die Stufen wirklich liegen, deshalb sind die Abstände ungleich. Zwischenwerte sind nicht linear und teils firmwareseitig ungültig, sie lassen sich gar nicht erst wählen. Der Fixed-Modus läuft ausschließlich über den absturzsicheren Hardware-Worker. Aktivieren ist bewusst ein Knopfdruck; läuft Fixed erst einmal, folgt der Regler dann von selbst." />
@@ -198,14 +198,14 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="{Binding FixedFanPercentText}" Style="{StaticResource SliderReadout}" />
+                                    <TextBlock Grid.Column="0" Text="{Binding Cooling.FixedFanPercentText}" Style="{StaticResource SliderReadout}" />
                                     <StackPanel Grid.Column="1" Margin="22,0">
                                         <Slider Style="{StaticResource ValueSlider}" MinWidth="170"
                                                 Minimum="25" Maximum="100"
-                                                Ticks="{Binding FixedFanTicks}"
+                                                Ticks="{Binding Cooling.FixedFanTicks}"
                                                 IsSnapToTickEnabled="True"
                                                 TickPlacement="BottomRight"
-                                                Value="{Binding FixedFanPercent, Mode=TwoWay}" />
+                                                Value="{Binding Cooling.FixedFanPercent, Mode=TwoWay}" />
                                         <Grid Margin="0,2,0,0">
                                             <!-- Just the number: the long form collided with the right-hand
                                                  label on a narrow window, and the paragraph above already says
@@ -215,7 +215,7 @@
                                         </Grid>
                                     </StackPanel>
                                     <ui:Button Grid.Column="2" Style="{StaticResource SecondaryButton}" Margin="0"
-                                               Content="Fixed aktivieren" Command="{Binding SetFixedFanCommand}"
+                                               Content="Fixed aktivieren" Command="{Binding Cooling.SetFixedCommand}"
                                                VerticalAlignment="Center">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="Flash24" /></ui:Button.Icon>
                                     </ui:Button>
@@ -224,21 +224,21 @@
                         </Border>
 
                         <Border Style="{StaticResource Card}">
-                            <StackPanel IsEnabled="{Binding FanControlsEnabled}">
+                            <StackPanel IsEnabled="{Binding Cooling.ControlsEnabled}">
                                 <TextBlock Text="Eigene Lüfterkurve" Style="{StaticResource CardTitle}" />
                                 <TextBlock Style="{StaticResource Hint}"
                                            Text="Punkte ziehen, um Temperatur und Lüfterdrehzahl anzupassen. Kurz nach dem Loslassen schreibt sich die Kurve von selbst auf die EC, aktiviert Dynamic und wird lokal gespeichert - kein Übernehmen-Knopf nötig. Der letzte Punkt ist fest (spätestens 90 °C bei 100 %) - das erzwingt die Firmware." />
-                                <TextBlock Text="{Binding FanCurveStatus}" Style="{StaticResource StatusText}" Margin="0,12,0,14" />
+                                <TextBlock Text="{Binding Cooling.CurveStatus}" Style="{StaticResource StatusText}" Margin="0,12,0,14" />
                                 <Border Style="{StaticResource InnerPanel}">
                                     <!-- Drawn at its real size instead of a fixed canvas in a Viewbox, so the
                                          chart grows with the window without the labels going fuzzy. -->
-                                    <ctrl:FanCurveChart Rows="{Binding FanCurveRows}" IsEditable="True"
+                                    <ctrl:FanCurveChart Rows="{Binding Cooling.CurveRows}" IsEditable="True"
                                                         MinHeight="220" Height="300" Cursor="Hand"
                                                         CurveEdited="OnFanCurveEdited" />
                                 </Border>
                                 <WrapPanel Margin="0,18,0,-10">
                                     <ui:Button Style="{StaticResource SecondaryButton}" Content="Von Firmware neu laden"
-                                               Command="{Binding ReloadFanCurveFromDeviceCommand}" Margin="0,0,10,10">
+                                               Command="{Binding Cooling.ReloadCurveCommand}" Margin="0,0,10,10">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowClockwise24" /></ui:Button.Icon>
                                     </ui:Button>
                                 </WrapPanel>
@@ -577,10 +577,10 @@
                                                        Text="{Binding PowerModeEffect}" TextWrapping="Wrap" />
                                             <TextBlock Style="{StaticResource SubLabel}" Margin="0,18,0,0" Text="Kühlung gerade" />
                                             <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
-                                                       Text="{Binding CoolingSummary}" TextWrapping="Wrap" />
+                                                       Text="{Binding Cooling.Summary}" TextWrapping="Wrap" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" MinWidth="280">
-                                            <ctrl:FanCurveChart Rows="{Binding FanCurveRows}" Height="150" />
+                                            <ctrl:FanCurveChart Rows="{Binding Cooling.CurveRows}" Height="150" />
                                             <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0" HorizontalAlignment="Center"
                                                        Text="Kurve auf der EC · änderbar unter Kühlung" />
                                         </StackPanel>

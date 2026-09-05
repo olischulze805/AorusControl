@@ -92,7 +92,7 @@ static void RenderMainWindow(string output)
         batteryController: new StubBattery(), fanCurveStore: new StubCurveStore(), startupManager: new StubStartup());
     // Populate the curve rows the same way a device read would, so the charts have real
     // geometry to lay out rather than an empty canvas.
-    vm.ReloadFanCurveFromDeviceAsync().GetAwaiter().GetResult();
+    vm.Cooling.ReloadCurveFromDeviceAsync().GetAwaiter().GetResult();
     var window = new MainWindow(vm);
     var content = (FrameworkElement)window.Content;
     content.DataContext = vm;

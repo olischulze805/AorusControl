@@ -60,7 +60,7 @@ await Run("Hidden dashboard skips telemetry but preserves fixed-fan safety", asy
     await Invoke(vm, "RefreshAsync");
     Check(!vm.Status.Contains("Messfehler"), "hidden automatic mode should not poll");
     reader.Fail = false;
-    await vm.SetFixedFanAsync();
+    await vm.Cooling.SetFixedAsync();
     reader.Temperature = 65;
     await Invoke(vm, "RefreshAsync");
     Check(fan.NormalWrites == 1, "hidden fixed mode still needs safety polling");
@@ -68,30 +68,30 @@ await Run("Hidden dashboard skips telemetry but preserves fixed-fan safety", asy
 await Run("Fixed rejected at 65 C", async (vm, reader, fan) =>
 {
     reader.Temperature = 65;
-    await vm.SetFixedFanAsync();
+    await vm.Cooling.SetFixedAsync();
     Check(fan.FixedWrites == 0, "hot fixed write must be blocked");
-    Check(vm.FanStatus.Contains("65"), "original error must remain visible");
+    Check(vm.Cooling.Status.Contains("65"), "original error must remain visible");
 });
 await Run("Fixed rejects zero and stale temperatures", async (vm, reader, fan) =>
 {
     reader.Temperature = 0;
-    await vm.SetFixedFanAsync();
+    await vm.Cooling.SetFixedAsync();
     Check(fan.FixedWrites == 0, "zero is not a safe temperature");
     reader.Temperature = 50;
     reader.Timestamp = () => DateTimeOffset.Now.AddSeconds(-6);
-    await vm.SetFixedFanAsync();
+    await vm.Cooling.SetFixedAsync();
     Check(fan.FixedWrites == 0, "old cool sample cannot authorize fixed");
 });
 await Run("Stale telemetry restores active fixed mode", async (vm, reader, fan) =>
 {
-    await vm.SetFixedFanAsync();
+    await vm.Cooling.SetFixedAsync();
     reader.Timestamp = () => DateTimeOffset.Now.AddSeconds(-6);
     await Invoke(vm, "RefreshAsync");
     Check(fan.NormalWrites == 1, "stale sample restores firmware control");
 });
 await Run("Fixed accepted and restored on heat", async (vm, reader, fan) =>
 {
-    await vm.SetFixedFanAsync();
+    await vm.Cooling.SetFixedAsync();
     Check(fan.FixedWrites == 1, "fixed write missing");
     reader.Temperature = 65;
     await Invoke(vm, "RefreshAsync");
@@ -99,7 +99,7 @@ await Run("Fixed accepted and restored on heat", async (vm, reader, fan) =>
 });
 await Run("Missing telemetry restores normal", async (vm, reader, fan) =>
 {
-    await vm.SetFixedFanAsync();
+    await vm.Cooling.SetFixedAsync();
     reader.Fail = true;
     await Invoke(vm, "RefreshAsync");
     Check(fan.NormalWrites == 1, "missing telemetry must restore normal");
@@ -110,25 +110,25 @@ await Run("Restoration failure is surfaced, not retried by the app itself", asyn
     // restore is the worker's own supervisor's job (already covered by
     // FanSupervisorTests's "next tick retries restoration"), not the app's. The app
     // only needs to surface the failure and stop claiming Fixed mode itself.
-    await vm.SetFixedFanAsync();
+    await vm.Cooling.SetFixedAsync();
     reader.Fail = true;
     fan.FailNormal = true;
     await Invoke(vm, "RefreshAsync");
     Check(fan.NormalWrites == 1, "exactly one restoration attempt, even though it fails");
-    Check(vm.FanStatus.Contains("ACHTUNG"), "restore failure must be visible");
+    Check(vm.Cooling.Status.Contains("ACHTUNG"), "restore failure must be visible");
     fan.FailNormal = false;
     await Invoke(vm, "RefreshAsync");
     Check(fan.NormalWrites == 1, "abandoned fixed mode must not write again on its own");
 });
 await Run("Closing restores fixed", async (vm, reader, fan) =>
 {
-    await vm.SetFixedFanAsync();
+    await vm.Cooling.SetFixedAsync();
     await vm.PrepareToCloseAsync();
     Check(fan.NormalWrites == 1, "closing must restore normal");
 });
 await Run("Closing failure is reported and retryable", async (vm, reader, fan) =>
 {
-    await vm.SetFanProfileAsync("Maximum");
+    await vm.Cooling.SetProfileAsync("Maximum");
     fan.FailNormal = true;
     bool failed = false;
     try { await vm.PrepareToCloseAsync(); } catch (InvalidOperationException) { failed = true; }
@@ -139,61 +139,61 @@ await Run("Closing failure is reported and retryable", async (vm, reader, fan) =
 });
 await Run("Normal cancels manual close restoration", async (vm, reader, fan) =>
 {
-    await vm.SetFixedFanAsync();
+    await vm.Cooling.SetFixedAsync();
     // Switching to Normal releases the lease (one write via the worker's own restore)
     // and then applies the Normal preset directly (a second, harmless, idempotent
     // write); closing afterward must not add a third.
-    await vm.SetFanProfileAsync("Normal");
+    await vm.Cooling.SetProfileAsync("Normal");
     await vm.PrepareToCloseAsync();
     Check(fan.NormalWrites == 2, "closing must not write normal a third time");
 });
 await Run("Fan curve loads from live device on startup when nothing is saved", async (vm, reader, fan) =>
 {
     await Task.CompletedTask;
-    Check(vm.FanCurveRows.Count == 15, "all 15 points must load");
-    Check(vm.FanCurveRows[0].Temperature == "40" && vm.FanCurveRows[0].Value == "57", "first point reflects live device state");
-    Check(vm.FanCurveRows[14].Value == "229", "last point reflects live device state");
+    Check(vm.Cooling.CurveRows.Count == 15, "all 15 points must load");
+    Check(vm.Cooling.CurveRows[0].Temperature == "40" && vm.Cooling.CurveRows[0].Value == "57", "first point reflects live device state");
+    Check(vm.Cooling.CurveRows[14].Value == "229", "last point reflects live device state");
 });
 await Run("Applying an edited curve writes it, activates Dynamic and persists it", async (vm, reader, fan) =>
 {
-    vm.FanCurveRows[3].Value = (byte.Parse(vm.FanCurveRows[3].Value) + 1).ToString();
+    vm.Cooling.CurveRows[3].Value = (byte.Parse(vm.Cooling.CurveRows[3].Value) + 1).ToString();
     for (int i = 4; i < 15; i++)
     {
-        byte current = byte.Parse(vm.FanCurveRows[i].Value);
-        byte previous = byte.Parse(vm.FanCurveRows[i - 1].Value);
-        if (current < previous) vm.FanCurveRows[i].Value = previous.ToString();
+        byte current = byte.Parse(vm.Cooling.CurveRows[i].Value);
+        byte previous = byte.Parse(vm.Cooling.CurveRows[i - 1].Value);
+        if (current < previous) vm.Cooling.CurveRows[i].Value = previous.ToString();
     }
-    await vm.ApplyFanCurveAsync();
+    await vm.Cooling.ApplyCurveAsync();
     Check(fan.CurveWrites == 1, "editing and applying must write the curve exactly once");
     Check(fan.DynamicWrites == 1, "applying a curve must activate Dynamic mode");
-    Check(vm.FanCurveStatus.Contains("übernommen"), "success must be visible");
+    Check(vm.Cooling.CurveStatus.Contains("übernommen"), "success must be visible");
 });
 await Run("Invalid curve edits are rejected before any hardware write", async (vm, reader, fan) =>
 {
-    vm.FanCurveRows[7].Value = "nicht-numerisch";
-    await vm.ApplyFanCurveAsync();
+    vm.Cooling.CurveRows[7].Value = "nicht-numerisch";
+    await vm.Cooling.ApplyCurveAsync();
     Check(fan.CurveWrites == 0, "malformed input must never reach the device");
-    Check(vm.FanCurveStatus.Contains("Ungültige Kurve"), "validation failure must be visible");
+    Check(vm.Cooling.CurveStatus.Contains("Ungültige Kurve"), "validation failure must be visible");
 });
 await Run("A curve that violates monotonic/last-point rules is rejected before any write", async (vm, reader, fan) =>
 {
-    vm.FanCurveRows[^1].Value = "200"; // Last point must force 229; this violates FanCurveValidation.
-    await vm.ApplyFanCurveAsync();
+    vm.Cooling.CurveRows[^1].Value = "200"; // Last point must force 229; this violates FanCurveValidation.
+    await vm.Cooling.ApplyCurveAsync();
     Check(fan.CurveWrites == 0, "a curve failing hardware-safety validation must never reach the device");
 });
 await Run("A failed curve write leaves the fan controller queryable and is surfaced", async (vm, reader, fan) =>
 {
     fan.FailCurve = true;
-    await vm.ApplyFanCurveAsync();
+    await vm.Cooling.ApplyCurveAsync();
     Check(fan.CurveWrites == 1, "the attempt itself must still be counted");
     Check(fan.DynamicWrites == 0, "must not activate Dynamic mode after a failed curve write");
-    Check(vm.FanCurveStatus.Contains("fehlgeschlagen"), "failure must be visible, not silently swallowed");
+    Check(vm.Cooling.CurveStatus.Contains("fehlgeschlagen"), "failure must be visible, not silently swallowed");
 });
 await Run("Reloading from device discards edits and shows current firmware state", async (vm, reader, fan) =>
 {
-    vm.FanCurveRows[0].Temperature = "99";
-    await vm.ReloadFanCurveFromDeviceAsync();
-    Check(vm.FanCurveRows[0].Temperature == "40", "reload must reflect the device, not the discarded edit");
+    vm.Cooling.CurveRows[0].Temperature = "99";
+    await vm.Cooling.ReloadCurveFromDeviceAsync();
+    Check(vm.Cooling.CurveRows[0].Temperature == "40", "reload must reflect the device, not the discarded edit");
 });
 Console.WriteLine("PASS: fan curve startup load, apply/activate/persist, invalid input, hardware-safety rejection, write failure, and reload-from-device");
 
@@ -217,17 +217,17 @@ Console.WriteLine("PASS: startup toggle reflects manager state and surfaces fail
 
 await Run("Fan profile chip follows the readback, not the click", async (vm, reader, fan) =>
 {
-    Check(vm.ActiveFanProfile == "Normal", "a freshly read Normal state must highlight Normal");
-    await vm.SetFanProfileAsync("Gaming");
-    Check(vm.ActiveFanProfile == "Gaming", "a successful change must move the highlight");
-    await vm.SetFixedFanAsync();
-    Check(vm.ActiveFanProfile == "Fixed", "a held fixed value is its own state, not one of the profiles");
+    Check(vm.Cooling.ActiveProfile == "Normal", "a freshly read Normal state must highlight Normal");
+    await vm.Cooling.SetProfileAsync("Gaming");
+    Check(vm.Cooling.ActiveProfile == "Gaming", "a successful change must move the highlight");
+    await vm.Cooling.SetFixedAsync();
+    Check(vm.Cooling.ActiveProfile == "Fixed", "a held fixed value is its own state, not one of the profiles");
 });
 await Run("A Windows shutdown hands the fans back to the firmware", async (vm, reader, fan) =>
 {
     // Shutdown and logoff never reach the window's close path. Without a handback there,
     // the machine boots with the fans still pinned and nothing running that knows why.
-    await vm.SetFanProfileAsync("Maximum");
+    await vm.Cooling.SetProfileAsync("Maximum");
     int before = fan.NormalWrites;
     vm.RestoreFansToFirmware();
     Check(fan.NormalWrites == before + 1, "a held Maximum must be handed back on shutdown");
@@ -238,34 +238,34 @@ await Run("The power section says what the mode does and what the fans are doing
 {
     // The point of this text is that it never claims the power mode drives the fans, and
     // that it describes the cooling that is really in force - both follow the readback.
-    Check(vm.CoolingSummary.Contains("Normal"), "a freshly read Normal state must be summarised as Normal");
-    await vm.SetFanProfileAsync("Gaming");
-    Check(vm.CoolingSummary.Contains("Gaming"), "the summary must follow the profile that was read back");
-    await vm.SetFixedFanAsync();
-    Check(vm.CoolingSummary.Contains("%"), "a held fixed value must be summarised with its percentage");
+    Check(vm.Cooling.Summary.Contains("Normal"), "a freshly read Normal state must be summarised as Normal");
+    await vm.Cooling.SetProfileAsync("Gaming");
+    Check(vm.Cooling.Summary.Contains("Gaming"), "the summary must follow the profile that was read back");
+    await vm.Cooling.SetFixedAsync();
+    Check(vm.Cooling.Summary.Contains("%"), "a held fixed value must be summarised with its percentage");
     Check(vm.PowerModeEffect.Contains("Netzbetrieb"), "the effect text must name the tested power source");
 });
 await Run("The Fixed slider can only land on tested steps", async (vm, reader, fan) =>
 {
     await Task.CompletedTask;
     // Every raw step reads back as its own percentage...
-    foreach (byte raw in vm.FixedFanRawChoices)
+    foreach (byte raw in vm.Cooling.FixedFanRawChoices)
     {
-        vm.FixedFanRaw = raw;
-        Check(Math.Abs(vm.FixedFanPercent - FanSpeedPercent.ToPercent(raw)) < 0.001,
+        vm.Cooling.FixedFanRaw = raw;
+        Check(Math.Abs(vm.Cooling.FixedFanPercent - FanSpeedPercent.ToPercent(raw)) < 0.001,
             $"raw {raw} must report its own percent");
     }
     // ...and a value between two steps snaps to the nearer tested one instead of
     // reaching the firmware as an unverified duty.
-    vm.FixedFanPercent = 63;
-    Check(vm.FixedFanRaw == 137, $"63 % must snap to the 60 % step (raw 137), got {vm.FixedFanRaw}");
-    vm.FixedFanPercent = 78;
-    Check(vm.FixedFanRaw == 194, $"78 % must snap to the 85 % step (raw 194), got {vm.FixedFanRaw}");
-    vm.FixedFanPercent = 0;
-    Check(vm.FixedFanRaw == 57, "below the floor must snap up to the lowest tested step");
-    vm.FixedFanPercent = 500;
-    Check(vm.FixedFanRaw == 229, "above the ceiling must snap down to the highest tested step");
-    Check(vm.FixedFanTicks.Count == vm.FixedFanRawChoices.Count, "one tick per tested step");
+    vm.Cooling.FixedFanPercent = 63;
+    Check(vm.Cooling.FixedFanRaw == 137, $"63 % must snap to the 60 % step (raw 137), got {vm.Cooling.FixedFanRaw}");
+    vm.Cooling.FixedFanPercent = 78;
+    Check(vm.Cooling.FixedFanRaw == 194, $"78 % must snap to the 85 % step (raw 194), got {vm.Cooling.FixedFanRaw}");
+    vm.Cooling.FixedFanPercent = 0;
+    Check(vm.Cooling.FixedFanRaw == 57, "below the floor must snap up to the lowest tested step");
+    vm.Cooling.FixedFanPercent = 500;
+    Check(vm.Cooling.FixedFanRaw == 229, "above the ceiling must snap down to the highest tested step");
+    Check(vm.Cooling.FixedFanTicks.Count == vm.Cooling.FixedFanRawChoices.Count, "one tick per tested step");
 });
 Console.WriteLine("PASS: profile chip tracks device state; Fixed slider snaps to tested steps only");
 
@@ -297,7 +297,7 @@ static async Task RunWithStartup(string name, Func<MainWindowViewModel, FakeRead
         fixedFanLeaseClient: new InProcessFixedFanLeaseClient(supervisor),
         fanCurveStore: new FakeFanCurveStore(),
         startupManager: startupManager);
-    await Invoke(vm, "LoadFanAsync");
+    await vm.Cooling.StartAsync();
     await test(vm, reader, fan, startupManager);
     Console.WriteLine($"PASS: {name}");
 }

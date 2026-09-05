@@ -36,7 +36,7 @@ public partial class MainWindow : FluentWindow
 
     /// <summary>The chart edited the curve rows; the write itself is the ViewModel's,
     /// debounced so a burst of small drags is one device transaction.</summary>
-    private void OnFanCurveEdited(object sender, EventArgs eventArgs) => _viewModel.ScheduleFanCurveApply();
+    private void OnFanCurveEdited(object sender, EventArgs eventArgs) => _viewModel.Cooling.ScheduleCurveApply();
 
     /// <summary>Best-effort hardware handback for a Windows shutdown or logoff, where there
     /// is no time for the normal close sequence.</summary>
