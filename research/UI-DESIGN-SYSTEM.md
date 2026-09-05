@@ -387,19 +387,26 @@ the app's own dark/accent palette rather than copying its exact colors.
 
 ### Live feedback on the cooling page
 
-The page opens with this laptop's own cooling system drawn from below
-(`Controls/ThermalLayout.cs`): the two blowers in their wells, the long pipe across the
-back with its dip between them, the crossed pair that serves each chip from the fan on the
-far side, the loop from each fan out to its side vent, and the four fin stacks. It is a
-redrawing of the AORUS 5 SE4's real layout, not a photograph and not a schematic to measure
-against - what earns it the space is that every part of it is wired to live values: the
-rotors (`Controls/FanRotor.cs`) turn at the measured speed with an arc for that fan's duty,
-the light travelling along the pipes moves with how hard the fans are working, and the fins
-and chip outlines warm with the temperature. The RPM, temperature and duty are spelled out
-underneath, and the whole drawing is vector geometry in a fixed design space scaled to the
-available width, so it stays sharp at any size instead of being a bitmap to re-export. The curve carries a white dot
-at the machine's current temperature and duty, so an adjustment can be watched taking
-effect rather than only read back.
+The page opens with this laptop's own cooling system as a live picture
+(`Controls/ThermalLayout.cs`): the machine seen from below, both blowers turning, the heat
+pipes lighting up. It is a still from Gigabyte's own product video for this model, cut into
+three pieces that cannot fall out of alignment because they are the same frame - the body,
+each fan's blades as a circle that `Controls/FanRotor.cs` rotates over the housing it came
+from, and an alpha mask of the pipes and fin stacks through which a warm pulse is drawn.
+`src/AorusControl.App/Assets/README.md` records where the frame comes from and
+`tools/Build-ThermalAssets.py` rebuilds all four files from it.
+
+A hand-drawn vector version came first and is worth remembering as a lesson: it was
+recognisably the same layout, and it still looked like a diagram of the machine rather than
+the machine. The photograph carries the detail - the brushed pipes, the board, the ports -
+that no reasonable amount of drawing code was going to reproduce, and it is a third of the
+code.
+
+The live values drive it: the rotors turn at the measured speed with an arc around each for
+that fan's duty, tinted by its temperature; the pulse travels outwards from the chips at the
+speed the fans are working, so switching a profile is visible and not merely readable; and
+the picture is drawn in the asset's own pixel space scaled to the available width, so the
+coordinates in the control can be read straight off the image.
 
 Three rules keep it honest and smooth:
 

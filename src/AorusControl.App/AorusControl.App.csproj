@@ -34,5 +34,11 @@
 
   <ItemGroup>
     <Resource Include="Assets\app.ico" />
+    <!-- Das Bild des Kühlsystems, die beiden daraus ausgeschnittenen Lüfterscheiben und die
+         Maske der Heatpipes. Assets/README.md sagt, woher sie stammen. -->
+    <Resource Include="Assets\thermal-body.jpg" />
+    <Resource Include="Assets\thermal-pipes.png" />
+    <Resource Include="Assets\thermal-fan-left.png" />
+    <Resource Include="Assets\thermal-fan-right.png" />
   </ItemGroup>
 </Project>

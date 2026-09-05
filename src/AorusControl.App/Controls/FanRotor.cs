@@ -12,16 +12,18 @@ namespace AorusControl.App.Controls;
 /// <summary>
 /// One of the two fans, turning at the speed it is really turning at.
 ///
-/// The point is feedback while something is being changed: a number that goes from 2400 to
-/// 3100 says little at a glance, a rotor that visibly speeds up says it immediately, and a
-/// stopped rotor is the only honest way to show that a curve really did switch the fans off.
+/// The blades are the device's own, cut out of the same picture the layout around them comes
+/// from, so what turns here is this laptop's fan rather than a generic icon - and it lines up
+/// with the housing underneath because both are the same frame.
 ///
-/// Two things make it read as motion rather than as a spinning icon. The speed is eased
-/// towards the measured one instead of jumping to it, so a new reading every two seconds
-/// still looks like a fan spooling up; and the blur grows with the speed, the way a real
-/// fan stops being individual blades. Both are driven from the per-frame rendering tick and
-/// are unhooked the moment the control leaves the tree, so an invisible section costs
-/// nothing.
+/// The point is feedback while something is being changed: a number going from 2400 to 3100
+/// says little at a glance, a rotor that visibly speeds up says it immediately, and a stopped
+/// rotor is the only honest way to show that a curve really did switch the fans off. Two
+/// things make it read as motion rather than as a spinning image: the speed is eased towards
+/// the measured one instead of jumping to it, so a reading every second still looks like a
+/// fan spooling up, and the blur grows with the speed, the way a real fan stops being
+/// individual blades. Both are driven from the per-frame rendering tick and are unhooked the
+/// moment the control leaves the tree, so an invisible section costs nothing.
 /// </summary>
 public sealed class FanRotor : FrameworkElement
 {
@@ -30,40 +32,51 @@ public sealed class FanRotor : FrameworkElement
     /// fans comparable to each other.</summary>
     private const double FastestRpm = 6000;
     private const double FastestDegreesPerSecond = 500;
-    private const int Blades = 11;
 
     private static readonly Color CoolColor = Color.FromRgb(0x35, 0xC7, 0xE6);
     private static readonly Color WarmColor = Color.FromRgb(0xF2, 0x9A, 0x3C);
-    private static readonly Color HubColor = Color.FromRgb(0x1A, 0x1E, 0x24);
+    private static readonly Color IdleColor = Color.FromRgb(0x8A, 0x93, 0x9B);
 
     private readonly Stopwatch _clock = new();
     private double _angle;
     private double _speed;
     private bool _hooked;
 
+    /// <summary>The blades, as a round image with a soft edge. Turning a picture of the real
+    /// fan beats drawing an approximation of one on top of it.</summary>
+    public static readonly DependencyProperty BladesProperty = DependencyProperty.Register(
+        nameof(Blades), typeof(ImageSource), typeof(FanRotor),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
     public static readonly DependencyProperty RpmProperty = DependencyProperty.Register(
         nameof(Rpm), typeof(double), typeof(FanRotor),
         new PropertyMetadata(0.0, (rotor, _) => ((FanRotor)rotor).OnSpeedChanged()));
 
-    /// <summary>Tints the rotor from cool to warm. It is the temperature this fan is answering
-    /// to, so the colour and the movement tell the same story.</summary>
-    public static readonly DependencyProperty TemperatureProperty = DependencyProperty.Register(
-        nameof(Temperature), typeof(double), typeof(FanRotor),
-        new FrameworkPropertyMetadata(double.NaN, FrameworkPropertyMetadataOptions.AffectsRender));
-
     /// <summary>How hard this fan is working, 0-100. Drawn as an arc around the housing, so
-    /// speed and effort are two separate things the tile can say at once - a fan at 3000 RPM
-    /// means something different at 40 % than at 90 %.</summary>
+    /// speed and effort are two separate things the picture can say at once - a fan at 3000
+    /// RPM means something different at 40 % than at 90 %.</summary>
     public static readonly DependencyProperty DutyProperty = DependencyProperty.Register(
         nameof(Duty), typeof(double), typeof(FanRotor),
         new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    /// <summary>False while nothing is being measured: the rotor then stands still and fades,
+    /// <summary>Tints the duty arc from cool to warm. It is the temperature this fan is
+    /// answering to, so the colour and the movement tell the same story.</summary>
+    public static readonly DependencyProperty TemperatureProperty = DependencyProperty.Register(
+        nameof(Temperature), typeof(double), typeof(FanRotor),
+        new FrameworkPropertyMetadata(double.NaN, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    /// <summary>False while nothing is being measured: the rotor then stands still and dims,
     /// rather than showing a plausible speed nobody read.</summary>
     public static readonly DependencyProperty IsLiveProperty = DependencyProperty.Register(
         nameof(IsLive), typeof(bool), typeof(FanRotor),
         new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender,
             (rotor, _) => ((FanRotor)rotor).OnSpeedChanged()));
+
+    public ImageSource? Blades
+    {
+        get => (ImageSource?)GetValue(BladesProperty);
+        set => SetValue(BladesProperty, value);
+    }
 
     public double Rpm
     {
@@ -71,16 +84,16 @@ public sealed class FanRotor : FrameworkElement
         set => SetValue(RpmProperty, value);
     }
 
-    public double Temperature
-    {
-        get => (double)GetValue(TemperatureProperty);
-        set => SetValue(TemperatureProperty, value);
-    }
-
     public double Duty
     {
         get => (double)GetValue(DutyProperty);
         set => SetValue(DutyProperty, value);
+    }
+
+    public double Temperature
+    {
+        get => (double)GetValue(TemperatureProperty);
+        set => SetValue(TemperatureProperty, value);
     }
 
     public bool IsLive
@@ -154,52 +167,27 @@ public sealed class FanRotor : FrameworkElement
     protected override void OnRender(DrawingContext context)
     {
         double side = Math.Min(ActualWidth, ActualHeight);
-        if (side <= 0) return;
-
+        if (side <= 0 || Blades is null) return;
         var centre = new Point(ActualWidth / 2, ActualHeight / 2);
-        // The housing keeps clear of the outer edge, because the effort arc lives out there
-        // and an arc sitting exactly on the ring is invisible.
-        double outer = side / 2 - 8;
-        double inner = outer * 0.30;
-        Color tint = Tint();
 
-        // The housing: a soft filled disc and a ring, so the blades have something to turn in
-        // and the tile does not look like a floating icon.
-        context.DrawEllipse(
-            new RadialGradientBrush(
-                Color.FromArgb(0x22, tint.R, tint.G, tint.B),
-                Color.FromArgb(0x00, tint.R, tint.G, tint.B)),
-            new Pen(new SolidColorBrush(Color.FromArgb(0x33, tint.R, tint.G, tint.B)), 1.5),
-            centre, outer, outer);
-
-        DrawDutyArc(context, centre, side / 2 - 2.5, tint);
-
+        context.PushOpacity(IsLive ? 1 : 0.5);
         context.PushTransform(new RotateTransform(_angle, centre.X, centre.Y));
-        var bladePen = new Pen(new SolidColorBrush(Color.FromArgb(IsLive ? (byte)0xEE : (byte)0x66, tint.R, tint.G, tint.B)), Math.Max(1.5, side / 34))
-        {
-            StartLineCap = PenLineCap.Round,
-            EndLineCap = PenLineCap.Round
-        };
-        for (int blade = 0; blade < Blades; blade++)
-        {
-            double start = blade * 2 * Math.PI / Blades;
-            // Each blade sweeps backwards as it goes outwards, which is what makes a still
-            // frame read as a fan rather than as a star.
-            context.DrawGeometry(null, bladePen, Blade(centre, inner, outer * 0.94, start));
-        }
+        context.DrawImage(Blades, new Rect(centre.X - side / 2, centre.Y - side / 2, side, side));
+        context.Pop();
         context.Pop();
 
-        context.DrawEllipse(new SolidColorBrush(HubColor), new Pen(new SolidColorBrush(Color.FromArgb(0x55, tint.R, tint.G, tint.B)), 1), centre, inner, inner);
+        DrawDutyArc(context, centre, side / 2 - 2);
 
         // Blur instead of more geometry: a fast fan is a smear, and this is both truer to look
         // at and cheaper than drawing motion trails.
         double share = Math.Clamp(_speed / FastestDegreesPerSecond, 0, 1);
-        Effect = share < 0.08 ? null : new BlurEffect { Radius = share * 2.6, KernelType = KernelType.Gaussian };
+        Effect = share < 0.08 ? null : new BlurEffect { Radius = share * 2.2, KernelType = KernelType.Gaussian };
     }
 
-    /// <summary>The effort arc: from the top, clockwise, one full turn at 100 %. Drawn on the
-    /// housing ring rather than inside, so it never competes with the blades.</summary>
-    private void DrawDutyArc(DrawingContext context, Point centre, double radius, Color tint)
+    /// <summary>The effort arc: from the top, clockwise, one full turn at 100 %. It sits just
+    /// outside the blades, where it reads as something the app added rather than as part of
+    /// the machine.</summary>
+    private void DrawDutyArc(DrawingContext context, Point centre, double radius)
     {
         double share = IsLive ? Math.Clamp(Duty, 0, 100) / 100 : 0;
         if (share <= 0.002) return;
@@ -218,42 +206,25 @@ public sealed class FanRotor : FrameworkElement
         var geometry = new PathGeometry();
         geometry.Figures.Add(figure);
         geometry.Freeze();
-        context.DrawGeometry(null, new Pen(new SolidColorBrush(Color.FromArgb(0xCC, tint.R, tint.G, tint.B)), 3)
+
+        Color tint = Tint();
+        context.DrawGeometry(null, new Pen(new SolidColorBrush(Color.FromArgb(0xCC, tint.R, tint.G, tint.B)), 2.5)
         {
             StartLineCap = PenLineCap.Round,
             EndLineCap = PenLineCap.Round
         }, geometry);
     }
 
-    private static PathGeometry Blade(Point centre, double inner, double outer, double startAngle)
-    {
-        const double Sweep = 0.62;
-        Point At(double radius, double angle) =>
-            new(centre.X + radius * Math.Cos(angle), centre.Y + radius * Math.Sin(angle));
-
-        var figure = new PathFigure { StartPoint = At(inner, startAngle) };
-        figure.Segments.Add(new QuadraticBezierSegment(
-            At((inner + outer) / 2, startAngle + Sweep * 0.35),
-            At(outer, startAngle + Sweep), true));
-        var geometry = new PathGeometry();
-        geometry.Figures.Add(figure);
-        geometry.Freeze();
-        return geometry;
-    }
-
     /// <summary>
-    /// The tile's colour, from the app's own cyan when the machine is cool to a warm amber
-    /// when it is hot.
+    /// The app's own cyan while the machine is cool, warming towards amber from about 65 °C.
     ///
-    /// It stays cyan well past idle and only warms from about 65 °C, because that is where
-    /// the temperature starts meaning something on this laptop - and because a colour that
-    /// drifts on every reading tells you nothing. The two ends are blended directly rather
-    /// than walked round the colour wheel: the wheel's shortest path from cyan to amber runs
-    /// through a loud green that belongs to no other part of this app.
+    /// The two ends are blended directly rather than walked round the colour wheel: the
+    /// wheel's short path from cyan to amber runs through a loud green that belongs to no
+    /// other part of this app.
     /// </summary>
     private Color Tint()
     {
-        if (double.IsNaN(Temperature) || !IsLive) return Color.FromRgb(0x8A, 0x93, 0x9B);
+        if (double.IsNaN(Temperature) || !IsLive) return IdleColor;
         double share = Math.Clamp((Temperature - 55) / 30.0, 0, 1);
         return Color.FromRgb(
             (byte)(CoolColor.R + (WarmColor.R - CoolColor.R) * share),

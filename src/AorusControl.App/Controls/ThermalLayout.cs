@@ -1,51 +1,65 @@
-using System.Globalization;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Media;
-using Brushes = System.Windows.Media.Brushes;
+using System.Windows.Media.Imaging;
 using Color = System.Windows.Media.Color;
-using FontFamily = System.Windows.Media.FontFamily;
 using Panel = System.Windows.Controls.Panel;
-using Pen = System.Windows.Media.Pen;
 using Point = System.Windows.Point;
 using Size = System.Windows.Size;
 
 namespace AorusControl.App.Controls;
 
 /// <summary>
-/// This laptop's cooling system, drawn: two blowers, the heat pipes between them, the fin
-/// stacks they blow through, and the two chips they are there for.
+/// This laptop's cooling system as the live picture of the cooling page: the machine seen
+/// from below, both blowers turning, and the heat pipes lighting up with what the fans are
+/// actually doing.
 ///
-/// It is a redrawing of the AORUS 5 SE4's own thermal layout - two fans in the outer corners,
-/// a long pipe across the top, the crossed pair between the fans, and a loop from each fan
-/// down to the side exhaust - not a photograph and not a schematic anyone should measure
-/// against. What makes it worth the pixels is that it is wired to the real machine: the
-/// rotors turn at the measured speed, the light travelling along the pipes moves with how
-/// hard each fan is working, and the fins brighten with the temperature. Switching to Leise
-/// and watching the flow slow down says more than any number does.
+/// The picture itself is a still of the AORUS 5's own thermal assembly (Assets/README.md says
+/// where it comes from and how the three files were made). Drawing it by hand had been tried
+/// first and looked like a diagram of the machine rather than the machine; taking the real
+/// frame and animating the parts that really move is both more honest and far less code.
 ///
-/// Everything is drawn in a fixed design space and scaled to whatever width it is given, so
-/// the picture keeps its proportions and stays sharp instead of being a bitmap someone has to
-/// re-export for every screen.
+/// Three pieces are stacked here, all from the same frame so they cannot fall out of
+/// alignment: the body, the two fan discs cut out of it and rotated by <see cref="FanRotor"/>
+/// at the measured speed, and a mask of the heat pipes through which a warm pulse is drawn.
+/// The pulse travels outwards from the chips at the speed the fans are working, which is what
+/// makes switching a profile visible rather than merely readable - and with no live reading
+/// at all it stops and the whole assembly dims, so the picture never suggests it knows
+/// something it has not been told.
 /// </summary>
 public sealed class ThermalLayout : Panel
 {
-    private const double DesignWidth = 1000, DesignHeight = 380;
-    private static readonly Point LeftFan = new(255, 168), RightFan = new(745, 168);
-    private const double RotorSize = 208;
+    // The design space is the asset's own pixel space, so every coordinate here can be read
+    // straight off the image.
+    private const double DesignWidth = 1218, DesignHeight = 600;
+    private static readonly Point LeftFan = new(198, 255.5), RightFan = new(1017.5, 266.5);
+    private const double RotorSize = 194;
 
-    private static readonly Color PipeColor = Color.FromRgb(0x6B, 0x5C, 0x41);
-    private static readonly Color PipeEdgeColor = Color.FromRgb(0x9C, 0x85, 0x57);
-    private static readonly Color FlowColor = Color.FromRgb(0xF0, 0xD2, 0x8C);
-    private static readonly Color BoardColor = Color.FromRgb(0x0B, 0x0D, 0x10);
-    private static readonly Color OutlineColor = Color.FromRgb(0x25, 0x2B, 0x33);
-    private static readonly Color PartColor = Color.FromRgb(0x14, 0x18, 0x1D);
-    private static readonly Color LabelColor = Color.FromRgb(0x6C, 0x76, 0x82);
+    /// <summary>Where the pulse starts: the chips, under the crossed pipes.</summary>
+    private static readonly Point HeatSource = new(0.52, 0.42);
+    private static readonly Color GlowColor = Color.FromRgb(0xFF, 0xE4, 0xB0);
 
-    private readonly FanRotor _left = new(), _right = new();
+    private static readonly BitmapImage Body = Load("thermal-body.jpg");
+    private static readonly BitmapImage Pipes = Load("thermal-pipes.png");
+
+    private readonly FanRotor _left = new() { Blades = Load("thermal-fan-left.png") };
+    private readonly FanRotor _right = new() { Blades = Load("thermal-fan-right.png") };
     private double _phase;
     private bool _hooked;
     private long _lastTick;
+
+    private static BitmapImage Load(string file)
+    {
+        var image = new BitmapImage();
+        image.BeginInit();
+        // The assembly is named explicitly rather than relying on the entry application's
+        // own resources: the offscreen render checks load this control from their own host,
+        // where a bare "/Assets/..." would look in the wrong assembly.
+        image.UriSource = new Uri($"pack://application:,,,/AorusControl;component/Assets/{file}", UriKind.Absolute);
+        image.CacheOption = BitmapCacheOption.OnLoad;
+        image.EndInit();
+        image.Freeze();
+        return image;
+    }
 
     public static readonly DependencyProperty CpuRpmProperty = Forwarded(nameof(CpuRpm));
     public static readonly DependencyProperty GpuRpmProperty = Forwarded(nameof(GpuRpm));
@@ -81,18 +95,17 @@ public sealed class ThermalLayout : Panel
         IsVisibleChanged += (_, _) => Hook(IsVisible);
     }
 
-    /// <summary>The rotors are the same control the tiles use, so the two fans in the picture
-    /// are not a second implementation of "a turning fan" that could drift from the first.</summary>
+    /// <summary>Each fan's own values go to its own rotor, so the two fans in the picture sit
+    /// where their readings do - left is the CPU side on this machine, right the GPU.</summary>
     private void Forward(string name, object value)
     {
         FanRotor rotor = name.StartsWith("Cpu", StringComparison.Ordinal) ? _left : _right;
-        DependencyProperty property = name[3..] switch
+        rotor.SetValue(name[3..] switch
         {
             "Rpm" => FanRotor.RpmProperty,
             "Duty" => FanRotor.DutyProperty,
             _ => FanRotor.TemperatureProperty
-        };
-        rotor.SetValue(property, value);
+        }, value);
     }
 
     private void OnLiveChanged()
@@ -101,7 +114,7 @@ public sealed class ThermalLayout : Panel
         Hook(IsVisible && IsLoaded);
     }
 
-    // ---- the flow -------------------------------------------------------------------
+    // ---- the pulse ------------------------------------------------------------------
     private double FlowSpeed => IsLive ? Math.Clamp(Math.Max(CpuDuty, GpuDuty), 0, 100) / 100 : 0;
 
     private void Hook(bool wanted)
@@ -125,14 +138,12 @@ public sealed class ThermalLayout : Panel
         long now = Environment.TickCount64;
         double elapsed = Math.Clamp((now - _lastTick) / 1000.0, 0, 0.25);
         _lastTick = now;
-        // One pattern length per second at full duty, a crawl at the bottom of the range.
-        _phase = (_phase + elapsed * (0.25 + FlowSpeed * 1.6)) % 1;
+        // A crawl at the bottom of the range, a little over one pulse a second at full duty.
+        _phase = (_phase + elapsed * (0.18 + FlowSpeed * 0.95)) % 1;
         InvalidateVisual();
     }
 
     // ---- layout ---------------------------------------------------------------------
-    private double Scale => ActualWidth > 0 ? ActualWidth / DesignWidth : 1;
-
     protected override Size MeasureOverride(Size availableSize)
     {
         double width = double.IsInfinity(availableSize.Width) ? DesignWidth : availableSize.Width;
@@ -153,173 +164,56 @@ public sealed class ThermalLayout : Panel
     protected override void OnRender(DrawingContext context)
     {
         if (ActualWidth <= 0) return;
-        context.PushTransform(new ScaleTransform(Scale, Scale));
+        var area = new Rect(0, 0, ActualWidth, ActualHeight);
+        double radius = 10;
 
-        // The chassis and the board it holds: everything else is drawn on top of this, which
-        // is what stops the pipes from floating in mid-air.
-        context.DrawRoundedRectangle(new SolidColorBrush(BoardColor), new Pen(new SolidColorBrush(OutlineColor), 1.5),
-            new Rect(12, 12, DesignWidth - 24, DesignHeight - 24), 20, 20);
-
-        DrawParts(context);
-        DrawFins(context);
-        foreach ((PathGeometry pipe, bool flows) in Pipes) DrawPipe(context, pipe, flows);
-        DrawFanWells(context);
-        DrawChips(context);
-
+        // Rounded off to sit in a card rather than to look like a photo someone pasted in.
+        context.PushClip(new RectangleGeometry(area, radius, radius));
+        context.PushOpacity(IsLive ? 1 : 0.72);
+        context.DrawImage(Body, area);
+        context.Pop();
+        DrawPulse(context, area);
         context.Pop();
     }
 
-    /// <summary>The parts that place the picture: the memory and the drive sit where they
-    /// really do, which is what makes it read as this laptop rather than as a logo.</summary>
-    private static void DrawParts(DrawingContext context)
-    {
-        var part = new SolidColorBrush(PartColor);
-        var edge = new Pen(new SolidColorBrush(OutlineColor), 1);
-        foreach (Rect slot in new[] { new Rect(600, 292, 280, 26), new Rect(600, 328, 280, 26) })
-        {
-            context.DrawRoundedRectangle(part, edge, slot, 4, 4);
-            for (double x = slot.X + 14; x < slot.Right - 10; x += 13)
-                context.DrawLine(new Pen(new SolidColorBrush(Color.FromArgb(0x40, 0x6C, 0x76, 0x82)), 1),
-                    new Point(x, slot.Y + 6), new Point(x, slot.Bottom - 6));
-        }
-        context.DrawRoundedRectangle(part, edge, new Rect(120, 300, 210, 24), 4, 4);
-        Label(context, "RAM", new Point(890, 300), 13);
-        Label(context, "SSD", new Point(134, 304), 13);
-    }
-
-    /// <summary>The four fin stacks: two at the back, one behind each side vent. They warm
-    /// with the machine, so the picture says where the heat is going out.</summary>
-    private void DrawFins(DrawingContext context)
-    {
-        double warmth = IsLive ? Math.Clamp((Math.Max(CpuTemperature, GpuTemperature) - 50) / 35.0, 0, 1) : 0;
-        byte alpha = (byte)(0x40 + warmth * 0xA0);
-        var pen = new Pen(new SolidColorBrush(Color.FromArgb(alpha, FlowColor.R, FlowColor.G, FlowColor.B)), 3)
-        {
-            StartLineCap = PenLineCap.Round,
-            EndLineCap = PenLineCap.Round
-        };
-
-        foreach (double left in new[] { 172.0, 655.0 })
-            for (double x = left; x < left + 176; x += 11)
-                context.DrawLine(pen, new Point(x, 30), new Point(x, 48));
-
-        foreach (double x in new[] { 34.0, 966.0 })
-            for (double y = 96; y < 248; y += 11)
-                context.DrawLine(pen, new Point(x - 9, y), new Point(x + 9, y));
-    }
-
     /// <summary>
-    /// A pipe is three strokes: the body, a lighter edge along it for the brushed-metal look,
-    /// and - where the machine is actually moving heat - a dashed overlay whose offset moves,
-    /// which is the flow. The dashes are what tie the picture to the live readings.
+    /// The warm light in the pipes. It is drawn as a ring travelling outwards from the chips,
+    /// masked to the pipes themselves - the mask is cut from the same image, so the light can
+    /// only ever appear exactly where there is metal to carry heat.
     /// </summary>
-    private void DrawPipe(DrawingContext context, Geometry pipe, bool flows)
+    private void DrawPulse(DrawingContext context, Rect area)
     {
-        // Without a reading the whole assembly is dimmed rather than left looking lit: the
-        // picture must never suggest it knows something it has not been told.
-        context.DrawGeometry(null, RoundPen(PipeColor, IsLive ? (byte)0xFF : (byte)0xA0, 13), pipe);
-        context.DrawGeometry(null, RoundPen(PipeEdgeColor, IsLive ? (byte)0x99 : (byte)0x44, 4), pipe);
-        if (!flows || FlowSpeed <= 0.01) return;
+        if (!IsLive) return;
+        double warmth = Math.Clamp((Math.Max(CpuTemperature, GpuTemperature) - 45) / 40.0, 0, 1);
+        if (double.IsNaN(warmth)) warmth = 0;
 
-        Pen flow = RoundPen(FlowColor, (byte)(0x60 + FlowSpeed * 0x8F), 5);
-        flow.DashStyle = new DashStyle([0.5, 4.5], -_phase * 5);
-        flow.DashCap = PenLineCap.Round;
-        context.DrawGeometry(null, flow, pipe);
-    }
-
-    private static Pen RoundPen(Color color, byte alpha, double thickness) =>
-        new(new SolidColorBrush(Color.FromArgb(alpha, color.R, color.G, color.B)), thickness)
+        var brush = new RadialGradientBrush
         {
-            StartLineCap = PenLineCap.Round,
-            EndLineCap = PenLineCap.Round,
-            LineJoin = PenLineJoin.Round
+            GradientOrigin = HeatSource,
+            Center = HeatSource,
+            RadiusX = 0.62,
+            RadiusY = 1.24
         };
+        // A base glow that follows the temperature, so a hot machine's pipes read as hot even
+        // between two pulses.
+        brush.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(0x10 + warmth * 0x38), GlowColor.R, GlowColor.G, GlowColor.B), 0));
+        brush.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(0x06 + warmth * 0x20), GlowColor.R, GlowColor.G, GlowColor.B), 1));
 
-    /// <summary>The blower housings. The rotors themselves are child controls arranged into
-    /// these, so what turns in the picture is the same control the tiles use.</summary>
-    private static void DrawFanWells(DrawingContext context)
-    {
-        var fill = new SolidColorBrush(Color.FromRgb(0x0E, 0x11, 0x15));
-        var edge = new Pen(new SolidColorBrush(OutlineColor), 1.5);
-        foreach (Point centre in new[] { LeftFan, RightFan })
-            context.DrawRoundedRectangle(fill, edge,
-                new Rect(centre.X - 112, centre.Y - 112, 224, 224), 38, 38);
-    }
-
-    /// <summary>The two chips everything else exists for, named, so the pipes visibly start
-    /// somewhere rather than being decoration.</summary>
-    private void DrawChips(DrawingContext context)
-    {
-        double warmth = IsLive ? 1 : 0;
-        foreach ((string name, Rect area, double temperature) in new[]
+        // And the pulse itself: three stops sliding outwards together.
+        double centre = _phase * 1.25 - 0.12;
+        byte peak = (byte)(0x30 + FlowSpeed * 0x90);
+        foreach ((double offset, byte alpha) in new[]
         {
-            ("CPU", new Rect(432, 212, 62, 54), CpuTemperature),
-            ("GPU", new Rect(508, 212, 62, 54), GpuTemperature)
+            (centre - 0.16, (byte)0), (centre, peak), (centre + 0.16, (byte)0)
         })
         {
-            double heat = IsLive && !double.IsNaN(temperature) ? Math.Clamp((temperature - 50) / 35.0, 0, 1) : 0;
-            context.DrawRoundedRectangle(
-                new SolidColorBrush(PartColor),
-                RoundPen(FlowColor, (byte)(0x30 + warmth * heat * 0xB0), 1.5),
-                area, 6, 6);
-            Label(context, name, new Point(area.X + 12, area.Y + 18), 12);
+            if (offset is <= 0 or >= 1) continue;
+            brush.GradientStops.Add(new GradientStop(Color.FromArgb(alpha, GlowColor.R, GlowColor.G, GlowColor.B), offset));
         }
+        brush.Freeze();
+
+        context.PushOpacityMask(new ImageBrush(Pipes) { Stretch = Stretch.Fill });
+        context.DrawRectangle(brush, null, area);
+        context.Pop();
     }
-
-    private static void Label(DrawingContext context, string text, Point at, double size) =>
-        context.DrawText(
-            new FormattedText(text, CultureInfo.InvariantCulture, System.Windows.FlowDirection.LeftToRight,
-                new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
-                size, new SolidColorBrush(LabelColor), 96) { TextAlignment = TextAlignment.Left },
-            at);
-
-    // ---- the pipe routing -----------------------------------------------------------
-    // Built once and frozen: the shape never changes, only what is drawn along it.
-    private static readonly (PathGeometry Pipe, bool Flows)[] Pipes = BuildPipes();
-
-    private static (PathGeometry, bool)[] BuildPipes() =>
-    [
-        // The long pipe across the back, dipping between the two fans - the one that gives
-        // this layout its silhouette. Drawn as two halves running outwards from the middle,
-        // because that is the direction the heat travels and the flow has to say so.
-        (Path(new Point(500, 104),
-            Curve(new Point(430, 104), new Point(430, 46), new Point(352, 46)),
-            Line(new Point(186, 46))), true),
-        (Path(new Point(500, 104),
-            Curve(new Point(570, 104), new Point(570, 46), new Point(648, 46)),
-            Line(new Point(814, 46))), true),
-
-        // The crossed pair between the fans. They cross because each chip is served by the
-        // fan on the far side - drawn as two near-straight diagonals so the crossing reads as
-        // a crossing, and flowing in opposite directions because that is what they do.
-        (Path(new Point(548, 210),
-            Curve(new Point(516, 202), new Point(404, 158), new Point(358, 142))), true),
-        (Path(new Point(452, 210),
-            Curve(new Point(484, 202), new Point(596, 158), new Point(642, 142))), true),
-
-        // And the loop from each fan down and out to the side vent.
-        (Path(new Point(255, 284),
-            Curve(new Point(150, 300), new Point(64, 288), new Point(46, 230))), true),
-        (Path(new Point(745, 284),
-            Curve(new Point(850, 300), new Point(936, 288), new Point(954, 230))), true),
-
-        // Short stubs from the chips up into the crossing, so the heat visibly comes from
-        // somewhere.
-        (Path(new Point(463, 212), Line(new Point(463, 176))), false),
-        (Path(new Point(539, 212), Line(new Point(539, 176))), false)
-    ];
-
-    private static PathGeometry Path(Point start, params PathSegment[] segments)
-    {
-        var figure = new PathFigure { StartPoint = start };
-        foreach (PathSegment segment in segments) figure.Segments.Add(segment);
-        var geometry = new PathGeometry();
-        geometry.Figures.Add(figure);
-        geometry.Freeze();
-        return geometry;
-    }
-
-    private static LineSegment Line(Point to) => new(to, true);
-
-    private static BezierSegment Curve(Point first, Point second, Point to) => new(first, second, to, true);
 }
