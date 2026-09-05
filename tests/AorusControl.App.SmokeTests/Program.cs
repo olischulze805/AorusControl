@@ -1,3 +1,4 @@
+using System.IO;
 using System.Reflection;
 using AorusControl.App.ViewModels;
 using AorusControl.Core.Models;
@@ -39,6 +40,7 @@ FanSpeedPercentTests.Run();
 KeyboardEffectFrameTests.Run();
 KeyboardLayoutTests.Run();
 AppDataTests.Run();
+FanObservationTests.Run();
 SliderGeometryTests.Run();
 UpdateRestartTests.Run();
 await UpdateRestartTests.RunStartupCheckAsync();
@@ -238,6 +240,37 @@ await Run("A Windows shutdown hands the fans back to the firmware", async (vm, r
     vm.RestoreFansToFirmware();
     Check(fan.NormalWrites == before + 1, "a second shutdown notification must not write again");
 });
+await Run("What a profile does is measured while it runs, and attributed to the right one", async (vm, reader, fan) =>
+{
+    // The first reading after a profile change can still show the previous profile's duty, so
+    // it is dropped; from then on every tick contributes a point.
+    reader.Temperature = 61;
+    await Invoke(vm, "RefreshAsync");
+    await Invoke(vm, "RefreshAsync");
+    Check(vm.Cooling.ObservedPoints.Any(point => point.TemperatureCelsius == 61),
+        "a settled profile records what it was doing at that temperature");
+    Check(vm.Cooling.ObservationSummary.Contains("Gemessen"), "and says the picture is measured, not specified");
+
+    // A different profile starts its own picture rather than inheriting the last one's.
+    await vm.Cooling.SetProfileAsync("Gaming");
+    reader.Temperature = 72;
+    await Invoke(vm, "RefreshAsync");
+    await Invoke(vm, "RefreshAsync");
+    Check(vm.Cooling.ObservedPoints.Any(point => point.TemperatureCelsius == 72), "the new profile is measured too");
+    Check(!vm.Cooling.ObservedPoints.Any(point => point.TemperatureCelsius == 61),
+        "and never shows the previous profile's measurements as its own");
+
+    // Fixed is the user pinning the fans, not a profile deciding anything, so nothing is
+    // attributed to it. It has to be cool enough first - the safety rules refuse to pin the
+    // fans at 72 C, and rightly so.
+    reader.Temperature = 55;
+    await vm.Cooling.SetFixedAsync();
+    Check(vm.Cooling.IsFixedActive, "the fixed value must actually be held for this to test anything");
+    int before = vm.Cooling.ObservedPoints.Count;
+    await Invoke(vm, "RefreshAsync");
+    await Invoke(vm, "RefreshAsync");
+    Check(vm.Cooling.ObservedPoints.Count == before, "a pinned fan says nothing about what a profile does");
+});
 await Run("The power section says what the mode does and what the fans are doing", async (vm, reader, fan) =>
 {
     // The point of this text is that it never claims the power mode drives the fans, and
@@ -300,11 +333,17 @@ static async Task RunWithStartup(string name, Func<MainWindowViewModel, FakeRead
     using var vm = new MainWindowViewModel(reader, new FakeKeyboard(), fan, new WindowsPowerOverlayController(),
         fixedFanLeaseClient: new InProcessFixedFanLeaseClient(supervisor),
         fanCurveStore: new FakeFanCurveStore(),
-        startupManager: startupManager);
+        startupManager: startupManager,
+        // Never the real profile: these readings are invented, and the file they belong in
+        // is the one the user's own measurements live in.
+        observationPath: TemporaryObservationFile());
     await vm.Cooling.StartAsync();
     await test(vm, reader, fan, startupManager);
     Console.WriteLine($"PASS: {name}");
 }
+static string TemporaryObservationFile() =>
+    Path.Combine(Path.GetTempPath(), "AorusControlTests", $"fan-observations-{Guid.NewGuid():N}.json");
+
 static Task Invoke(MainWindowViewModel vm, string method) =>
     (Task)typeof(MainWindowViewModel).GetMethod(method, BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(vm, null)!;
 static void Check(bool condition, string message)

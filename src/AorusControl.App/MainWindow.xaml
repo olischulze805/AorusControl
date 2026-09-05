@@ -184,6 +184,29 @@
                                     </RadioButton>
                                 </WrapPanel>
                                 <TextBlock Text="{Binding Cooling.Status}" Style="{StaticResource StatusText}" />
+
+                                <!-- Die Herstellerprofile schreiben keine Kurve: sie setzen vier
+                                     Statusflags, die 15 Kurvenpunkte auf der EC bleiben dabei
+                                     unverändert. Statt eine Kurve zu erfinden, steht hier, was
+                                     währenddessen gemessen wurde. -->
+                                <Border Style="{StaticResource InnerPanel}" Margin="0,20,0,0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" MinWidth="200" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,18,0" VerticalAlignment="Center">
+                                            <TextBlock Text="Was dieses Profil tut" Style="{StaticResource SubLabel}" />
+                                            <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0" TextWrapping="Wrap"
+                                                       Text="{Binding Cooling.ObservationSummary}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" MinWidth="280">
+                                            <ctrl:FanCurveChart Measured="{Binding Cooling.ObservedPoints}" Height="150" />
+                                            <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0" HorizontalAlignment="Center"
+                                                       Text="Gemessene Lüfterleistung über CPU-Temperatur" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
                             </StackPanel>
                         </Border>
 
@@ -234,9 +257,19 @@
                                     <!-- Drawn at its real size instead of a fixed canvas in a Viewbox, so the
                                          chart grows with the window without the labels going fuzzy. -->
                                     <ctrl:FanCurveChart Rows="{Binding Cooling.CurveRows}" IsEditable="True"
+                                                        Measured="{Binding Cooling.ObservedPoints}"
                                                         MinHeight="220" Height="300" Cursor="Hand"
                                                         CurveEdited="OnFanCurveEdited" />
                                 </Border>
+                                <!-- Zwei Spuren brauchen eine Legende, sonst sind sie ein Rätsel. -->
+                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0" HorizontalAlignment="Center">
+                                    <Border Width="14" Height="3" CornerRadius="2" VerticalAlignment="Center"
+                                            Background="{StaticResource AccentBrush}" />
+                                    <TextBlock Style="{StaticResource Hint}" Margin="6,0,18,0" Text="eingestellte Kurve" />
+                                    <Border Width="14" Height="3" CornerRadius="2" VerticalAlignment="Center" Background="#FFF2B14C" />
+                                    <TextBlock Style="{StaticResource Hint}" Margin="6,0,0,0"
+                                               Text="gemessen, während dieses Profil lief" />
+                                </StackPanel>
                                 <WrapPanel Margin="0,18,0,-10">
                                     <ui:Button Style="{StaticResource SecondaryButton}" Content="Von Firmware neu laden"
                                                Command="{Binding Cooling.ReloadCurveCommand}" Margin="0,0,10,10">

@@ -61,7 +61,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         IFanCurveStore? fanCurveStore = null,
         IStartupManager? startupManager = null,
         Func<TimeSpan, Task>? resumeReapplyDelay = null,
-        Func<TimeSpan, CancellationToken, Task>? debounceWait = null)
+        Func<TimeSpan, CancellationToken, Task>? debounceWait = null,
+        string? observationPath = null)
     {
         _reader = reader;
         Keyboard = new KeyboardViewModel(keyboardRgb, keyboardSettingsStore, brightnessListener, resumeReapplyDelay);
@@ -73,7 +74,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             fanCurveStore ?? new FanCurveStore(AppData.File("fan-curve-v1.json")),
             RefreshAsync,
             StartMonitoring,
-            debounceWait);
+            debounceWait,
+            observationPath);
         Windows = new WindowsSettingsViewModel(
             powerOverlay,
             startupManager ?? new StartupManager(Environment.ProcessPath ?? "AorusControl.exe"));
@@ -276,6 +278,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             // The worker's own lease re-validates temperature on every renewal, using its
             // own independent telemetry read; a failure there already means it has
             // restored Normal by itself before this call returns.
+            Cooling.RecordObservation(snapshot);
             await Cooling.RenewFixedLeaseAsync();
         }
         catch (Exception exception)

@@ -30,7 +30,10 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     private readonly Debouncer _applyCurve;
     private readonly Debouncer _applyFixed;
 
+    private readonly FanProfileObservations _observed;
+    private readonly string _observationPath;
     private bool _busy, _closing, _disposed, _controlsEnabled, _restoreNormalOnExit, _fixedActive;
+    private bool _profileJustChanged = true;
     private Guid? _fixedLease;
     private byte _fixedRaw = 114;
     private string _status = "Lüftersteuerung wird geprüft …";
@@ -43,13 +46,18 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         IFanCurveStore curveStore,
         Func<Task> refreshTelemetry,
         Action startMonitoring,
-        Func<TimeSpan, CancellationToken, Task>? debounceWait = null)
+        Func<TimeSpan, CancellationToken, Task>? debounceWait = null,
+        string? observationPath = null)
     {
         _fan = fan;
         _leaseClient = leaseClient;
         _curveStore = curveStore;
         _refreshTelemetry = refreshTelemetry;
         _startMonitoring = startMonitoring;
+        // Injectable so tests measure into a temporary file: writing invented readings into
+        // the user's real profile is exactly what this data must never contain.
+        _observationPath = observationPath ?? AppData.File("fan-observations-v1.json");
+        _observed = FanProfileObservations.FromJson(ReadObservations());
         SetProfileCommand = new AsyncRelayCommand<string>(SetProfileAsync);
         SetFixedCommand = new AsyncRelayCommand(SetFixedAsync);
         ReloadCurveCommand = new AsyncRelayCommand(ReloadCurveFromDeviceAsync);
@@ -148,6 +156,22 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     /// FixedFanRawChoices rather than restated, so the marks cannot come to show values the
     /// slider can no longer reach.</summary>
     public System.Windows.Media.DoubleCollection FixedFanTicks { get; }
+
+    /// <summary>
+    /// What the running profile was actually measured doing: one point per whole degree, from
+    /// the same telemetry the dashboard shows.
+    ///
+    /// The vendor profiles do not publish a curve - they set four status flags and the firmware
+    /// regulates internally, leaving the EC's fifteen curve points untouched. Showing those
+    /// points as "what Gaming does" would be inventing an answer, so this shows measurements
+    /// instead, and says so.
+    /// </summary>
+    public IReadOnlyList<FanObservationPoint> ObservedPoints { get; private set; } = [];
+
+    /// <summary>Says plainly where the picture comes from and how complete it is, because a
+    /// chart built from four samples must not look like a specification.</summary>
+    public string ObservationSummary { get; private set; } =
+        "Die Herstellerprofile geben keine Kurve preis - hier steht, was gemessen wurde, während sie liefen.";
 
     /// <summary>The 15 editable curve points. Text-backed like FanCurveRowViewModel
     /// elsewhere, so invalid or incomplete typing survives until it is validated, instead of
@@ -334,6 +358,56 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
             CurveStatus = $"Kurve konnte nicht gelesen werden: {exception.Message}";
         }
         finally { _busy = false; }
+    }
+
+    /// <summary>
+    /// Adds one telemetry reading to the picture of what the running profile does.
+    ///
+    /// Skipped for Fixed, where the fans do what the user pinned them to rather than what a
+    /// profile decided, and skipped for the first reading after a profile change, which can
+    /// still show the previous profile's duty.
+    /// </summary>
+    public void RecordObservation(TelemetrySnapshot snapshot)
+    {
+        if (_closing || _disposed || _fixedActive || ActiveProfile == "Fixed") return;
+        if (_profileJustChanged) { _profileJustChanged = false; return; }
+
+        _observed.Record(ActiveProfile,
+            (byte)Math.Min(snapshot.CpuTemperatureCelsius, (ushort)255),
+            (byte)FanSpeedPercent.ToPercent((byte)Math.Min(snapshot.CpuFanDutyPercent, (ushort)255)));
+        ShowObservations();
+        SaveObservations();
+    }
+
+    private void ShowObservations()
+    {
+        ObservedPoints = _observed.For(ActiveProfile);
+        int samples = _observed.SampleCount(ActiveProfile);
+        ObservationSummary = samples == 0
+            ? $"Für {ActiveProfile} noch nichts gemessen. Die Herstellerprofile geben keine Kurve preis; das Bild entsteht, während das Profil läuft."
+            : $"Gemessen, während {ActiveProfile} lief: {ObservedPoints.Count} Temperaturstufen aus {samples} Messungen. Keine Vorgabe des Herstellers, sondern beobachtetes Verhalten.";
+        OnPropertyChanged(nameof(ObservedPoints));
+        OnPropertyChanged(nameof(ObservationSummary));
+    }
+
+    private string? ReadObservations()
+    {
+        try { return System.IO.File.Exists(_observationPath) ? System.IO.File.ReadAllText(_observationPath) : null; }
+        catch (Exception error) { AppLog.Warn("fan", "Messwerte nicht gelesen: " + error.Message); return null; }
+    }
+
+    private void SaveObservations()
+    {
+        try
+        {
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(_observationPath)!);
+            System.IO.File.WriteAllText(_observationPath, _observed.ToJson());
+        }
+        catch (Exception error)
+        {
+            // Measurements are worth keeping, never worth interrupting anyone over.
+            AppLog.Warn("fan", "Messwerte nicht gespeichert: " + error.Message);
+        }
     }
 
     /// <summary>
@@ -542,7 +616,10 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     private void Show(FanControlState state, string profile)
     {
         FixedFanRaw = state.FixedSpeedRaw is >= 57 and <= 229 ? checked((byte)state.FixedSpeedRaw) : FixedFanRaw;
+        string previous = ActiveProfile;
         ActiveProfile = DescribeFanProfileKey(state);
+        if (ActiveProfile != previous) _profileJustChanged = true;
+        ShowObservations();
         Status = $"Aktiv: {profile} · Fixed {state.FixedStatusRaw} · Step {state.StepStatusRaw} · Auto {state.AutoStatusRaw} · Thermal {state.NvidiaThermalTargetRaw}";
         OnPropertyChanged(nameof(Summary));
     }

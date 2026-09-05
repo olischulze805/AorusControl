@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using AorusControl.App.ViewModels;
+using AorusControl.Core.Features.Cooling;
 using Point = System.Windows.Point;
 using Color = System.Windows.Media.Color;
 using Brush = System.Windows.Media.Brush;
@@ -38,12 +39,19 @@ public sealed class FanCurveChart : Canvas
     private const double PointHitRadius = 14;
     private static readonly Color AccentColor = Color.FromRgb(0x35, 0xC7, 0xE6);
     private static readonly Color LockedColor = Color.FromRgb(0x8A, 0x93, 0x9B);
+    private static readonly Color MeasuredColor = Color.FromRgb(0xF2, 0xB1, 0x4C);
 
     private int? _dragging;
 
     public static readonly DependencyProperty RowsProperty = DependencyProperty.Register(
         nameof(Rows), typeof(IEnumerable<FanCurveRowViewModel>), typeof(FanCurveChart),
         new PropertyMetadata(null, (chart, args) => ((FanCurveChart)chart).OnRowsChanged(args)));
+
+    /// <summary>Measured temperature/duty pairs, drawn as a second, dimmer trace. Optional:
+    /// the chart is the configured curve first, and this is what was observed on top of it.</summary>
+    public static readonly DependencyProperty MeasuredProperty = DependencyProperty.Register(
+        nameof(Measured), typeof(IEnumerable<FanObservationPoint>), typeof(FanCurveChart),
+        new PropertyMetadata(null, (chart, _) => ((FanCurveChart)chart).Redraw()));
 
     public static readonly DependencyProperty IsEditableProperty = DependencyProperty.Register(
         nameof(IsEditable), typeof(bool), typeof(FanCurveChart),
@@ -53,6 +61,12 @@ public sealed class FanCurveChart : Canvas
     {
         get => (IEnumerable<FanCurveRowViewModel>?)GetValue(RowsProperty);
         set => SetValue(RowsProperty, value);
+    }
+
+    public IEnumerable<FanObservationPoint>? Measured
+    {
+        get => (IEnumerable<FanObservationPoint>?)GetValue(MeasuredProperty);
+        set => SetValue(MeasuredProperty, value);
     }
 
     public bool IsEditable
@@ -179,8 +193,9 @@ public sealed class FanCurveChart : Canvas
     private void Redraw()
     {
         Children.Clear();
-        var rows = Rows?.ToList();
-        if (rows is null || rows.Count == 0 || ActualWidth <= 0 || ActualHeight <= 0) return;
+        if (ActualWidth <= 0 || ActualHeight <= 0) return;
+        var rows = Rows?.ToList() ?? [];
+        var measured = Measured?.OrderBy(point => point.TemperatureCelsius).ToList() ?? [];
 
         Brush gridBrush = new SolidColorBrush(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF));
         Brush labelBrush = (Brush)(TryFindResource("TextFillColorSecondaryBrush") ?? Brushes.Gray);
@@ -199,6 +214,11 @@ public sealed class FanCurveChart : Canvas
             AddLine(PlotLeft, y, PlotRight, y, gridBrush);
             AddLabel($"{percent}%", PlotLeft - 8, y - 8, labelBrush, rightAlign: true);
         }
+
+        DrawMeasured(measured);
+        // An empty chart still shows its axes: a blank box reads as broken, while an empty
+        // grid reads as "nothing measured yet", which is what it is.
+        if (rows.Count == 0) return;
 
         var points = new PointCollection(rows.Select(row => new Point(ToCanvasX(row.TemperatureNumber), ToCanvasY(row.Percent))));
 
@@ -251,6 +271,38 @@ public sealed class FanCurveChart : Canvas
             };
             SetLeft(dot, center.X - radius);
             SetTop(dot, center.Y - radius);
+            Children.Add(dot);
+        }
+    }
+
+    /// <summary>
+    /// The measured trace: dots at every degree that was seen, joined so the shape reads at a
+    /// glance. Deliberately a different colour and thinner than the configured curve - one is
+    /// a setting, the other is an observation, and they must not look like the same claim.
+    /// </summary>
+    private void DrawMeasured(IReadOnlyList<FanObservationPoint> measured)
+    {
+        if (measured.Count == 0) return;
+        var brush = new SolidColorBrush(MeasuredColor);
+        brush.Freeze();
+
+        if (measured.Count > 1)
+        {
+            Children.Add(new Polyline
+            {
+                Points = new PointCollection(measured.Select(point => new Point(ToCanvasX(point.TemperatureCelsius), ToCanvasY(point.Percent)))),
+                Stroke = brush,
+                StrokeThickness = 2,
+                StrokeLineJoin = PenLineJoin.Round,
+                Opacity = 0.85
+            });
+        }
+
+        foreach (FanObservationPoint point in measured)
+        {
+            var dot = new Ellipse { Width = 5, Height = 5, Fill = brush, ToolTip = $"{point.TemperatureCelsius} °C / {point.Percent}% · {point.Samples} Messungen" };
+            SetLeft(dot, ToCanvasX(point.TemperatureCelsius) - 2.5);
+            SetTop(dot, ToCanvasY(point.Percent) - 2.5);
             Children.Add(dot);
         }
     }

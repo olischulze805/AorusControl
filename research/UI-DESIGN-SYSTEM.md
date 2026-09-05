@@ -182,6 +182,32 @@ from four across to one without ragged gaps. A `WrapPanel` with a fixed `ItemWid
 correctly but leaves a gap on the right; computing that width from the panel's own
 `ActualWidth` feeds the layout back into itself and settles on one column.
 
+## Showing what a vendor profile does, without inventing it
+
+The obvious feature request is "show me the curve behind Leise / Normal / Gaming / Maximal".
+It cannot be answered as asked. Those profiles write no curve: they set four status flags and
+the firmware regulates internally, and the EC's fifteen curve points are provably untouched by
+the switch - the write tests in `research/FAN-POWER-GPU-CONTROL.md` confirmed the curve came
+back identical after every profile change. Drawing the stored points under a Gaming chip would
+be showing the user's own last curve and calling it Gigabyte's.
+
+What can be known is what the fans were observed doing while a profile ran. Every telemetry
+tick contributes one temperature/duty pair to `FanProfileObservations`, kept per profile and
+per whole degree, persisted, and drawn as a second amber trace beside the cyan configured
+curve - with a legend, because two unexplained lines are a riddle. The caption says how many
+samples it rests on and that it is measured rather than specified, so a picture built from
+four readings cannot pass for a specification.
+
+Three rules keep it honest:
+
+- **Nothing is recorded for Fixed.** A pinned fan is the user's decision, not the profile's.
+- **The first reading after a profile change is dropped**, since it can still show the
+  previous profile's duty.
+- **The newest reading for a degree wins, and is not averaged.** The firmware has hysteresis,
+  so the same degree genuinely carries different duties depending on which way the temperature
+  was moving; averaging would smooth a real behaviour into a fake one. The sample count is
+  shown so a single reading never looks like an established fact.
+
 ## Saying what a setting actually changes
 
 Under the Windows power modes there is a panel naming what the running mode does - and, just

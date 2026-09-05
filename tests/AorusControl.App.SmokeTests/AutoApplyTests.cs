@@ -1,3 +1,4 @@
+using System.IO;
 using System.Reflection;
 using AorusControl.App.Infrastructure;
 using AorusControl.App.ViewModels;
@@ -28,7 +29,8 @@ internal static class AutoApplyTests
             new WindowsPowerOverlayController(),
             fanCurveStore: new FakeFanCurveStore(),
             startupManager: new FakeStartupManager(),
-            debounceWait: clock.Wait);
+            debounceWait: clock.Wait,
+            observationPath: Path.Combine(Path.GetTempPath(), "AorusControlTests", $"fan-observations-{Guid.NewGuid():N}.json"));
         await vm.Cooling.StartAsync();
         int before = fan.CurveWrites;
 
@@ -64,7 +66,8 @@ internal static class AutoApplyTests
             new WindowsPowerOverlayController(),
             fanCurveStore: new FakeFanCurveStore(),
             startupManager: new FakeStartupManager(),
-            debounceWait: clock.Wait);
+            debounceWait: clock.Wait,
+            observationPath: Path.Combine(Path.GetTempPath(), "AorusControlTests", $"fan-observations-{Guid.NewGuid():N}.json"));
         await vm.Cooling.StartAsync();
 
         // Brushing the slider must not pin the fans: entering Fixed stays a deliberate act.
