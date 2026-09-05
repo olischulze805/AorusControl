@@ -13,9 +13,9 @@
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <AssemblyName>AorusControl</AssemblyName>
     <RootNamespace>AorusControl.App</RootNamespace>
-    <!-- Bump this on every user-visible release; UpdateViewModel reads it back via the
-         executing assembly to compare against the update feed's manifest. -->
-    <Version>0.1.0</Version>
+    <!-- Bump this on every user-visible release. tools/Build-Release.ps1 defaults to it,
+         and the app reads it back from the running assembly to compare against the feed. -->
+    <Version>0.2.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

@@ -22,7 +22,7 @@ void Dispose();      // release the hardware
 The shell iterates the list rather than naming each feature:
 
 ```csharp
-private IReadOnlyList<IFeatureModule> Modules => [Keyboard, Cooling, Battery];
+private IReadOnlyList<IFeatureModule> Modules => [Keyboard, Cooling, Windows, Battery];
 ```
 
 Adding a module means writing the class, adding it to that list, and adding its section to
@@ -41,7 +41,6 @@ Only what is genuinely shared or genuinely the window's:
   go idle, hand the hardware back, and - if a handback fails - undo all of that and keep the
   window open.
 - **Section visibility**, so a module can stop animating for a view nobody is looking at.
-- **The Windows power mode and autostart**, which are Windows state rather than device state.
 
 ## Why cooling's safety is not hidden inside cooling
 
