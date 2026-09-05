@@ -21,7 +21,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
 
 FRAME = 39                          # the brightest frame: both fans fully lit
-CROP = (366, 100, 1584, 700)        # the cooling assembly, from the chassis edge down past the memory
+CROP = (366, 100, 1584, 522)        # the cooling assembly: chassis edge down to just below the lower pipe loop
 FANS = ((564, 355.5), (1383.5, 366.5))   # hub centres in the full frame
 BLADE, EDGE = 88, 97                # blade radius, and how much of the housing comes along
 OUT = os.path.join(os.path.dirname(__file__), "..", "src", "AorusControl.App", "Assets")
@@ -35,10 +35,16 @@ def frame(video):
         return Image.open(os.path.join(scratch, f"f_{FRAME:03d}.png")).convert("RGB").copy()
 
 
-def body(crop):
-    """The chassis, dimmed for a dark card and stripped of the video's red stage lighting."""
+def body(crop, pipe_mask):
+    """The chassis, dimmed for a dark card and stripped of the video's red stage lighting.
+
+    The pipes are taken down a little further than the rest. In the video they are lit like a
+    product shot, near the top of the range, which leaves the app's travelling light nowhere
+    to go; resting them lower gives the pulse room to actually brighten something.
+    """
     image = ImageEnhance.Color(ImageEnhance.Brightness(crop).enhance(0.88)).enhance(0.94)
     pixels = np.asarray(image).astype(float)
+    pixels *= (1 - 0.30 * pipe_mask)[..., None]
     r, g, b = pixels[..., 0], pixels[..., 1], pixels[..., 2]
 
     # Purely red pixels are the glow behind the machine; brass is red AND green, so it stays.
@@ -67,8 +73,8 @@ def disc(full, centre):
     return tile
 
 
-def pipes(crop):
-    """An alpha mask of the heat pipes and fin stacks, found by their brass colour."""
+def pipe_mask(crop):
+    """How much of each pixel is heat pipe or fin stack, found by their brass colour."""
     pixels = np.asarray(crop).astype(float)
     r, g, b = pixels[..., 0], pixels[..., 1], pixels[..., 2]
     mask = (np.clip((r - b - 35) / 55.0, 0, 1) ** 0.7) * (np.clip((r - 75) / 70.0, 0, 1) ** 0.5)
@@ -80,8 +86,7 @@ def pipes(crop):
     for cx, cy in FANS:
         mask[(x - (cx - CROP[0])) ** 2 + (y - (cy - CROP[1])) ** 2 < (EDGE + 7) ** 2] = 0
 
-    alpha = Image.fromarray((np.clip(mask, 0, 1) * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.8))
-    return Image.merge("RGBA", (Image.new("L", alpha.size, 255),) * 3 + (alpha,))
+    return np.clip(mask, 0, 1)
 
 
 def main():
@@ -92,8 +97,11 @@ def main():
     crop = full.crop(CROP)
     os.makedirs(OUT, exist_ok=True)
 
-    body(crop).save(os.path.join(OUT, "thermal-body.jpg"), quality=90, subsampling=1, optimize=True)
-    pipes(crop).save(os.path.join(OUT, "thermal-pipes.png"), optimize=True)
+    mask = pipe_mask(crop)
+    body(crop, mask).save(os.path.join(OUT, "thermal-body.jpg"), quality=90, subsampling=1, optimize=True)
+    alpha = Image.fromarray((mask * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.8))
+    Image.merge("RGBA", (Image.new("L", alpha.size, 255),) * 3 + (alpha,)).save(
+        os.path.join(OUT, "thermal-pipes.png"), optimize=True)
     for name, centre in zip(("left", "right"), FANS):
         disc(full, centre).save(os.path.join(OUT, f"thermal-fan-{name}.png"), optimize=True)
 

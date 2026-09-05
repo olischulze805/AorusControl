@@ -23,7 +23,7 @@ the clean answer.
 
 | File | What it is |
 | --- | --- |
-| `thermal-body.jpg` | The chassis, cropped to the cooling assembly (1218 × 600), dimmed to sit in a dark card, with the video's red ambient glow desaturated and the outer edge faded |
+| `thermal-body.jpg` | The chassis, cropped to the cooling assembly (1218 × 422: chassis edge down to just below the lower pipe loop, since the battery half of the machine says nothing about cooling), dimmed to sit in a dark card, with the video's red ambient glow desaturated, the outer edge faded, and the pipes themselves rested a little darker so the app's travelling light has somewhere to go |
 | `thermal-fan-left/right.png` | Each fan's blades cut out as a circle with a soft edge, so `FanRotor` can rotate them over the housing they came from |
 | `thermal-pipes.png` | An alpha mask of the heat pipes and fin stacks, picked out by their brass colour - the warm pulse is drawn through this, so it can only ever light up actual metal |
 

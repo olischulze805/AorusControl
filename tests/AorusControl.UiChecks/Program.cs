@@ -1,3 +1,4 @@
+using AorusControl.App.Controls;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -141,7 +142,31 @@ static void RenderCoolingStates(string output)
         var content = (FrameworkElement)window.Content;
         content.DataContext = vm;
         Layout(content, 1000, 1200);
+        // The pulse in the heat pipes is where this picture stops being a photograph, so the
+        // render is taken with the waves part-way across rather than at the one moment when
+        // nothing is lit.
+        int lit = 0;
+        foreach (ThermalLayout layout in Descendants<ThermalLayout>(content))
+        {
+            layout.PulsePhase = 0.42;
+            lit++;
+        }
+        if (lit != 1) throw new Exception($"expected one thermal layout on the cooling page, found {lit}");
+        content.UpdateLayout();
+
         Save(content, output, $"cooling-{name}.png", 1000, 1200);
+    }
+}
+
+/// <summary>Every control of this type in the tree - used to reach into the drawing that the
+/// checks want to photograph in a particular state.</summary>
+static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject
+{
+    for (int index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+    {
+        DependencyObject child = VisualTreeHelper.GetChild(root, index);
+        if (child is T match) yield return match;
+        foreach (T deeper in Descendants<T>(child)) yield return deeper;
     }
 }
 

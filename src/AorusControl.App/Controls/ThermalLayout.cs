@@ -30,13 +30,17 @@ public sealed class ThermalLayout : Panel
 {
     // The design space is the asset's own pixel space, so every coordinate here can be read
     // straight off the image.
-    private const double DesignWidth = 1218, DesignHeight = 600;
+    private const double DesignWidth = 1218, DesignHeight = 422;
     private static readonly Point LeftFan = new(198, 255.5), RightFan = new(1017.5, 266.5);
     private const double RotorSize = 194;
 
     /// <summary>Where the pulse starts: the chips, under the crossed pipes.</summary>
-    private static readonly Point HeatSource = new(0.52, 0.42);
-    private static readonly Color GlowColor = Color.FromRgb(0xFF, 0xE4, 0xB0);
+    private static readonly Point HeatSource = new(0.525, 0.47);
+
+    /// <summary>Three waves in flight at a time, evenly spaced. One looked like a scanner
+    /// sweeping the machine; three read as something flowing.</summary>
+    private static readonly double[] Waves = [0, 1 / 3.0, 2 / 3.0];
+    private static readonly Color GlowColor = Color.FromRgb(0xFF, 0xF2, 0xD2);
 
     private static readonly BitmapImage Body = Load("thermal-body.jpg");
     private static readonly BitmapImage Pipes = Load("thermal-pipes.png");
@@ -177,43 +181,67 @@ public sealed class ThermalLayout : Panel
     }
 
     /// <summary>
-    /// The warm light in the pipes. It is drawn as a ring travelling outwards from the chips,
-    /// masked to the pipes themselves - the mask is cut from the same image, so the light can
-    /// only ever appear exactly where there is metal to carry heat.
+    /// The warm light in the pipes.
+    ///
+    /// Waves of heat leaving the chips: each one is a ring expanding outwards, masked to the
+    /// pipes themselves - and the mask is cut from the same image, so the light can only ever
+    /// appear where there is metal to carry heat. Each wave has a bright leading edge and a
+    /// long tail behind it, the way a pulse of heat actually moves through copper; a
+    /// symmetrical blob slides, but does not flow.
+    ///
+    /// Under it all sits a steady glow that follows the temperature, so the pipes of a hot
+    /// machine stay warm between two waves instead of going dark.
     /// </summary>
     private void DrawPulse(DrawingContext context, Rect area)
     {
         if (!IsLive) return;
-        double warmth = Math.Clamp((Math.Max(CpuTemperature, GpuTemperature) - 45) / 40.0, 0, 1);
-        if (double.IsNaN(warmth)) warmth = 0;
+        double hottest = Math.Max(CpuTemperature, GpuTemperature);
+        double warmth = double.IsNaN(hottest) ? 0 : Math.Clamp((hottest - 45) / 40.0, 0, 1);
 
         var brush = new RadialGradientBrush
         {
             GradientOrigin = HeatSource,
             Center = HeatSource,
             RadiusX = 0.62,
-            RadiusY = 1.24
+            // Circular on screen: the picture is far wider than it is tall, and these radii
+            // are fractions of each side.
+            RadiusY = 0.62 * DesignWidth / DesignHeight
         };
-        // A base glow that follows the temperature, so a hot machine's pipes read as hot even
-        // between two pulses.
-        brush.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(0x10 + warmth * 0x38), GlowColor.R, GlowColor.G, GlowColor.B), 0));
-        brush.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(0x06 + warmth * 0x20), GlowColor.R, GlowColor.G, GlowColor.B), 1));
+        // The pipes rest a little darker in the image than the video had them, so this puts
+        // some of that back - more of it the hotter the machine is.
+        brush.GradientStops.Add(Stop(0.16 + warmth * 0.30, 0));
+        brush.GradientStops.Add(Stop(0.08 + warmth * 0.18, 1));
 
-        // And the pulse itself: three stops sliding outwards together.
-        double centre = _phase * 1.25 - 0.12;
-        byte peak = (byte)(0x30 + FlowSpeed * 0x90);
-        foreach ((double offset, byte alpha) in new[]
+        double peak = 0.34 + FlowSpeed * 0.55;
+        foreach (double wave in Waves)
         {
-            (centre - 0.16, (byte)0), (centre, peak), (centre + 0.16, (byte)0)
-        })
-        {
-            if (offset is <= 0 or >= 1) continue;
-            brush.GradientStops.Add(new GradientStop(Color.FromArgb(alpha, GlowColor.R, GlowColor.G, GlowColor.B), offset));
+            // Each wave crosses the picture and is gone before it wraps, so they never pop
+            // into existence in the middle of a pipe.
+            double front = ((_phase + wave) % 1) * 1.35 - 0.18;
+            foreach ((double at, double strength) in new[]
+            {
+                (front - 0.26, 0.0), (front - 0.10, peak * 0.30), (front - 0.015, peak), (front + 0.035, 0.0)
+            })
+            {
+                if (at is <= 0 or >= 1) continue;
+                brush.GradientStops.Add(Stop(strength, at));
+            }
         }
         brush.Freeze();
 
         context.PushOpacityMask(new ImageBrush(Pipes) { Stretch = Stretch.Fill });
         context.DrawRectangle(brush, null, area);
         context.Pop();
+    }
+
+    private static GradientStop Stop(double strength, double offset) =>
+        new(Color.FromArgb((byte)Math.Clamp(strength * 255, 0, 255), GlowColor.R, GlowColor.G, GlowColor.B), offset);
+
+    /// <summary>Where the waves currently are. Only the offscreen render checks set this, so
+    /// they can photograph a pulse instead of the one frame where nothing is lit.</summary>
+    internal double PulsePhase
+    {
+        get => _phase;
+        set { _phase = value; InvalidateVisual(); }
     }
 }

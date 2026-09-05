@@ -403,10 +403,14 @@ that no reasonable amount of drawing code was going to reproduce, and it is a th
 code.
 
 The live values drive it: the rotors turn at the measured speed with an arc around each for
-that fan's duty, tinted by its temperature; the pulse travels outwards from the chips at the
-speed the fans are working, so switching a profile is visible and not merely readable; and
-the picture is drawn in the asset's own pixel space scaled to the available width, so the
-coordinates in the control can be read straight off the image.
+that fan's duty, tinted by its temperature; and three waves of warm light travel outwards from the chips at the
+speed the fans are working, so switching a profile is visible and not merely readable. Each
+wave has a bright leading edge and a long tail, the way heat actually moves through copper -
+a symmetrical blob slides, but does not flow - and the pipes rest slightly darker in the
+image than the video had them, which is what gives the light something to brighten. The
+picture is drawn in the asset's own pixel space scaled to the available width, so the
+coordinates in the control can be read straight off the image; `ThermalLayout.PulsePhase` is
+internal so the render checks can photograph a wave in flight instead of a dark frame.
 
 Three rules keep it honest and smooth:
 
