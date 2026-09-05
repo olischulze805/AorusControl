@@ -93,6 +93,9 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
     public bool ControlsEnabled { get => _controlsEnabled; private set => SetProperty(ref _controlsEnabled, value); }
     public bool PowerOn { get => _powerOn; private set => SetProperty(ref _powerOn, value); }
     public string PowerButtonText => PowerOn ? "Ausschalten" : "Einschalten";
+
+    /// <summary>The state itself, for places that report rather than offer to change it.</summary>
+    public string PowerStateText => PowerOn ? "Ein" : "Aus";
     public KeyboardBrightnessLevel Brightness { get => _brightness; private set => SetProperty(ref _brightness, value); }
     public KeyboardEffectSpeed Speed { get => _speed; private set => SetProperty(ref _speed, value); }
     public bool LinkZones { get => _linkZones; set => SetProperty(ref _linkZones, value); }
@@ -571,7 +574,7 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
     /// OnPropertyChanged calls, so a new derived property costs one line, not two.</summary>
     private static readonly string[] Derived =
     [
-        nameof(PowerButtonText), nameof(BrightnessIndex), nameof(BrightnessLabel), nameof(SpeedIndex),
+        nameof(PowerButtonText), nameof(PowerStateText), nameof(BrightnessIndex), nameof(BrightnessLabel), nameof(SpeedIndex),
         nameof(SpeedLabel), nameof(Zone1Hex), nameof(Zone2Hex), nameof(Zone3Hex), nameof(Zone1Brush),
         nameof(Zone2Brush), nameof(Zone3Brush), nameof(PreviewCaption), nameof(ColorUsage),
         nameof(Zone1AffectsLighting), nameof(Zone2AffectsLighting), nameof(Zone3AffectsLighting),

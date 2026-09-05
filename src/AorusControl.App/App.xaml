@@ -132,6 +132,39 @@
                     </Setter.Value>
                 </Setter>
             </Style>
+
+            <!-- Dashboard tiles: one card shape, four text roles. Sized by the WrapPanel
+                 around them rather than by fixed columns, so they reflow instead of squeeze. -->
+            <Style x:Key="Tile" TargetType="Border" BasedOn="{StaticResource Card}">
+                <Setter Property="Padding" Value="18" />
+                <!-- TilePanel spaces them; a margin here would double the gaps. -->
+                <Setter Property="Margin" Value="0" />
+            </Style>
+            <Style x:Key="TileLabel" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="10.5" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{StaticResource TextTertiaryBrush}" />
+            </Style>
+            <Style x:Key="TileValue" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="38" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Margin" Value="0,4,0,6" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
+            <Style x:Key="TileValueSmall" TargetType="TextBlock" BasedOn="{StaticResource TileValue}">
+                <Setter Property="FontSize" Value="22" />
+                <Setter Property="Margin" Value="0,6,0,6" />
+            </Style>
+            <Style x:Key="TileLine" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12.5" />
+                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
+            <Style x:Key="TileSubLine" TargetType="TextBlock" BasedOn="{StaticResource TileLine}">
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="Foreground" Value="{StaticResource TextTertiaryBrush}" />
+                <Setter Property="Margin" Value="0,2,0,0" />
+            </Style>
             <Style x:Key="InnerPanel" TargetType="Border">
                 <Setter Property="Background" Value="#FF0F1113" />
                 <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}" />

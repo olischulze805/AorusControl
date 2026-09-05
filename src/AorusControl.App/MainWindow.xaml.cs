@@ -9,15 +9,21 @@ namespace AorusControl.App;
 
 public partial class MainWindow : FluentWindow
 {
-    private readonly MainWindowViewModel _viewModel = new();
+    private readonly MainWindowViewModel _viewModel;
     private readonly IRecentColorsStore _recentColorsStore = new RecentColorsStore(System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AorusControl", "recent-colors-v1.json"));
     private bool _closeReady;
     private bool _closePending;
     private bool _exitRequested;
 
-    public MainWindow()
+    public MainWindow() : this(new MainWindowViewModel()) { }
+
+    /// <summary>Takes the ViewModel so the render checks can lay this window out against
+    /// fakes. Nothing else differs - it is the same window, the same XAML, the same
+    /// styles, which is the only way an offscreen render proves anything.</summary>
+    internal MainWindow(MainWindowViewModel viewModel)
     {
+        _viewModel = viewModel;
         InitializeComponent();
         DataContext = _viewModel;
         Loaded += OnLoaded;

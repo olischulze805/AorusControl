@@ -19,6 +19,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The offscreen render checks build the real window against fakes. -->
+    <InternalsVisibleTo Include="AorusControl.UiChecks" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\AorusControl.Core\AorusControl.Core.csproj" />
   </ItemGroup>
 

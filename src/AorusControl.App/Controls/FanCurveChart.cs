@@ -225,22 +225,26 @@ public sealed class FanCurveChart : Canvas
         Children.Add(Line(points, 7, 0.35, new BlurEffect { Radius = 8 }));
         Children.Add(Line(points, 3, 1.0, null));
 
+        // Read-only: the line and its fill say everything, and fifteen dots on a small
+        // chart read as a dotted line rather than as points.
+        if (!IsEditable) return;
+
         for (int index = 0; index < rows.Count; index++)
         {
             bool locked = index == rows.Count - 1;
             // +1: points[0] is the synthetic left edge, not a real curve point.
             Point center = points[index + 1];
             Color color = locked ? LockedColor : AccentColor;
-            double radius = IsEditable ? (locked ? 6 : 7) : 3.5;
+            double radius = locked ? 6 : 7;
             var dot = new Ellipse
             {
                 Width = radius * 2,
                 Height = radius * 2,
                 Fill = new SolidColorBrush(color),
                 Stroke = new SolidColorBrush(Color.FromRgb(0x0E, 0x10, 0x13)),
-                StrokeThickness = IsEditable ? 2 : 1,
-                Cursor = IsEditable && !locked ? Cursors.Hand : Cursors.Arrow,
-                Effect = IsEditable ? new DropShadowEffect { Color = color, BlurRadius = 10, ShadowDepth = 0, Opacity = 0.7 } : null,
+                StrokeThickness = 2,
+                Cursor = locked ? Cursors.Arrow : Cursors.Hand,
+                Effect = new DropShadowEffect { Color = color, BlurRadius = 10, ShadowDepth = 0, Opacity = 0.7 },
                 ToolTip = locked
                     ? $"Fest: {rows[index].TemperatureNumber:0} °C / {rows[index].Percent}% (Firmware-Vorgabe)"
                     : $"{rows[index].TemperatureNumber:0} °C / {rows[index].Percent}%"

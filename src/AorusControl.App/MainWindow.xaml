@@ -32,6 +32,7 @@
 
         <ui:NavigationView x:Name="Nav"
                             Grid.Row="1"
+                            Background="{StaticResource WindowBrush}"
                             PaneDisplayMode="Left"
                             IsBackButtonVisible="Collapsed"
                             OpenPaneLength="212"
@@ -61,35 +62,63 @@
                 <!-- ===================== Dashboard ===================== -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28"
                               Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisible}, ConverterParameter=Dashboard}">
-                    <StackPanel MaxWidth="880" HorizontalAlignment="Center">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0,0,9,20">
+                    <!-- Tiles in WrapPanels rather than a fixed two-column Grid: they reflow from
+                         four across to one as the window narrows, instead of being squeezed. The
+                         wider cap lets a maximised window actually use its width. -->
+                    <StackPanel MaxWidth="1180" HorizontalAlignment="Center">
+                        <ctrl:TilePanel MinTileWidth="252" Margin="0,0,0,20">
+                            <Border Style="{StaticResource Tile}">
                                 <StackPanel>
-                                    <TextBlock Text="CPU" FontSize="11.5" Foreground="{StaticResource TextTertiaryBrush}" />
-                                    <TextBlock Text="{Binding CpuTemperature}" FontSize="42" FontWeight="SemiBold" Margin="0,6,0,8" />
-                                    <TextBlock Text="{Binding CpuFan}" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" />
-                                    <TextBlock Text="{Binding CpuDuty}" FontSize="12" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,2,0,0" />
+                                    <TextBlock Text="CPU" Style="{StaticResource TileLabel}" />
+                                    <TextBlock Text="{Binding CpuTemperature}" Style="{StaticResource TileValue}" />
+                                    <TextBlock Text="{Binding CpuFan}" Style="{StaticResource TileLine}" />
+                                    <TextBlock Text="{Binding CpuDuty}" Style="{StaticResource TileSubLine}" />
                                 </StackPanel>
                             </Border>
-                            <Border Grid.Column="1" Style="{StaticResource Card}" Margin="9,0,0,20">
+                            <Border Style="{StaticResource Tile}">
                                 <StackPanel>
-                                    <TextBlock Text="GPU" FontSize="11.5" Foreground="{StaticResource TextTertiaryBrush}" />
-                                    <TextBlock Text="{Binding GpuTemperature}" FontSize="42" FontWeight="SemiBold" Margin="0,6,0,8" />
-                                    <TextBlock Text="{Binding GpuFan}" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" />
-                                    <TextBlock Text="{Binding GpuDuty}" FontSize="12" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,2,0,0" />
+                                    <TextBlock Text="GPU" Style="{StaticResource TileLabel}" />
+                                    <TextBlock Text="{Binding GpuTemperature}" Style="{StaticResource TileValue}" />
+                                    <TextBlock Text="{Binding GpuFan}" Style="{StaticResource TileLine}" />
+                                    <TextBlock Text="{Binding GpuDuty}" Style="{StaticResource TileSubLine}" />
                                 </StackPanel>
                             </Border>
-                        </Grid>
+                            <Border Style="{StaticResource Tile}">
+                                <StackPanel>
+                                    <TextBlock Text="LÜFTER" Style="{StaticResource TileLabel}" />
+                                    <TextBlock Text="{Binding ActiveFanProfile}" Style="{StaticResource TileValueSmall}" />
+                                    <TextBlock Text="{Binding CoolingSummary}" Style="{StaticResource TileLine}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Tile}">
+                                <StackPanel>
+                                    <TextBlock Text="LEISTUNGSMODUS" Style="{StaticResource TileLabel}" />
+                                    <TextBlock Text="{Binding ActivePowerModeLabel}" Style="{StaticResource TileValueSmall}" />
+                                    <TextBlock Text="{Binding PowerSource}" Style="{StaticResource TileLine}" />
+                                    <TextBlock Text="{Binding PowerStatus}" Style="{StaticResource TileSubLine}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Tile}">
+                                <StackPanel>
+                                    <TextBlock Text="AKKU" Style="{StaticResource TileLabel}" />
+                                    <TextBlock Text="{Binding Battery.SelectedLimit, StringFormat={}{0} %}" Style="{StaticResource TileValueSmall}" />
+                                    <TextBlock Text="{Binding Battery.ActivePolicy}" Style="{StaticResource TileLine}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Tile}">
+                                <StackPanel>
+                                    <TextBlock Text="BELEUCHTUNG" Style="{StaticResource TileLabel}" />
+                                    <TextBlock Text="{Binding Keyboard.PowerStateText}" Style="{StaticResource TileValueSmall}" />
+                                    <TextBlock Text="{Binding Keyboard.Status}" Style="{StaticResource TileLine}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                        </ctrl:TilePanel>
 
                         <Border Style="{StaticResource Card}">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" MinWidth="120" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <Border Grid.Column="0" Width="44" Height="44" CornerRadius="10" VerticalAlignment="Center"
@@ -104,7 +133,7 @@
                                 <ui:Button Grid.Column="2" Style="{StaticResource PrimaryButton}"
                                            Content="{Binding ToggleButtonText}"
                                            Command="{Binding ToggleMonitoringCommand}"
-                                           Height="44" MinWidth="200" Margin="16,0,0,0" FontSize="14"
+                                           Height="44" MinWidth="180" Margin="16,0,0,0" FontSize="14"
                                            VerticalAlignment="Center">
                                     <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowSync24" /></ui:Button.Icon>
                                 </ui:Button>
@@ -112,6 +141,7 @@
                         </Border>
 
                         <TextBlock Style="{StaticResource Hint}" HorizontalAlignment="Center" Margin="0,4,0,0"
+                                   TextWrapping="Wrap" TextAlignment="Center"
                                    Text="AORUS 5 SE / FB0F Allowlist · Readback und Rollback für jede Hardwareänderung" />
                     </StackPanel>
                 </ScrollViewer>
@@ -177,8 +207,10 @@
                                                 TickPlacement="BottomRight"
                                                 Value="{Binding FixedFanPercent, Mode=TwoWay}" />
                                         <Grid Margin="0,2,0,0">
-                                            <TextBlock Style="{StaticResource SliderEndLabel}" HorizontalAlignment="Left"
-                                                       Text="25 % (leiseste getestete Stufe)" />
+                                            <!-- Just the number: the long form collided with the right-hand
+                                                 label on a narrow window, and the paragraph above already says
+                                                 what the lowest step means. -->
+                                            <TextBlock Style="{StaticResource SliderEndLabel}" HorizontalAlignment="Left" Text="25 %" />
                                             <TextBlock Style="{StaticResource SliderEndLabel}" HorizontalAlignment="Right" Text="100 %" />
                                         </Grid>
                                     </StackPanel>

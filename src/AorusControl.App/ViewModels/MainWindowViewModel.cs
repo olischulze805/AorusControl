@@ -30,6 +30,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private string _cpuDuty = "Rohwert --";
     private string _gpuDuty = "Rohwert --";
     private string _status = "Bereit";
+    private string _powerSource = "Stromquelle wird gelesen …";
     private string _lastUpdated = "Noch keine Messung";
     private string _toggleButtonText = "Überwachung starten";
     private bool _fanControlsEnabled;
@@ -161,6 +162,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public string CpuDuty { get => _cpuDuty; private set => SetProperty(ref _cpuDuty, value); }
     public string GpuDuty { get => _gpuDuty; private set => SetProperty(ref _gpuDuty, value); }
     public string Status { get => _status; private set => SetProperty(ref _status, value); }
+
+    /// <summary>Netz- oder Akkubetrieb. On the dashboard because it explains the rest: the
+    /// power modes are only verified on AC, and the charge limit only matters off it.</summary>
+    public string PowerSource { get => _powerSource; private set => SetProperty(ref _powerSource, value); }
     public string LastUpdated { get => _lastUpdated; private set => SetProperty(ref _lastUpdated, value); }
     public string ToggleButtonText { get => _toggleButtonText; private set => SetProperty(ref _toggleButtonText, value); }
     public bool FanControlsEnabled { get => _fanControlsEnabled; private set => SetProperty(ref _fanControlsEnabled, value); }
@@ -233,7 +238,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public string? ActivePowerMode
     {
         get => _activePowerMode;
-        private set { if (SetProperty(ref _activePowerMode, value)) OnPropertyChanged(nameof(PowerModeEffect)); }
+        private set
+        {
+            if (!SetProperty(ref _activePowerMode, value)) return;
+            OnPropertyChanged(nameof(PowerModeEffect));
+            OnPropertyChanged(nameof(ActivePowerModeLabel));
+        }
     }
 
     /// <summary>
@@ -241,6 +251,15 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     /// imply that a "performance mode" also drives the fans; here it does not - the fan
     /// curve is ours, on the EC - and saying so plainly is worth more than a louder label.
     /// </summary>
+    /// <summary>The running mode in the same words as its chip, for the dashboard tile.</summary>
+    public string ActivePowerModeLabel => _activePowerMode switch
+    {
+        "BestEfficiency" => "Energieeffizienz",
+        "BestPerformance" => "Beste Leistung",
+        "Balanced" => "Ausbalanciert",
+        _ => "Noch nicht gelesen"
+    };
+
     public string PowerModeEffect => _activePowerMode switch
     {
         "BestEfficiency" =>
@@ -554,6 +573,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         await StartAsync();
     }
 
+    /// <summary>Duty as a share of the firmware's own maximum, with the raw byte kept as
+    /// the smaller half - the percentage is what answers "how hard is it working".</summary>
+    private static string DescribeDuty(ushort raw) =>
+        $"{FanSpeedPercent.ToPercent((byte)Math.Min(raw, (ushort)255))} % Leistung · Rohwert {raw}";
+
     private async Task RefreshAsync()
     {
         if (_closing || _isReading || (!_dashboardVisible && !_fixedFanActive))
@@ -569,8 +593,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             GpuTemperature = $"{snapshot.GpuTemperatureCelsius} °C";
             CpuFan = $"{snapshot.CpuFanRpm:N0} U/min";
             GpuFan = $"{snapshot.GpuFanRpm:N0} U/min";
-            CpuDuty = $"Rohwert {snapshot.CpuFanDutyPercent} / 229";
-            GpuDuty = $"Rohwert {snapshot.GpuFanDutyPercent} / 229";
+            CpuDuty = DescribeDuty(snapshot.CpuFanDutyPercent);
+            GpuDuty = DescribeDuty(snapshot.GpuFanDutyPercent);
+            PowerSource = _powerOverlay.IsOnAcPower() ? "Netzbetrieb" : "Akkubetrieb";
             LastUpdated = $"Letzte Messung: {snapshot.CapturedAt.ToLocalTime():HH:mm:ss}";
             Status = "Live-Telemetrie verbunden";
             // The worker's own lease re-validates temperature on every renewal, using its
