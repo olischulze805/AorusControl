@@ -1720,6 +1720,7 @@ void RunFanCurveFloorLiveProbe()
     test.AppendLine("- Question: the EC stores values below raw 57 - does it also drive the fans at them?");
     test.AppendLine("- Method: lower only the points below 60 C, activate Dynamic, sample, restore.");
     test.AppendLine("- Everything from 60 C upwards keeps its original value, so heat still ramps the fans normally.");
+    test.AppendLine("- Aborts at 80 C on either sensor.");
     test.AppendLine($"- Explicit curve-write confirmation present: {(confirmed ? "yes" : "no")}");
     test.AppendLine();
 
@@ -1789,9 +1790,11 @@ void RunFanCurveFloorLiveProbe()
                 $"- Sample {sample}: CPU {value.CpuTemperatureCelsius} °C, GPU {value.GpuTemperatureCelsius} °C, " +
                 $"CPU {value.CpuFanRpm} RPM / raw duty {value.CpuFanDutyPercent}, " +
                 $"GPU {value.GpuFanRpm} RPM / raw duty {value.GpuFanDutyPercent}");
-            if (value.CpuTemperatureCelsius > 65 || value.GpuTemperatureCelsius > 65)
+            if (value.CpuTemperatureCelsius > 80 || value.GpuTemperatureCelsius > 80)
             {
-                throw new AorusFanControlException("Temperaturwächter ausgelöst; Abbruch und Rückstellung.");
+                throw new AorusFanControlException(
+                    $"Temperaturwächter bei {value.CpuTemperatureCelsius}/{value.GpuTemperatureCelsius} °C ausgelöst; " +
+                    "Abbruch und Rückstellung.");
             }
         }
     }

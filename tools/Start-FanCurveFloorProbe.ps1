@@ -18,10 +18,13 @@ param()
 
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
-$solution = Join-Path $repositoryRoot 'AorusControl.slnx'
+# Nur das Diagnoseprojekt bauen, nicht die ganze Projektmappe: läuft die App gerade aus dem
+# Build-Ordner, hält sie ihre eigenen DLLs gesperrt und ein Mappenbau scheitert daran - obwohl
+# dieser Test die App überhaupt nicht braucht.
+$project = Join-Path $repositoryRoot 'src\AorusControl.Diagnostics\AorusControl.Diagnostics.csproj'
 $diagnosticExecutable = Join-Path $repositoryRoot 'src\AorusControl.Diagnostics\bin\Release\net10.0-windows\AorusControl.Diagnostics.exe'
 
-dotnet build $solution --configuration Release
+dotnet build $project --configuration Release
 if ($LASTEXITCODE -ne 0) {
     throw 'Der Release-Build ist fehlgeschlagen.'
 }
