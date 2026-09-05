@@ -83,6 +83,14 @@ public partial class App : System.Windows.Application
                 Visible = true
             };
             _tray.DoubleClick += (_, _) => ShowWindow();
+            // Windows shutdown and logoff never reach the window's own close path, so
+            // without this the machine could come back up with the fans still pinned to a
+            // Fixed or Maximum value and nothing running that knows why.
+            SessionEnding += (_, args) =>
+            {
+                AppLog.Info("app", $"Windows beendet die Sitzung ({args.ReasonSessionEnding}); Lüfter werden zurückgestellt.");
+                window.RestoreHardwareBeforeShutdown();
+            };
             _activationWait = ThreadPool.RegisterWaitForSingleObject(_instance.Activation,
                 (_, _) => Dispatcher.BeginInvoke(new Action(ShowWindow)), null, Timeout.Infinite, false);
             ShowWindow();

@@ -382,6 +382,37 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Hands the fans back to the firmware, synchronously and best-effort.
+    ///
+    /// Called both on dispose and when Windows is shutting down or logging off: without the
+    /// second case a machine that shut down while Fixed or Maximum was held would come back
+    /// up with the fans still pinned there, with nothing running that knows why. Windows
+    /// gives a process a few seconds at SessionEnding, which is enough for one EC write.
+    /// </summary>
+    public void RestoreFansToFirmware()
+    {
+        if (_fixedFanActive && _fixedFanLease is { } lease)
+        {
+            try { _fixedFanLeaseClient.ReleaseAsync(lease).GetAwaiter().GetResult(); }
+            catch { /* Worker's own supervisor remains responsible. */ }
+            _fixedFanActive = false;
+            _fixedFanLease = null;
+        }
+
+        if (!_restoreNormalFanOnDispose) return;
+        try
+        {
+            _fanController.SetNormalAsync().GetAwaiter().GetResult();
+            _restoreNormalFanOnDispose = false;
+        }
+        catch (Exception error)
+        {
+            // The independent Start-FanNormalRestore.ps1 remains available.
+            AppLog.Error("fan", "Lüfter konnten nicht auf Normal zurückgestellt werden.", error);
+        }
+    }
+
     public void Dispose()
     {
         _disposed = true;
@@ -391,22 +422,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _timer.Tick -= OnTimerTick;
         _reader.Dispose();
         foreach (IFeatureModule module in Modules) module.Dispose();
-        if (_fixedFanActive && _fixedFanLease is { } disposeLease)
-        {
-            try { _fixedFanLeaseClient.ReleaseAsync(disposeLease).GetAwaiter().GetResult(); }
-            catch { /* Worker's own supervisor remains responsible. */ }
-        }
-        if (_restoreNormalFanOnDispose)
-        {
-            try
-            {
-                _fanController.SetNormalAsync().GetAwaiter().GetResult();
-            }
-            catch
-            {
-                // The independent Start-FanNormalRestore.ps1 remains available.
-            }
-        }
+        RestoreFansToFirmware();
         _fanController.Dispose();
     }
 

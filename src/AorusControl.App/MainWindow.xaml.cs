@@ -38,6 +38,10 @@ public partial class MainWindow : FluentWindow
     /// debounced so a burst of small drags is one device transaction.</summary>
     private void OnFanCurveEdited(object sender, EventArgs eventArgs) => _viewModel.ScheduleFanCurveApply();
 
+    /// <summary>Best-effort hardware handback for a Windows shutdown or logoff, where there
+    /// is no time for the normal close sequence.</summary>
+    public void RestoreHardwareBeforeShutdown() => _viewModel.RestoreFansToFirmware();
+
     public void RequestExit()
     {
         _exitRequested = true;

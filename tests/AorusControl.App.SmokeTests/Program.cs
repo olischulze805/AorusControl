@@ -223,6 +223,17 @@ await Run("Fan profile chip follows the readback, not the click", async (vm, rea
     await vm.SetFixedFanAsync();
     Check(vm.ActiveFanProfile == "Fixed", "a held fixed value is its own state, not one of the profiles");
 });
+await Run("A Windows shutdown hands the fans back to the firmware", async (vm, reader, fan) =>
+{
+    // Shutdown and logoff never reach the window's close path. Without a handback there,
+    // the machine boots with the fans still pinned and nothing running that knows why.
+    await vm.SetFanProfileAsync("Maximum");
+    int before = fan.NormalWrites;
+    vm.RestoreFansToFirmware();
+    Check(fan.NormalWrites == before + 1, "a held Maximum must be handed back on shutdown");
+    vm.RestoreFansToFirmware();
+    Check(fan.NormalWrites == before + 1, "a second shutdown notification must not write again");
+});
 await Run("The power section says what the mode does and what the fans are doing", async (vm, reader, fan) =>
 {
     // The point of this text is that it never claims the power mode drives the fans, and
