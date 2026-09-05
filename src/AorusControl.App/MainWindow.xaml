@@ -159,50 +159,48 @@
                             <StackPanel>
                                 <TextBlock Text="Live" Style="{StaticResource CardTitle}" />
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="Beide Lüfter drehen hier so schnell, wie sie es wirklich tun, und färben sich mit der Temperatur. Beim Verstellen sieht man dadurch direkt, was die Änderung bewirkt - gemessen wird jede Sekunde, solange diese Seite offen ist." />
-                                <Grid Margin="0,18,0,0">
+                                           Text="Das Kühlsystem dieses Geräts von unten: beide Lüfter drehen so schnell, wie sie es wirklich tun, das Licht in den Heatpipes fließt mit ihrer Auslastung, und die Lamellen werden mit der Temperatur wärmer. Beim Verstellen sieht man dadurch direkt, was die Änderung bewirkt - gemessen wird jede Sekunde, solange diese Seite offen ist." />
+                                <!-- Das Kühlsystem dieses Geräts, nachgezeichnet: zwei Lüfter, die
+                                     Heatpipes dazwischen, die Lamellenpakete und die beiden Chips.
+                                     Es ist eine Zeichnung, kein Messbild - aber alles darin hängt an
+                                     echten Werten. -->
+                                <Border Style="{StaticResource InnerPanel}" Margin="0,18,0,0" Padding="10">
+                                    <ctrl:ThermalLayout CpuRpm="{Binding Cooling.Live.CpuRpm}"
+                                                        GpuRpm="{Binding Cooling.Live.GpuRpm}"
+                                                        CpuDuty="{Binding Cooling.Live.CpuDuty}"
+                                                        GpuDuty="{Binding Cooling.Live.GpuDuty}"
+                                                        CpuTemperature="{Binding Cooling.Live.CpuTemperature}"
+                                                        GpuTemperature="{Binding Cooling.Live.GpuTemperature}"
+                                                        IsLive="{Binding Cooling.Live.IsLive}" />
+                                </Border>
+
+                                <Grid Margin="0,14,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-
-                                    <Border Grid.Column="0" Style="{StaticResource InnerPanel}" Margin="0,0,8,0">
-                                        <StackPanel HorizontalAlignment="Center">
-                                            <ctrl:FanRotor Width="112" Height="112"
-                                                           Rpm="{Binding Cooling.Live.CpuRpm}"
-                                                           Temperature="{Binding Cooling.Live.CpuTemperature}"
-                                                           Duty="{Binding Cooling.Live.CpuDuty}"
-                                                           IsLive="{Binding Cooling.Live.IsLive}" />
-                                            <TextBlock Text="CPU-Lüfter" Style="{StaticResource Hint}" Margin="0,12,0,0"
-                                                       HorizontalAlignment="Center" />
-                                            <TextBlock Text="{Binding Cooling.Live.CpuRpmText}" Style="{StaticResource SliderReadoutSmall}"
-                                                       MinWidth="0" HorizontalAlignment="Center" Margin="0,2,0,0" />
-                                            <TextBlock Style="{StaticResource Hint}" HorizontalAlignment="Center" Margin="0,2,0,0">
-                                                <Run Text="{Binding Cooling.Live.CpuTemperatureText, Mode=OneWay}" />
-                                                <Run Text=" · " />
-                                                <Run Text="{Binding Cooling.Live.CpuDutyText, Mode=OneWay}" />
-                                            </TextBlock>
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Grid.Column="1" Style="{StaticResource InnerPanel}" Margin="8,0,0,0">
-                                        <StackPanel HorizontalAlignment="Center">
-                                            <ctrl:FanRotor Width="112" Height="112"
-                                                           Rpm="{Binding Cooling.Live.GpuRpm}"
-                                                           Temperature="{Binding Cooling.Live.GpuTemperature}"
-                                                           Duty="{Binding Cooling.Live.GpuDuty}"
-                                                           IsLive="{Binding Cooling.Live.IsLive}" />
-                                            <TextBlock Text="GPU-Lüfter" Style="{StaticResource Hint}" Margin="0,12,0,0"
-                                                       HorizontalAlignment="Center" />
-                                            <TextBlock Text="{Binding Cooling.Live.GpuRpmText}" Style="{StaticResource SliderReadoutSmall}"
-                                                       MinWidth="0" HorizontalAlignment="Center" Margin="0,2,0,0" />
-                                            <TextBlock Style="{StaticResource Hint}" HorizontalAlignment="Center" Margin="0,2,0,0">
-                                                <Run Text="{Binding Cooling.Live.GpuTemperatureText, Mode=OneWay}" />
-                                                <Run Text=" · " />
-                                                <Run Text="{Binding Cooling.Live.GpuDutyText, Mode=OneWay}" />
-                                            </TextBlock>
-                                        </StackPanel>
-                                    </Border>
+                                    <StackPanel Grid.Column="0" HorizontalAlignment="Center">
+                                        <TextBlock Text="CPU-Lüfter · links" Style="{StaticResource Hint}" Margin="0"
+                                                   HorizontalAlignment="Center" />
+                                        <TextBlock Text="{Binding Cooling.Live.CpuRpmText}" Style="{StaticResource SliderReadoutSmall}"
+                                                   MinWidth="0" HorizontalAlignment="Center" Margin="0,2,0,0" />
+                                        <TextBlock Style="{StaticResource Hint}" HorizontalAlignment="Center" Margin="0,2,0,0">
+                                            <Run Text="{Binding Cooling.Live.CpuTemperatureText, Mode=OneWay}" />
+                                            <Run Text=" · " />
+                                            <Run Text="{Binding Cooling.Live.CpuDutyText, Mode=OneWay}" />
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+                                        <TextBlock Text="GPU-Lüfter · rechts" Style="{StaticResource Hint}" Margin="0"
+                                                   HorizontalAlignment="Center" />
+                                        <TextBlock Text="{Binding Cooling.Live.GpuRpmText}" Style="{StaticResource SliderReadoutSmall}"
+                                                   MinWidth="0" HorizontalAlignment="Center" Margin="0,2,0,0" />
+                                        <TextBlock Style="{StaticResource Hint}" HorizontalAlignment="Center" Margin="0,2,0,0">
+                                            <Run Text="{Binding Cooling.Live.GpuTemperatureText, Mode=OneWay}" />
+                                            <Run Text=" · " />
+                                            <Run Text="{Binding Cooling.Live.GpuDutyText, Mode=OneWay}" />
+                                        </TextBlock>
+                                    </StackPanel>
                                 </Grid>
                             </StackPanel>
                         </Border>

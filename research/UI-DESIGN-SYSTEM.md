@@ -387,10 +387,17 @@ the app's own dark/accent palette rather than copying its exact colors.
 
 ### Live feedback on the cooling page
 
-The page opens with the two fans drawn turning (`Controls/FanRotor.cs`) at the speed they
-are really turning at, tinted from cyan to warm orange by the temperature that fan is
-answering to, with an arc around each rotor for how hard that fan is working and the RPM,
-temperature and duty underneath. The curve carries a white dot
+The page opens with this laptop's own cooling system drawn from below
+(`Controls/ThermalLayout.cs`): the two blowers in their wells, the long pipe across the
+back with its dip between them, the crossed pair that serves each chip from the fan on the
+far side, the loop from each fan out to its side vent, and the four fin stacks. It is a
+redrawing of the AORUS 5 SE4's real layout, not a photograph and not a schematic to measure
+against - what earns it the space is that every part of it is wired to live values: the
+rotors (`Controls/FanRotor.cs`) turn at the measured speed with an arc for that fan's duty,
+the light travelling along the pipes moves with how hard the fans are working, and the fins
+and chip outlines warm with the temperature. The RPM, temperature and duty are spelled out
+underneath, and the whole drawing is vector geometry in a fixed design space scaled to the
+available width, so it stays sharp at any size instead of being a bitmap to re-export. The curve carries a white dot
 at the machine's current temperature and duty, so an adjustment can be watched taking
 effect rather than only read back.
 
