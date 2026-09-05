@@ -261,13 +261,18 @@ await Run("The curve below the profiles shows that profile, and only Dynamic can
     // editable exactly when the stored curve is the thing in force.
     await vm.Cooling.SetProfileAsync("Gaming");
     Check(!vm.Cooling.IsCurveEditable, "a firmware-regulated profile must not offer an editable curve");
-    Check(!vm.Cooling.DisplayedCurve.Any(), "and must not draw the stored curve as if it were in force");
-    Check(double.IsNaN(vm.Cooling.ConstantPercent), "nothing is known about its shape, so nothing is drawn");
+    // The stored curve is still shown - it is really in the device - but nothing claims it is
+    // in force: no active line, and the note says so.
+    Check(vm.Cooling.DisplayedCurve.SequenceEqual(vm.Cooling.CurveRows), "the stored curve stays on show");
+    Check(!vm.Cooling.ShowsActiveLine, "but nothing in the chart is drawn as being in force");
+    Check(double.IsNaN(vm.Cooling.ConstantPercent), "nothing is known about its shape, so no flat line either");
+    Check(vm.Cooling.CurveNote.Contains("gespeichert"), "and the note says the curve is only stored");
     Check(vm.Cooling.CurveNote.Contains("Gaming"), "the note names the profile it is talking about");
 
     // Two profiles are known exactly, and a straight line is the honest picture of both.
     await vm.Cooling.SetProfileAsync("Maximum");
     Check(vm.Cooling.ConstantPercent == 100, "Maximum holds full speed at every temperature");
+    Check(vm.Cooling.ShowsActiveLine, "which is a line that really is in force");
 
     await vm.Cooling.SetProfileAsync("Dynamic");
     Check(vm.Cooling.IsCurveEditable, "the stored curve is editable exactly when it regulates the fans");

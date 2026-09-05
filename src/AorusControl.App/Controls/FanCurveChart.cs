@@ -27,7 +27,7 @@ namespace AorusControl.App.Controls;
 ///
 /// It is a control rather than window code because the curve appears in several states: the
 /// editable one under Dynamic, a flat line under Maximum and Fixed, and Gigabyte's own curve
-/// as a dashed comparison in all of them. One implementation means those views cannot drift.
+/// as a flat line under Maximum and Fixed. One implementation means those views cannot drift.
 ///
 /// Editing works on handles, not on the firmware's fifteen points. A fan curve is usually
 /// three or four decisions, and fifteen draggable dots is a worse way to express them: points
@@ -50,19 +50,12 @@ public sealed class FanCurveChart : Canvas
     private const double PointHitRadius = 14;
     private static readonly Color AccentColor = Color.FromRgb(0x35, 0xC7, 0xE6);
     private static readonly Color LockedColor = Color.FromRgb(0x8A, 0x93, 0x9B);
-    private static readonly Color ReferenceColor = Color.FromRgb(0xF2, 0xB1, 0x4C);
 
     private int? _dragging;
 
     public static readonly DependencyProperty RowsProperty = DependencyProperty.Register(
         nameof(Rows), typeof(IEnumerable<FanCurveRowViewModel>), typeof(FanCurveChart),
         new PropertyMetadata(null, (chart, args) => ((FanCurveChart)chart).OnRowsChanged(args)));
-
-    /// <summary>A second curve drawn for comparison - Gigabyte's own, so the edited one can be
-    /// judged against it. Temperature in °C, speed in percent.</summary>
-    public static readonly DependencyProperty ReferenceProperty = DependencyProperty.Register(
-        nameof(Reference), typeof(IEnumerable<(byte TemperatureCelsius, byte Percent)>), typeof(FanCurveChart),
-        new PropertyMetadata(null, (chart, _) => ((FanCurveChart)chart).Redraw()));
 
     /// <summary>A single speed held at every temperature - what Maximum and a fixed value
     /// really are. NaN draws nothing.</summary>
@@ -85,12 +78,6 @@ public sealed class FanCurveChart : Canvas
     {
         get => (IEnumerable<FanCurveRowViewModel>?)GetValue(RowsProperty);
         set => SetValue(RowsProperty, value);
-    }
-
-    public IEnumerable<(byte TemperatureCelsius, byte Percent)>? Reference
-    {
-        get => (IEnumerable<(byte TemperatureCelsius, byte Percent)>?)GetValue(ReferenceProperty);
-        set => SetValue(ReferenceProperty, value);
     }
 
     public double ConstantPercent
@@ -363,7 +350,6 @@ public sealed class FanCurveChart : Canvas
         Children.Clear();
         if (ActualWidth <= 0 || ActualHeight <= 0) return;
         List<FanCurveRowViewModel> handles = Handles;
-        var reference = Reference?.OrderBy(point => point.TemperatureCelsius).ToList() ?? [];
 
         // Two densities rather than one: five-degree lines to actually read a value off the
         // chart, twenty-degree lines to keep it navigable, and labels only on the latter -
@@ -402,7 +388,6 @@ public sealed class FanCurveChart : Canvas
             AddLabel($"{percent}%", PlotLeft - 8, y - 8, labelBrush, rightAlign: true);
         }
 
-        DrawReference(reference);
         DrawConstant();
         // An empty chart still shows its axes: a blank box reads as broken, while an empty grid
         // reads as "nothing to show here", which is what it is.
@@ -416,6 +401,11 @@ public sealed class FanCurveChart : Canvas
         points.Insert(0, new Point(PlotLeft, points[0].Y));
         points.Add(new Point(ToCanvasX(TemperatureMax), points[^1].Y));
 
+        // A curve that is stored but not running is drawn in the muted colour: it is still the
+        // real curve, with its real points, but the accent belongs to whatever is actually
+        // driving the fans right now - under Fixed and Maximum that is the flat line above.
+        Color curveColor = IsEditable ? AccentColor : LockedColor;
+
         var areaPoints = new PointCollection { new(points[0].X, PlotBottom) };
         foreach (Point point in points) areaPoints.Add(point);
         areaPoints.Add(new Point(points[^1].X, PlotBottom));
@@ -423,24 +413,25 @@ public sealed class FanCurveChart : Canvas
         {
             Points = areaPoints,
             Fill = new LinearGradientBrush(
-                Color.FromArgb(0x55, AccentColor.R, AccentColor.G, AccentColor.B),
-                Color.FromArgb(0x00, AccentColor.R, AccentColor.G, AccentColor.B),
+                Color.FromArgb(IsEditable ? (byte)0x55 : (byte)0x28, curveColor.R, curveColor.G, curveColor.B),
+                Color.FromArgb(0x00, curveColor.R, curveColor.G, curveColor.B),
                 new Point(0, 0), new Point(0, 1))
         });
 
         // A soft blurred duplicate underneath gives the line a gentle glow rather than a flat,
         // static-looking stroke.
-        Children.Add(Line(points, 7, 0.35, new BlurEffect { Radius = 8 }));
-        Children.Add(Line(points, 3, 1.0, null));
+        Children.Add(Line(points, curveColor, 7, 0.35, new BlurEffect { Radius = 8 }));
+        Children.Add(Line(points, curveColor, 3, 1.0, null));
 
-        if (!IsEditable) return;
+        // The points are drawn either way. Seeing where the curve bends is half of reading it,
+        // and a locked curve says so by its colour and its cursor rather than by hiding them.
         for (int index = 0; index < handles.Count; index++) DrawHandle(handles, index, points[index + 1]);
     }
 
     private void DrawHandle(IReadOnlyList<FanCurveRowViewModel> handles, int index, Point center)
     {
-        bool locked = IsLocked(index, handles.Count);
-        bool selected = index == SelectedIndex;
+        bool locked = !IsEditable || IsLocked(index, handles.Count);
+        bool selected = IsEditable && index == SelectedIndex;
         Color color = locked ? LockedColor : AccentColor;
         double radius = locked ? 6 : 7;
 
@@ -470,7 +461,9 @@ public sealed class FanCurveChart : Canvas
             StrokeThickness = 2,
             Cursor = locked ? Cursors.Arrow : Cursors.Hand,
             Effect = new DropShadowEffect { Color = color, BlurRadius = 10, ShadowDepth = 0, Opacity = 0.7 },
-            ToolTip = locked
+            ToolTip = !IsEditable
+                ? $"{handles[index].TemperatureNumber:0} °C / {handles[index].Percent} % · gespeicherte Kurve, unter diesem Modus nur zur Ansicht"
+                : locked
                 ? $"Fest: {handles[index].TemperatureNumber:0} °C / {handles[index].Percent} % - die Firmware verlangt volle Drehzahl spätestens hier"
                 : $"{handles[index].TemperatureNumber:0} °C / {handles[index].Percent} % · Ziehen, Pfeiltasten verschieben, Rechtsklick entfernt"
         };
@@ -497,32 +490,10 @@ public sealed class FanCurveChart : Canvas
         });
     }
 
-    /// <summary>
-    /// The comparison curve: dashed, in its own colour, and thinner than the edited one. It is
-    /// somebody else's setting rather than this device's state, and must not read as the same
-    /// kind of claim.
-    /// </summary>
-    private void DrawReference(IReadOnlyList<(byte TemperatureCelsius, byte Percent)> reference)
-    {
-        if (reference.Count < 2) return;
-        var brush = new SolidColorBrush(ReferenceColor);
-        brush.Freeze();
-        Children.Add(new Polyline
-        {
-            Points = new PointCollection(reference.Select(point => new Point(ToCanvasX(point.TemperatureCelsius), ToCanvasY(point.Percent)))),
-            Stroke = brush,
-            StrokeThickness = 2,
-            StrokeLineJoin = PenLineJoin.Round,
-            StrokeDashArray = [4, 3],
-            Opacity = 0.9,
-            ToolTip = "Kurve aus Gigabytes Control Center"
-        });
-    }
-
-    private static Polyline Line(PointCollection points, double thickness, double opacity, Effect? effect) => new()
+    private static Polyline Line(PointCollection points, Color color, double thickness, double opacity, Effect? effect) => new()
     {
         Points = points,
-        Stroke = new SolidColorBrush(AccentColor),
+        Stroke = new SolidColorBrush(color),
         StrokeThickness = thickness,
         StrokeLineJoin = PenLineJoin.Round,
         StrokeStartLineCap = PenLineCap.Round,

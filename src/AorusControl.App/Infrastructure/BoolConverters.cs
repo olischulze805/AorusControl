@@ -14,11 +14,14 @@ public sealed class InverseBoolConverter : IValueConverter
         value is bool flag && !flag;
 }
 
-/// <summary>Shows the element only when the bound bool is true.</summary>
+/// <summary>Shows the element only when the bound bool is true, or only when it is false if
+/// <see cref="Inverted"/> is set.</summary>
 public sealed class BoolVisibilityConverter : IValueConverter
 {
+    public bool Inverted { get; set; }
+
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        value is true ? Visibility.Visible : Visibility.Collapsed;
+        value is true != Inverted ? Visibility.Visible : Visibility.Collapsed;
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();

@@ -68,9 +68,9 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     public RelayCommand LoadGigabyteCurveCommand { get; }
 
     /// <summary>
-    /// The curve Gigabyte's own Control Center draws for this laptop, shown beside the edited
-    /// one. It is the honest answer to "what do the vendor profiles set": nothing - they are
-    /// four status flags - and this single curve is all GCC ever had for this model.
+    /// The curve Gigabyte's own Control Center draws for this laptop. It is no longer drawn
+    /// beside the user's own - two curves in one chart was more confusing than useful - but it
+    /// stays available as a starting point through "Gigabyte-Kurve laden".
     /// </summary>
     public IReadOnlyList<(byte TemperatureCelsius, byte Percent)> GigabyteCurve { get; } =
         GigabyteReferenceCurve.AsGigabyteDrawsIt;
@@ -121,6 +121,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
             OnPropertyChanged(nameof(FixedFanPercentText));
             OnPropertyChanged(nameof(Summary));
             OnPropertyChanged(nameof(ConstantPercent));
+            OnPropertyChanged(nameof(ShowsActiveLine));
             OnPropertyChanged(nameof(CurveNote));
         }
     }
@@ -186,9 +187,17 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     /// </summary>
     public bool IsCurveEditable => ActiveProfile == "Dynamic";
 
-    /// <summary>The curve the chart draws as the one in force - the stored points only while
-    /// Dynamic runs them, and nothing otherwise.</summary>
-    public IEnumerable<FanCurveRowViewModel> DisplayedCurve => IsCurveEditable ? CurveRows : [];
+    /// <summary>The curve the chart draws: always the stored one, because it is always the
+    /// curve this device really holds. Whether it is currently regulating anything is said by
+    /// its colour, by the note above the chart and by the flat line the constant profiles add -
+    /// not by hiding it.</summary>
+    public IEnumerable<FanCurveRowViewModel> DisplayedCurve => CurveRows;
+
+    /// <summary>Whether anything in the chart is drawn as being in force right now: the own
+    /// curve while Dynamic runs it, or the flat line of Maximum and Fixed. Under the firmware
+    /// profiles nothing is, and a legend entry for a colour that is not on screen would be
+    /// worse than no legend.</summary>
+    public bool ShowsActiveLine => IsCurveEditable || !double.IsNaN(ConstantPercent);
 
     /// <summary>
     /// A flat line where the profile really is a flat line: Maximum pins the fans at full
@@ -212,9 +221,9 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         "Dynamic" => "Die eigene Kurve regelt die Lüfter. Änderungen gelten erst nach \"Kurve übernehmen\" - das Schreiben dauert ein paar Sekunden und schaltet den Lüftermodus um, deshalb passiert es nicht bei jedem Handgriff.",
         "Maximum" => "Maximal hält die Lüfter unabhängig von jeder Kurve auf voller Stufe.",
         "Fixed" when _fixedRaw == 0 => "Lüfter stehen. Der Hardware-Worker prüft die Temperatur und stellt bei 65 °C von sich aus auf Normal zurück, auch wenn die App abstürzt.",
-        "Fixed" => $"Fester Wert: {FanSpeedPercent.ToPercent(_fixedRaw)} %, unabhängig von der Temperatur. Die eigene Kurve ist gespeichert, aber außer Kraft.",
-        _ => $"{ActiveProfile} regelt in der Firmware und gibt keine Kurve preis - es gibt hier nichts anzuzeigen, was stimmen würde. " +
-             "Gestrichelt liegt darunter die einzige Kurve, die Gigabytes eigene Software für dieses Modell hatte. " +
+        "Fixed" => $"Fester Wert: {FanSpeedPercent.ToPercent(_fixedRaw)} %, unabhängig von der Temperatur - die waagerechte Linie. Die eigene Kurve liegt grau darunter: gespeichert, aber außer Kraft.",
+        _ => $"{ActiveProfile} regelt in der Firmware und gibt seine Kurve nicht preis. Gezeigt ist deshalb grau die " +
+             "eigene, gespeicherte Kurve - sie steht so im Gerät, regelt unter diesem Modus aber nichts. " +
              "Zum Bearbeiten oben auf \"Dynamic (eigene Kurve)\" wechseln."
     };
 
@@ -615,7 +624,8 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     /// <summary>Everything the chart and its caption read, announced together whenever the
     /// running profile changes - the chart follows the device, like the chips do.</summary>
     private static readonly string[] CurveView =
-        [nameof(IsCurveEditable), nameof(DisplayedCurve), nameof(ConstantPercent), nameof(CurveNote), nameof(CanApplyCurve)];
+        [nameof(IsCurveEditable), nameof(DisplayedCurve), nameof(ConstantPercent), nameof(ShowsActiveLine),
+         nameof(CurveNote), nameof(CanApplyCurve)];
 
     /// <summary>The chip identity for a read-back state. "Fixed" is its own key so no profile
     /// chip lights up while a manual fixed value is held.</summary>

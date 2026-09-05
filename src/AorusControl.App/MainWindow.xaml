@@ -19,6 +19,7 @@
         <infra:StringEqualsBooleanConverter x:Key="IsSelected" />
         <infra:InverseBoolConverter x:Key="InverseBool" />
         <infra:BoolVisibilityConverter x:Key="BoolVisible" />
+        <infra:BoolVisibilityConverter x:Key="InverseBoolVisible" Inverted="True" />
         <infra:ActiveOpacityConverter x:Key="ActiveOpacity" />
     </ui:FluentWindow.Resources>
 
@@ -196,17 +197,21 @@
                                     <ctrl:FanCurveChart Rows="{Binding Cooling.DisplayedCurve}"
                                                         IsEditable="{Binding Cooling.IsCurveEditable}"
                                                         ConstantPercent="{Binding Cooling.ConstantPercent}"
-                                                        Reference="{Binding Cooling.GigabyteCurve}"
                                                         CurveEdited="OnFanCurveEdited"
                                                         MinHeight="220" Height="300" />
                                 </Border>
+                                <!-- Zwei Einträge, aber nie beide: entweder die Kurve regelt gerade,
+                                     oder sie liegt nur gespeichert daneben. -->
                                 <StackPanel Orientation="Horizontal" Margin="0,10,0,0" HorizontalAlignment="Center">
                                     <Border Width="14" Height="3" CornerRadius="2" VerticalAlignment="Center"
-                                            Background="{StaticResource AccentBrush}" />
-                                    <TextBlock Style="{StaticResource Hint}" Margin="6,0,18,0" Text="was jetzt gilt" />
-                                    <Border Width="14" Height="3" CornerRadius="2" VerticalAlignment="Center" Background="#FFF2B14C" />
-                                    <TextBlock Style="{StaticResource Hint}" Margin="6,0,0,0"
-                                               Text="Kurve aus Gigabytes Control Center" />
+                                            Background="{StaticResource AccentBrush}"
+                                            Visibility="{Binding Cooling.ShowsActiveLine, Converter={StaticResource BoolVisible}}" />
+                                    <TextBlock Style="{StaticResource Hint}" Margin="6,0,18,0" Text="was jetzt gilt"
+                                               Visibility="{Binding Cooling.ShowsActiveLine, Converter={StaticResource BoolVisible}}" />
+                                    <Border Width="14" Height="3" CornerRadius="2" VerticalAlignment="Center" Background="#FF8A939B"
+                                            Visibility="{Binding Cooling.IsCurveEditable, Converter={StaticResource InverseBoolVisible}}" />
+                                    <TextBlock Style="{StaticResource Hint}" Margin="6,0,0,0" Text="eigene Kurve, gespeichert"
+                                               Visibility="{Binding Cooling.IsCurveEditable, Converter={StaticResource InverseBoolVisible}}" />
                                 </StackPanel>
                                 <!-- Nur sichtbar, solange sich die Kurve überhaupt bearbeiten lässt:
                                      unter den Firmware-Profilen wäre eine Bedienanleitung für etwas,
