@@ -3,6 +3,7 @@ using System.Windows.Threading;
 using System.Windows.Input;
 using MediaBrush = System.Windows.Media.Brush;
 using AorusControl.App.Features.Keyboard;
+using AorusControl.App.Features.Updates;
 using AorusControl.App.Infrastructure;
 using AorusControl.Core.Models;
 using AorusControl.Core.Services;
@@ -390,7 +391,6 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _timer.Tick -= OnTimerTick;
         _reader.Dispose();
         foreach (IFeatureModule module in Modules) module.Dispose();
-        Updates.Dispose();
         if (_fixedFanActive && _fixedFanLease is { } disposeLease)
         {
             try { _fixedFanLeaseClient.ReleaseAsync(disposeLease).GetAwaiter().GetResult(); }

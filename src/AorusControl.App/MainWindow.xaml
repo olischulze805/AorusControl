@@ -677,28 +677,37 @@
 
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
-                                <TextBlock Text="Nach Updates suchen" Style="{StaticResource CardTitle}" />
+                                <TextBlock Text="Updates" Style="{StaticResource CardTitle}" />
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="Prüft nur, ob eine neuere Version veröffentlicht wurde. Lädt nichts herunter und installiert nichts automatisch - dafür fehlt diesem Projekt noch eine signierte Veröffentlichung." />
+                                           Text="Prüfen und Installieren sind zwei getrennte Schritte, und eine geladene Version wird erst beim nächsten Start aktiv - eine App, die Lüfter und Beleuchtung steuert, soll sich nicht mitten in der Sitzung selbst austauschen." />
                                 <Grid Margin="0,18,0,0">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" MinWidth="120" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="{Binding Updates.Status}" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="13" />
                                     <ui:Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Margin="16,0,0,0"
                                                Content="Jetzt prüfen"
                                                Command="{Binding Updates.CheckCommand}"
-                                               IsEnabled="{Binding Updates.IsBusy, Converter={StaticResource InverseBool}}">
+                                               IsEnabled="{Binding Updates.CanCheck}">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowClockwise24" /></ui:Button.Icon>
                                     </ui:Button>
                                 </Grid>
-                                <ui:HyperlinkButton Content="Update herunterladen"
-                                                     NavigateUri="{Binding Updates.Available.DownloadUrl}"
-                                                     Margin="0,14,0,0"
-                                                     Visibility="{Binding Updates.HasUpdate, Converter={StaticResource BoolVisible}}">
-                                    <ui:HyperlinkButton.Icon><ui:SymbolIcon Symbol="ArrowDownload24" /></ui:HyperlinkButton.Icon>
-                                </ui:HyperlinkButton>
+                                <WrapPanel Margin="0,14,0,-10">
+                                    <ui:Button Style="{StaticResource PrimaryButton}" Margin="0,0,10,10"
+                                               Content="Update installieren"
+                                               Command="{Binding Updates.InstallCommand}"
+                                               IsEnabled="{Binding Updates.CanInstall}"
+                                               Visibility="{Binding Updates.HasUpdate, Converter={StaticResource BoolVisible}}">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowDownload24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                    <ui:Button Style="{StaticResource SecondaryButton}" Margin="0,0,10,10"
+                                               Content="Jetzt neu starten"
+                                               Command="{Binding Updates.RestartCommand}"
+                                               Visibility="{Binding Updates.IsDownloaded, Converter={StaticResource BoolVisible}}">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowSync24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                </WrapPanel>
                             </StackPanel>
                         </Border>
                     </StackPanel>

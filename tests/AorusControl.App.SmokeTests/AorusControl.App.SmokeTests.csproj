@@ -9,6 +9,8 @@
     <Compile Include="../../src/AorusControl.App/ViewModels/*.cs" Link="ViewModels/%(Filename)%(Extension)" />
     <Compile Include="../../src/AorusControl.App/Infrastructure/*.cs" Link="Infrastructure/%(Filename)%(Extension)" />
     <!-- Feature modules, one folder each: a new module is compiled here without editing this file. -->
+    <!-- Same packages the linked App sources need. -->
+    <PackageReference Include="Velopack" Version="1.2.0" />
     <Compile Include="../../src/AorusControl.App/Features/**/*.cs" Link="Features/%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="../../src/AorusControl.App/Controls/KeyboardLayout.cs" Link="Controls/%(Filename)%(Extension)" />
   </ItemGroup>

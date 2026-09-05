@@ -16,6 +16,11 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
         AppLog.Initialize("app");
+        // Must come before anything else draws: the installer relaunches the app with its
+        // own arguments for first run, update and uninstall, and this is what answers them.
+        Velopack.VelopackApp.Build()
+            .OnFirstRun(_ => AppLog.Info("update", "Erste Ausführung nach der Installation."))
+            .Run();
         // A crash the user only sees as a closing window is a crash nobody can report;
         // both of these paths put it on disk before anything else happens.
         DispatcherUnhandledException += (_, args) =>
