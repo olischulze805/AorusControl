@@ -33,7 +33,7 @@ public sealed class FanRotor : FrameworkElement
     private const int Blades = 11;
 
     private static readonly Color CoolColor = Color.FromRgb(0x35, 0xC7, 0xE6);
-    private static readonly Color WarmColor = Color.FromRgb(0xF2, 0x8A, 0x4C);
+    private static readonly Color WarmColor = Color.FromRgb(0xF2, 0x9A, 0x3C);
     private static readonly Color HubColor = Color.FromRgb(0x1A, 0x1E, 0x24);
 
     private readonly Stopwatch _clock = new();
@@ -50,6 +50,13 @@ public sealed class FanRotor : FrameworkElement
     public static readonly DependencyProperty TemperatureProperty = DependencyProperty.Register(
         nameof(Temperature), typeof(double), typeof(FanRotor),
         new FrameworkPropertyMetadata(double.NaN, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    /// <summary>How hard this fan is working, 0-100. Drawn as an arc around the housing, so
+    /// speed and effort are two separate things the tile can say at once - a fan at 3000 RPM
+    /// means something different at 40 % than at 90 %.</summary>
+    public static readonly DependencyProperty DutyProperty = DependencyProperty.Register(
+        nameof(Duty), typeof(double), typeof(FanRotor),
+        new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender));
 
     /// <summary>False while nothing is being measured: the rotor then stands still and fades,
     /// rather than showing a plausible speed nobody read.</summary>
@@ -68,6 +75,12 @@ public sealed class FanRotor : FrameworkElement
     {
         get => (double)GetValue(TemperatureProperty);
         set => SetValue(TemperatureProperty, value);
+    }
+
+    public double Duty
+    {
+        get => (double)GetValue(DutyProperty);
+        set => SetValue(DutyProperty, value);
     }
 
     public bool IsLive
@@ -144,7 +157,9 @@ public sealed class FanRotor : FrameworkElement
         if (side <= 0) return;
 
         var centre = new Point(ActualWidth / 2, ActualHeight / 2);
-        double outer = side / 2 - 2;
+        // The housing keeps clear of the outer edge, because the effort arc lives out there
+        // and an arc sitting exactly on the ring is invisible.
+        double outer = side / 2 - 8;
         double inner = outer * 0.30;
         Color tint = Tint();
 
@@ -156,6 +171,8 @@ public sealed class FanRotor : FrameworkElement
                 Color.FromArgb(0x00, tint.R, tint.G, tint.B)),
             new Pen(new SolidColorBrush(Color.FromArgb(0x33, tint.R, tint.G, tint.B)), 1.5),
             centre, outer, outer);
+
+        DrawDutyArc(context, centre, side / 2 - 2.5, tint);
 
         context.PushTransform(new RotateTransform(_angle, centre.X, centre.Y));
         var bladePen = new Pen(new SolidColorBrush(Color.FromArgb(IsLive ? (byte)0xEE : (byte)0x66, tint.R, tint.G, tint.B)), Math.Max(1.5, side / 34))
@@ -180,6 +197,34 @@ public sealed class FanRotor : FrameworkElement
         Effect = share < 0.08 ? null : new BlurEffect { Radius = share * 2.6, KernelType = KernelType.Gaussian };
     }
 
+    /// <summary>The effort arc: from the top, clockwise, one full turn at 100 %. Drawn on the
+    /// housing ring rather than inside, so it never competes with the blades.</summary>
+    private void DrawDutyArc(DrawingContext context, Point centre, double radius, Color tint)
+    {
+        double share = IsLive ? Math.Clamp(Duty, 0, 100) / 100 : 0;
+        if (share <= 0.002) return;
+
+        double sweep = share * 2 * Math.PI;
+        Point At(double angle) => new(
+            centre.X + radius * Math.Sin(angle),
+            centre.Y - radius * Math.Cos(angle));
+
+        var figure = new PathFigure { StartPoint = At(0) };
+        // One arc segment cannot express more than half a turn unambiguously, so it is drawn
+        // in halves - the flag alone would leave 51 % and 99 % looking identical.
+        foreach (double end in sweep <= Math.PI ? [sweep] : new[] { Math.PI, sweep })
+            figure.Segments.Add(new ArcSegment(At(end), new Size(radius, radius), 0, false, SweepDirection.Clockwise, true));
+
+        var geometry = new PathGeometry();
+        geometry.Figures.Add(figure);
+        geometry.Freeze();
+        context.DrawGeometry(null, new Pen(new SolidColorBrush(Color.FromArgb(0xCC, tint.R, tint.G, tint.B)), 3)
+        {
+            StartLineCap = PenLineCap.Round,
+            EndLineCap = PenLineCap.Round
+        }, geometry);
+    }
+
     private static PathGeometry Blade(Point centre, double inner, double outer, double startAngle)
     {
         const double Sweep = 0.62;
@@ -196,12 +241,20 @@ public sealed class FanRotor : FrameworkElement
         return geometry;
     }
 
-    /// <summary>Cool below 45 °C, warm from 80 °C, linear in between - and neutral while
-    /// nothing has been measured.</summary>
+    /// <summary>
+    /// The tile's colour, from the app's own cyan when the machine is cool to a warm amber
+    /// when it is hot.
+    ///
+    /// It stays cyan well past idle and only warms from about 65 °C, because that is where
+    /// the temperature starts meaning something on this laptop - and because a colour that
+    /// drifts on every reading tells you nothing. The two ends are blended directly rather
+    /// than walked round the colour wheel: the wheel's shortest path from cyan to amber runs
+    /// through a loud green that belongs to no other part of this app.
+    /// </summary>
     private Color Tint()
     {
         if (double.IsNaN(Temperature) || !IsLive) return Color.FromRgb(0x8A, 0x93, 0x9B);
-        double share = Math.Clamp((Temperature - 45) / 35.0, 0, 1);
+        double share = Math.Clamp((Temperature - 55) / 30.0, 0, 1);
         return Color.FromRgb(
             (byte)(CoolColor.R + (WarmColor.R - CoolColor.R) * share),
             (byte)(CoolColor.G + (WarmColor.G - CoolColor.G) * share),

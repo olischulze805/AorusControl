@@ -389,7 +389,8 @@ the app's own dark/accent palette rather than copying its exact colors.
 
 The page opens with the two fans drawn turning (`Controls/FanRotor.cs`) at the speed they
 are really turning at, tinted from cyan to warm orange by the temperature that fan is
-answering to, with the RPM, temperature and duty underneath. The curve carries a white dot
+answering to, with an arc around each rotor for how hard that fan is working and the RPM,
+temperature and duty underneath. The curve carries a white dot
 at the machine's current temperature and duty, so an adjustment can be watched taking
 effect rather than only read back.
 

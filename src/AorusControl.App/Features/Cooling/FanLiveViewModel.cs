@@ -20,7 +20,7 @@ namespace AorusControl.App.Features.Cooling;
 public sealed class FanLiveViewModel : ObservableObject
 {
     private bool _live;
-    private double _cpuRpm, _gpuRpm, _cpuTemperature = double.NaN, _gpuTemperature = double.NaN, _cpuDuty, _gpuDuty;
+    private double _cpuRpm, _gpuRpm, _cpuTemperature = double.NaN, _gpuTemperature = double.NaN;
 
     /// <summary>Whether these numbers come from a reading that actually happened. Everything
     /// on the page reads this rather than guessing from a zero: a stopped fan and an unread
@@ -35,6 +35,14 @@ public sealed class FanLiveViewModel : ObservableObject
     public double GpuRpm { get => _gpuRpm; private set => SetProperty(ref _gpuRpm, value); }
     public double CpuTemperature { get => _cpuTemperature; private set => SetProperty(ref _cpuTemperature, value); }
     public double GpuTemperature { get => _gpuTemperature; private set => SetProperty(ref _gpuTemperature, value); }
+
+    /// <summary>How hard each fan is working, as a share of the firmware's own maximum. Drawn
+    /// as the arc around the rotor: the speed says how fast it turns, this says how much of
+    /// what it could do is being used.</summary>
+    public double CpuDuty { get => _cpuDuty; private set => SetProperty(ref _cpuDuty, value); }
+    public double GpuDuty { get => _gpuDuty; private set => SetProperty(ref _gpuDuty, value); }
+
+    private double _cpuDuty, _gpuDuty;
 
     public string CpuRpmText => Speed(_cpuRpm);
     public string GpuRpmText => Speed(_gpuRpm);
@@ -55,8 +63,8 @@ public sealed class FanLiveViewModel : ObservableObject
         GpuRpm = snapshot.GpuFanRpm;
         CpuTemperature = snapshot.CpuTemperatureCelsius;
         GpuTemperature = snapshot.GpuTemperatureCelsius;
-        _cpuDuty = FanSpeedPercent.ToPercent((byte)Math.Min(snapshot.CpuFanDutyPercent, (ushort)255));
-        _gpuDuty = FanSpeedPercent.ToPercent((byte)Math.Min(snapshot.GpuFanDutyPercent, (ushort)255));
+        CpuDuty = FanSpeedPercent.ToPercent((byte)Math.Min(snapshot.CpuFanDutyPercent, (ushort)255));
+        GpuDuty = FanSpeedPercent.ToPercent((byte)Math.Min(snapshot.GpuFanDutyPercent, (ushort)255));
         IsLive = true;
         Announce();
     }

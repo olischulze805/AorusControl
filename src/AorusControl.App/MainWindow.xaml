@@ -171,6 +171,7 @@
                                             <ctrl:FanRotor Width="112" Height="112"
                                                            Rpm="{Binding Cooling.Live.CpuRpm}"
                                                            Temperature="{Binding Cooling.Live.CpuTemperature}"
+                                                           Duty="{Binding Cooling.Live.CpuDuty}"
                                                            IsLive="{Binding Cooling.Live.IsLive}" />
                                             <TextBlock Text="CPU-Lüfter" Style="{StaticResource Hint}" Margin="0,12,0,0"
                                                        HorizontalAlignment="Center" />
@@ -189,6 +190,7 @@
                                             <ctrl:FanRotor Width="112" Height="112"
                                                            Rpm="{Binding Cooling.Live.GpuRpm}"
                                                            Temperature="{Binding Cooling.Live.GpuTemperature}"
+                                                           Duty="{Binding Cooling.Live.GpuDuty}"
                                                            IsLive="{Binding Cooling.Live.IsLive}" />
                                             <TextBlock Text="GPU-Lüfter" Style="{StaticResource Hint}" Margin="0,12,0,0"
                                                        HorizontalAlignment="Center" />
