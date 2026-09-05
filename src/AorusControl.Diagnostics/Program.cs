@@ -104,6 +104,8 @@ bool testFanCurveWrite = args.Any(argument =>
     argument.Equals("--test-fan-curve-write", StringComparison.OrdinalIgnoreCase));
 bool probeFanCurveFloor = args.Any(argument =>
     argument.Equals("--probe-fan-curve-floor", StringComparison.OrdinalIgnoreCase));
+bool probeFanCurveFloorLive = args.Any(argument =>
+    argument.Equals("--probe-fan-curve-floor-live", StringComparison.OrdinalIgnoreCase));
 int? requestedChargeLimit = ReadOptionalIntArgument("--set-charge-limit");
 bool setStandardChargeMode = args.Any(argument =>
     argument.Equals("--set-standard-charge-mode", StringComparison.OrdinalIgnoreCase));
@@ -171,6 +173,12 @@ if (testFanCurveWrite)
 if (probeFanCurveFloor)
 {
     RunFanCurveFloorProbe();
+    return;
+}
+
+if (probeFanCurveFloorLive)
+{
+    RunFanCurveFloorLiveProbe();
     return;
 }
 
@@ -1631,12 +1639,21 @@ void RunFanCurveFloorProbe()
     try
     {
         original = controller.ReadAsync().GetAwaiter().GetResult();
-        if (original.FixedStatusRaw != 0 || original.StepStatusRaw != 0 ||
-            original.AutoStatusRaw != 0 || original.NvidiaThermalTargetRaw != 0)
+        // The condition that actually matters is that the stored curve is not the thing
+        // regulating the fans right now, so a probe value can never take effect. That rules
+        // out Dynamic (step) and any fixed value - but not Normal, Quiet or Gaming, where the
+        // firmware regulates internally and the curve table is merely storage.
+        if (original.FixedStatusRaw != 0 || original.StepStatusRaw != 0)
         {
-            throw new AorusFanControlException("Der Test startet nur aus dem verifizierten Normalzustand.");
+            throw new AorusFanControlException(
+                "Die Kurve regelt gerade selbst (Dynamic oder fester Wert). Bitte in der App auf " +
+                "Normal, Leise oder Gaming stellen und den Test erneut ausführen - dann kann die " +
+                "Probekurve die Lüfter nicht beeinflussen.");
         }
 
+        test.AppendLine($"- Fan state at start: fixed {original.FixedStatusRaw}, step {original.StepStatusRaw}, " +
+            $"auto {original.AutoStatusRaw}, thermal {original.NvidiaThermalTargetRaw}");
+        test.AppendLine();
         test.AppendLine("## Original curve");
         test.AppendLine();
         test.AppendLine("- " + string.Join(", ", original.Curve.Select(point => $"({point.Temperature},{point.Value})")));
@@ -1684,6 +1701,126 @@ void RunFanCurveFloorProbe()
             {
                 test.AppendLine($"- Restore failed: {Escape(restoreError.Message)}");
                 test.AppendLine("- Use tools/Start-FanNormalRestore.cmd and re-check the curve.");
+                Environment.ExitCode = 7;
+            }
+        }
+    }
+
+    WriteCurveTestReport(test);
+}
+
+void RunFanCurveFloorLiveProbe()
+{
+    bool confirmed = args.Any(argument =>
+        argument.Equals("--confirm-fan-curve-write", StringComparison.OrdinalIgnoreCase));
+    var test = new StringBuilder();
+    test.AppendLine("# AORUS fan-curve floor probe, running");
+    test.AppendLine();
+    test.AppendLine($"- Created: {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}");
+    test.AppendLine("- Question: the EC stores values below raw 57 - does it also drive the fans at them?");
+    test.AppendLine("- Method: lower only the points below 60 C, activate Dynamic, sample, restore.");
+    test.AppendLine("- Everything from 60 C upwards keeps its original value, so heat still ramps the fans normally.");
+    test.AppendLine($"- Explicit curve-write confirmation present: {(confirmed ? "yes" : "no")}");
+    test.AppendLine();
+
+    if (!confirmed)
+    {
+        test.AppendLine("- Refused before opening the setter: `--confirm-fan-curve-write` is required.");
+        test.AppendLine("- Firmware/EC write methods invoked: **no**");
+        WriteCurveTestReport(test);
+        Environment.ExitCode = 2;
+        return;
+    }
+
+    using IAorusFanController controller = new GigabyteWmiFanController();
+    using IAorusTelemetryReader telemetry = new GigabyteWmiTelemetryReader();
+    FanControlState? original = null;
+    bool changed = false;
+    try
+    {
+        original = controller.ReadAsync().GetAwaiter().GetResult();
+        if (original.FixedStatusRaw != 0 || original.StepStatusRaw != 0)
+        {
+            throw new AorusFanControlException(
+                "Bitte zuerst auf Normal, Leise oder Gaming stellen; der Test schaltet Dynamic selbst ein.");
+        }
+
+        TelemetrySnapshot start = telemetry.ReadAsync().GetAwaiter().GetResult();
+        test.AppendLine($"- Start: CPU {start.CpuTemperatureCelsius} °C, GPU {start.GpuTemperatureCelsius} °C, " +
+            $"CPU {start.CpuFanRpm} RPM / raw {start.CpuFanDutyPercent}");
+        if (start.CpuTemperatureCelsius > 60 || start.GpuTemperatureCelsius > 60)
+        {
+            throw new AorusFanControlException(
+                $"Zu warm zum Messen ({start.CpuTemperatureCelsius}/{start.GpuTemperatureCelsius} °C). " +
+                "Der Test läuft nur im Leerlauf unter 60 °C.");
+        }
+
+        // Only the low end is lowered, and only where the original curve is already at its
+        // floor. Everything the fans need when the machine warms up is left exactly as it was.
+        var probe = original.Curve.ToArray();
+        int lowered = 0;
+        for (int index = 0; index < probe.Length; index++)
+        {
+            if (probe[index].Temperature >= 60) break;
+            probe[index] = probe[index] with { Value = 0 };
+            lowered++;
+        }
+        test.AppendLine($"- Points lowered to raw 0: {lowered} (every point below 60 °C)");
+        test.AppendLine("- " + string.Join(", ", probe.Select(point => $"({point.Temperature},{point.Value})")));
+        test.AppendLine();
+
+        using (var writer = new CurvePointWriter())
+        {
+            changed = true;
+            foreach (FanCurvePoint point in probe) writer.Write(point.Index, point.Temperature, point.Value);
+        }
+
+        FanProfileChangeResult dynamic = controller.SetDynamicAsync().GetAwaiter().GetResult();
+        test.AppendLine("## Dynamic with the lowered curve");
+        test.AppendLine();
+        AppendFanState(test, "Dynamic", dynamic.VerifiedState);
+        test.AppendLine();
+
+        for (int sample = 1; sample <= 6; sample++)
+        {
+            Thread.Sleep(TimeSpan.FromSeconds(2));
+            TelemetrySnapshot value = telemetry.ReadAsync().GetAwaiter().GetResult();
+            test.AppendLine(
+                $"- Sample {sample}: CPU {value.CpuTemperatureCelsius} °C, GPU {value.GpuTemperatureCelsius} °C, " +
+                $"CPU {value.CpuFanRpm} RPM / raw duty {value.CpuFanDutyPercent}, " +
+                $"GPU {value.GpuFanRpm} RPM / raw duty {value.GpuFanDutyPercent}");
+            if (value.CpuTemperatureCelsius > 65 || value.GpuTemperatureCelsius > 65)
+            {
+                throw new AorusFanControlException("Temperaturwächter ausgelöst; Abbruch und Rückstellung.");
+            }
+        }
+    }
+    catch (Exception exception)
+    {
+        test.AppendLine();
+        test.AppendLine($"- Probe stopped: {Escape(exception.Message)}");
+        Environment.ExitCode = 5;
+    }
+    finally
+    {
+        if (changed && original is not null)
+        {
+            test.AppendLine();
+            test.AppendLine("## Restore");
+            test.AppendLine();
+            try
+            {
+                FanProfileChangeResult restored = controller.SetCurveAsync(original.Curve).GetAwaiter().GetResult();
+                bool exact = restored.VerifiedState.Curve.SequenceEqual(original.Curve);
+                FanProfileChangeResult normal = controller.SetNormalAsync().GetAwaiter().GetResult();
+                test.AppendLine($"- All 15 original points restored and verified: {(exact ? "yes" : "**no**")}");
+                AppendFanState(test, "Restored", normal.VerifiedState);
+                if (!exact) Environment.ExitCode = 6;
+            }
+            catch (Exception restoreError)
+            {
+                test.AppendLine($"- Restore failed: {Escape(restoreError.Message)}");
+                test.AppendLine("- Use tools/Start-FanNormalRestore.cmd immediately and re-check the curve.");
                 Environment.ExitCode = 7;
             }
         }
