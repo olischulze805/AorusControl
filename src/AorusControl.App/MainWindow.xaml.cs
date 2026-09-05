@@ -19,6 +19,7 @@ public partial class MainWindow : FluentWindow
     private bool _closeReady;
     private bool _closePending;
     private bool _exitRequested;
+    private bool _restartForUpdate;
 
     public MainWindow() : this(new MainWindowViewModel()) { }
 
@@ -36,6 +37,9 @@ public partial class MainWindow : FluentWindow
         // IsVisible stays true while minimized, so without this the live preview and the
         // telemetry poll would keep running for a window nobody can see.
         StateChanged += (_, _) => UpdateVisibilityForViewModel();
+        // The update module asks; the window is what actually closes, because the fans and
+        // the lighting have to be handed back before anything replaces the executable.
+        _viewModel.Updates.RestartRequested += (_, _) => { _restartForUpdate = true; RequestExit(); };
     }
 
     /// <summary>The chart edited the curve rows; the write itself is the ViewModel's,
@@ -96,12 +100,18 @@ public partial class MainWindow : FluentWindow
         {
             await _viewModel.PrepareToCloseAsync();
             _viewModel.Dispose();
+            // Only now, with the hardware back under firmware control, is it safe to let the
+            // updater replace the executable and start the new version.
+            if (_restartForUpdate) _viewModel.Updates.ApplyDownloadedUpdateOnExit();
             _closeReady = true;
             Close();
         }
         catch (Exception exception)
         {
             _exitRequested = false;
+            // The window stays open, so no updater may be left waiting for an exit that is
+            // not coming.
+            _restartForUpdate = false;
             System.Windows.MessageBox.Show(this,
                 $"Eine Hardwareoperation konnte nicht sicher beendet werden. Das Fenster bleibt geöffnet.\n{exception.Message}\nBei Lüfterproblemen tools/Start-FanNormalRestore.cmd verwenden.",
                 "Sicheres Beenden fehlgeschlagen", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);

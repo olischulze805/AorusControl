@@ -672,7 +672,7 @@
                             <StackPanel>
                                 <TextBlock Text="Updates" Style="{StaticResource CardTitle}" />
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="Prüfen und Installieren sind zwei getrennte Schritte, und eine geladene Version wird erst beim nächsten Start aktiv - eine App, die Lüfter und Beleuchtung steuert, soll sich nicht mitten in der Sitzung selbst austauschen." />
+                                           Text="Prüfen und Installieren sind zwei getrennte Schritte. Eine geladene Version wird beim nächsten Start aktiv - oder sofort: &quot;Übernehmen und neu starten&quot; beendet die App geordnet (Lüfter und Beleuchtung gehen an die Firmware zurück), tauscht sie aus und öffnet sie wieder." />
                                 <Grid Margin="0,18,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" MinWidth="120" />
@@ -694,8 +694,8 @@
                                                Visibility="{Binding Updates.HasUpdate, Converter={StaticResource BoolVisible}}">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowDownload24" /></ui:Button.Icon>
                                     </ui:Button>
-                                    <ui:Button Style="{StaticResource SecondaryButton}" Margin="0,0,10,10"
-                                               Content="Jetzt neu starten"
+                                    <ui:Button Style="{StaticResource PrimaryButton}" Margin="0,0,10,10"
+                                               Content="Übernehmen und neu starten"
                                                Command="{Binding Updates.RestartCommand}"
                                                Visibility="{Binding Updates.IsDownloaded, Converter={StaticResource BoolVisible}}">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowSync24" /></ui:Button.Icon>

@@ -44,10 +44,12 @@ killed, that process still returns the fans to firmware control on its own.
 ## Install
 
 Run `AorusControl-win-Setup.exe` from the releases page. It installs into your own user
-folder, brings its own .NET, and the app updates itself from there - checking and installing
-are separate buttons, and a downloaded version only takes effect on the next start. The
-installer is not code-signed, so Windows SmartScreen will warn about an unknown publisher;
-"Weitere Informationen" then "Trotzdem ausführen" gets past it.
+folder, brings its own .NET, and the app updates itself from there: checking and downloading
+are separate buttons, and the downloaded version is applied either at the next start or right
+away - "Übernehmen und neu starten" closes the app properly, hands the fans and lighting back
+to the firmware, swaps the files and opens it again. The installer is not code-signed, so
+Windows SmartScreen will warn about an unknown publisher; "Weitere Informationen" then
+"Trotzdem ausführen" gets past it.
 
 Hardware access needs administrator rights, so Windows shows its normal UAC prompt on
 launch. Autostart uses a scheduled task instead of the registry Run key precisely so that

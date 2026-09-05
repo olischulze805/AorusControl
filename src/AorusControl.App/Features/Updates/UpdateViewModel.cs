@@ -48,7 +48,7 @@ public sealed class UpdateViewModel : ObservableObject
 
         CheckCommand = new AsyncRelayCommand(CheckAsync);
         InstallCommand = new AsyncRelayCommand(InstallAsync);
-        RestartCommand = new RelayCommand(() => _updates?.WaitExitThenApplyUpdates(_available?.TargetFullRelease));
+        RestartCommand = new RelayCommand(RequestRestart);
     }
 
     /// <summary>The running version, from the assembly rather than a constant, so it cannot
@@ -67,6 +67,42 @@ public sealed class UpdateViewModel : ObservableObject
     public AsyncRelayCommand CheckCommand { get; }
     public AsyncRelayCommand InstallCommand { get; }
     public RelayCommand RestartCommand { get; }
+
+    /// <summary>Asks the window to shut the app down for the update. The restart cannot start
+    /// from here: the fans and the lighting have to be handed back to the firmware first, and
+    /// that is the window's close sequence, not this module's business.</summary>
+    public event EventHandler? RestartRequested;
+
+    private void RequestRestart()
+    {
+        if (!IsDownloaded) return;
+        RestartRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Hands the downloaded update to Velopack's updater and tells it to relaunch afterwards.
+    ///
+    /// Called at the very end of the close sequence, once the hardware is already back under
+    /// firmware control - deliberately not Velopack's ApplyUpdatesAndRestart, which kills the
+    /// process on the spot and would leave the fans pinned wherever they happened to be. The
+    /// updater waits for this process to exit (up to a minute), swaps the files, and starts
+    /// the new version.
+    /// </summary>
+    public void ApplyDownloadedUpdateOnExit()
+    {
+        if (_updates is null || !IsDownloaded) return;
+        try
+        {
+            AppLog.Info("update", $"Update auf {AvailableVersion} wird beim Beenden übernommen; die App startet danach neu.");
+            _updates.WaitExitThenApplyUpdates(_available?.TargetFullRelease, silent: false, restart: true);
+        }
+        catch (Exception error)
+        {
+            // Nothing is lost: the downloaded version stays staged and is applied the next
+            // time the app starts anyway.
+            AppLog.Error("update", "Update konnte beim Beenden nicht übernommen werden.", error);
+        }
+    }
 
     public async Task CheckAsync()
     {
@@ -97,7 +133,7 @@ public sealed class UpdateViewModel : ObservableObject
         {
             await _updates!.DownloadUpdatesAsync(_available!, progress => Status = $"Update wird geladen … {progress} %");
             IsDownloaded = true;
-            Status = $"Version {AvailableVersion} ist bereit und wird beim nächsten Start aktiv.";
+            Status = $"Version {AvailableVersion} ist bereit - jetzt neu starten oder beim nächsten Start übernehmen.";
         }
         catch (Exception error)
         {
