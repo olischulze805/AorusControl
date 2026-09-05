@@ -116,13 +116,13 @@ public partial class MainWindow : FluentWindow
             return;
         }
 
-        KeyboardRgbColor current = _viewModel.GetKeyboardZoneColor(zone);
+        KeyboardRgbColor current = _viewModel.Keyboard.GetZoneColor(zone);
         var picker = new ColorPickerWindow(current, _recentColorsStore) { Owner = this };
         if (picker.ShowDialog() != true || picker.Result is not { } chosen)
         {
             return;
         }
 
-        await _viewModel.SetKeyboardColorAsync(zone, chosen);
+        await _viewModel.Keyboard.SetColorAsync(zone, chosen);
     }
 }

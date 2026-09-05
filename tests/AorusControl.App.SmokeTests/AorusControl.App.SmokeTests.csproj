@@ -8,6 +8,8 @@
     <ProjectReference Include="../../src/AorusControl.Core/AorusControl.Core.csproj" />
     <Compile Include="../../src/AorusControl.App/ViewModels/*.cs" Link="ViewModels/%(Filename)%(Extension)" />
     <Compile Include="../../src/AorusControl.App/Infrastructure/*.cs" Link="Infrastructure/%(Filename)%(Extension)" />
+    <!-- Feature modules, one folder each: a new module is compiled here without editing this file. -->
+    <Compile Include="../../src/AorusControl.App/Features/**/*.cs" Link="Features/%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="../../src/AorusControl.App/Controls/KeyboardLayout.cs" Link="Controls/%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

@@ -236,9 +236,9 @@
                                                    Text="Die Vorschau rechnet mit derselben Funktion, deren Ergebnis an die Tastatur geschickt wird - sie zeigt den tatsächlichen Frame, keine Nachbildung." />
                                     </StackPanel>
                                     <ui:Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Margin="16,0,0,0"
-                                               Content="{Binding KeyboardPowerButtonText}"
-                                               Command="{Binding ToggleKeyboardPowerCommand}"
-                                               IsEnabled="{Binding KeyboardControlsEnabled}"
+                                               Content="{Binding Keyboard.PowerButtonText}"
+                                               Command="{Binding Keyboard.TogglePowerCommand}"
+                                               IsEnabled="{Binding Keyboard.ControlsEnabled}"
                                                VerticalAlignment="Top">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="Power24" /></ui:Button.Icon>
                                     </ui:Button>
@@ -246,10 +246,10 @@
 
                                 <Border Style="{StaticResource InnerPanel}" Margin="0,16,0,0">
                                     <StackPanel>
-                                        <ctrl:KeyboardPreview Zone1Brush="{Binding PreviewZone1Brush}"
-                                                              Zone2Brush="{Binding PreviewZone2Brush}"
-                                                              Zone3Brush="{Binding PreviewZone3Brush}"
-                                                              LightingOpacity="{Binding PreviewOpacity}" />
+                                        <ctrl:KeyboardPreview Zone1Brush="{Binding Keyboard.PreviewZone1Brush}"
+                                                              Zone2Brush="{Binding Keyboard.PreviewZone2Brush}"
+                                                              Zone3Brush="{Binding Keyboard.PreviewZone3Brush}"
+                                                              LightingOpacity="{Binding Keyboard.PreviewOpacity}" />
                                         <Grid Margin="2,8,2,0">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="24*" />
@@ -295,14 +295,14 @@
                                                     </Style>
                                                 </Ellipse.Style>
                                             </Ellipse>
-                                            <TextBlock Text="{Binding PreviewCaption}" FontSize="12"
+                                            <TextBlock Text="{Binding Keyboard.PreviewCaption}" FontSize="12"
                                                        Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </StackPanel>
                                 </Border>
 
                                 <TextBlock Text="HELLIGKEIT" Style="{StaticResource SubLabel}" />
-                                <!-- Deliberately NOT gated on KeyboardControlsEnabled: that flag
+                                <!-- Deliberately NOT gated on Keyboard.ControlsEnabled: that flag
                                      goes false for the duration of the write this slider itself
                                      starts, which would disable the control mid-drag and drop the
                                      thumb. The setter already ignores a value while busy and
@@ -312,12 +312,12 @@
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="{Binding KeyboardBrightnessLabel}" Style="{StaticResource SliderReadoutSmall}" />
+                                    <TextBlock Grid.Column="0" Text="{Binding Keyboard.BrightnessLabel}" Style="{StaticResource SliderReadoutSmall}" />
                                     <StackPanel Grid.Column="1" Margin="22,0,0,0">
                                         <Slider Style="{StaticResource ValueSlider}" MinWidth="170"
                                                 Minimum="0" Maximum="3" TickFrequency="1"
                                                 IsSnapToTickEnabled="True" TickPlacement="BottomRight"
-                                                Value="{Binding KeyboardBrightnessIndex, Mode=TwoWay}" />
+                                                Value="{Binding Keyboard.BrightnessIndex, Mode=TwoWay}" />
                                         <Grid Margin="0,2,0,0">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
@@ -332,8 +332,8 @@
                                         </Grid>
                                     </StackPanel>
                                 </Grid>
-                                <TextBlock Text="{Binding BrightnessEventStatus}" Style="{StaticResource Hint}" Margin="0,14,0,0" />
-                                <TextBlock Text="{Binding KeyboardStatus}" Style="{StaticResource Hint}" Margin="0,4,0,0" />
+                                <TextBlock Text="{Binding Keyboard.BrightnessEventStatus}" Style="{StaticResource Hint}" Margin="0,14,0,0" />
+                                <TextBlock Text="{Binding Keyboard.Status}" Style="{StaticResource Hint}" Margin="0,4,0,0" />
                             </StackPanel>
                         </Border>
 
@@ -343,55 +343,55 @@
                                 <TextBlock Text="Effekt" Style="{StaticResource CardTitle}" />
                                 <TextBlock Style="{StaticResource Hint}"
                                            Text="Neun host-gerenderte Effekte, plus manuelle Zonenfarben als zehnte Kachel. Die laufende Kachel pulsiert, damit auch ohne Blick auf die Tastatur klar ist, was gerade an ist." />
-                                <WrapPanel Margin="0,14,0,-10" IsEnabled="{Binding KeyboardControlsEnabled}">
+                                <WrapPanel Margin="0,14,0,-10" IsEnabled="{Binding Keyboard.ControlsEnabled}">
                                     <RadioButton Style="{StaticResource IconTile}" GroupName="Effect" Content="Atmen"
-                                                 Command="{Binding ApplyKeyboardEffectCommand}" CommandParameter="Breathing"
-                                                 IsChecked="{Binding ActiveKeyboardEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Breathing}">
+                                                 Command="{Binding Keyboard.ApplyEffectCommand}" CommandParameter="Breathing"
+                                                 IsChecked="{Binding Keyboard.ActiveEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Breathing}">
                                         <RadioButton.Tag><ui:SymbolIcon Symbol="Circle24" FontSize="22" /></RadioButton.Tag>
                                     </RadioButton>
                                     <RadioButton Style="{StaticResource IconTile}" GroupName="Effect" Content="Pulsieren"
-                                                 Command="{Binding ApplyKeyboardEffectCommand}" CommandParameter="Pulse"
-                                                 IsChecked="{Binding ActiveKeyboardEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Pulse}">
+                                                 Command="{Binding Keyboard.ApplyEffectCommand}" CommandParameter="Pulse"
+                                                 IsChecked="{Binding Keyboard.ActiveEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Pulse}">
                                         <RadioButton.Tag><ui:SymbolIcon Symbol="Pulse24" FontSize="22" /></RadioButton.Tag>
                                     </RadioButton>
                                     <RadioButton Style="{StaticResource IconTile}" GroupName="Effect" Content="Farbwechsel"
-                                                 Command="{Binding ApplyKeyboardEffectCommand}" CommandParameter="ColorCycle"
-                                                 IsChecked="{Binding ActiveKeyboardEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=ColorCycle}">
+                                                 Command="{Binding Keyboard.ApplyEffectCommand}" CommandParameter="ColorCycle"
+                                                 IsChecked="{Binding Keyboard.ActiveEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=ColorCycle}">
                                         <RadioButton.Tag><ui:SymbolIcon Symbol="ColorBackground24" FontSize="22" /></RadioButton.Tag>
                                     </RadioButton>
                                     <RadioButton Style="{StaticResource IconTile}" GroupName="Effect" Content="Regenbogen"
-                                                 Command="{Binding ApplyKeyboardEffectCommand}" CommandParameter="RainbowMarquee"
-                                                 IsChecked="{Binding ActiveKeyboardEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=RainbowMarquee}">
+                                                 Command="{Binding Keyboard.ApplyEffectCommand}" CommandParameter="RainbowMarquee"
+                                                 IsChecked="{Binding Keyboard.ActiveEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=RainbowMarquee}">
                                         <RadioButton.Tag><ui:SymbolIcon Symbol="ColorFill24" FontSize="22" /></RadioButton.Tag>
                                     </RadioButton>
                                     <RadioButton Style="{StaticResource IconTile}" GroupName="Effect" Content="Welle"
-                                                 Command="{Binding ApplyKeyboardEffectCommand}" CommandParameter="Wave"
-                                                 IsChecked="{Binding ActiveKeyboardEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Wave}">
+                                                 Command="{Binding Keyboard.ApplyEffectCommand}" CommandParameter="Wave"
+                                                 IsChecked="{Binding Keyboard.ActiveEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Wave}">
                                         <RadioButton.Tag><ui:SymbolIcon Symbol="WeatherSqualls24" FontSize="22" /></RadioButton.Tag>
                                     </RadioButton>
                                     <RadioButton Style="{StaticResource IconTile}" GroupName="Effect" Content="Lauflicht"
-                                                 Command="{Binding ApplyKeyboardEffectCommand}" CommandParameter="Marquee"
-                                                 IsChecked="{Binding ActiveKeyboardEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Marquee}">
+                                                 Command="{Binding Keyboard.ApplyEffectCommand}" CommandParameter="Marquee"
+                                                 IsChecked="{Binding Keyboard.ActiveEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Marquee}">
                                         <RadioButton.Tag><ui:SymbolIcon Symbol="MoreHorizontal24" FontSize="22" /></RadioButton.Tag>
                                     </RadioButton>
                                     <RadioButton Style="{StaticResource IconTile}" GroupName="Effect" Content="Pendel"
-                                                 Command="{Binding ApplyKeyboardEffectCommand}" CommandParameter="Rotate"
-                                                 IsChecked="{Binding ActiveKeyboardEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Rotate}">
+                                                 Command="{Binding Keyboard.ApplyEffectCommand}" CommandParameter="Rotate"
+                                                 IsChecked="{Binding Keyboard.ActiveEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Rotate}">
                                         <RadioButton.Tag><ui:SymbolIcon Symbol="ArrowRepeatAll24" FontSize="22" /></RadioButton.Tag>
                                     </RadioButton>
                                     <RadioButton Style="{StaticResource IconTile}" GroupName="Effect" Content="Regentropfen"
-                                                 Command="{Binding ApplyKeyboardEffectCommand}" CommandParameter="Raindrop"
-                                                 IsChecked="{Binding ActiveKeyboardEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Raindrop}">
+                                                 Command="{Binding Keyboard.ApplyEffectCommand}" CommandParameter="Raindrop"
+                                                 IsChecked="{Binding Keyboard.ActiveEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Raindrop}">
                                         <RadioButton.Tag><ui:SymbolIcon Symbol="WeatherRain24" FontSize="22" /></RadioButton.Tag>
                                     </RadioButton>
                                     <RadioButton Style="{StaticResource IconTile}" GroupName="Effect" Content="Ausblendende Welle"
-                                                 Command="{Binding ApplyKeyboardEffectCommand}" CommandParameter="FadeSweep"
-                                                 IsChecked="{Binding ActiveKeyboardEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=FadeSweep}">
+                                                 Command="{Binding Keyboard.ApplyEffectCommand}" CommandParameter="FadeSweep"
+                                                 IsChecked="{Binding Keyboard.ActiveEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=FadeSweep}">
                                         <RadioButton.Tag><ui:SymbolIcon Symbol="WeatherPartlyCloudyDay24" FontSize="22" /></RadioButton.Tag>
                                     </RadioButton>
                                     <RadioButton Style="{StaticResource IconTile}" GroupName="Effect" Content="Manuell"
-                                                 Command="{Binding ApplyKeyboardEffectCommand}" CommandParameter="Manual"
-                                                 IsChecked="{Binding ActiveKeyboardEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Manual}">
+                                                 Command="{Binding Keyboard.ApplyEffectCommand}" CommandParameter="Manual"
+                                                 IsChecked="{Binding Keyboard.ActiveEffectName, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Manual}">
                                         <RadioButton.Tag><ui:SymbolIcon Symbol="Grid24" FontSize="22" /></RadioButton.Tag>
                                     </RadioButton>
                                 </WrapPanel>
@@ -402,12 +402,12 @@
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="{Binding KeyboardEffectSpeedLabel}" Style="{StaticResource SliderReadoutSmall}" />
+                                    <TextBlock Grid.Column="0" Text="{Binding Keyboard.SpeedLabel}" Style="{StaticResource SliderReadoutSmall}" />
                                     <StackPanel Grid.Column="1" Margin="22,0,0,0">
                                         <Slider Style="{StaticResource ValueSlider}" MinWidth="170"
                                                 Minimum="0" Maximum="4" TickFrequency="1"
                                                 IsSnapToTickEnabled="True" TickPlacement="BottomRight"
-                                                Value="{Binding KeyboardEffectSpeedIndex, Mode=TwoWay}" />
+                                                Value="{Binding Keyboard.SpeedIndex, Mode=TwoWay}" />
                                         <Grid Margin="0,2,0,0">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
@@ -426,7 +426,7 @@
                                 </Grid>
 
                                 <ui:Button Style="{StaticResource SecondaryButton}" Content="Auswahl erneut senden"
-                                           Command="{Binding ReapplyKeyboardCommand}"
+                                           Command="{Binding Keyboard.ReapplyCommand}"
                                            HorizontalAlignment="Left" Margin="0,20,0,0"
                                            ToolTip="Stellt Farben, Helligkeit und Effekt erneut her, zum Beispiel nach einem Geräte-Reset.">
                                     <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowSync24" /></ui:Button.Icon>
@@ -436,12 +436,12 @@
 
                         <!-- Zonenfarben -->
                         <Border Style="{StaticResource Card}">
-                            <StackPanel IsEnabled="{Binding KeyboardControlsEnabled}">
+                            <StackPanel IsEnabled="{Binding Keyboard.ControlsEnabled}">
                                 <TextBlock Text="Zonenfarben" Style="{StaticResource CardTitle}" />
-                                <TextBlock Text="{Binding KeyboardPaletteHint}" Style="{StaticResource Hint}" />
+                                <TextBlock Text="{Binding Keyboard.PaletteHint}" Style="{StaticResource Hint}" />
                                 <ui:ToggleSwitch Content="Alle drei Zonen gemeinsam ändern"
-                                                  IsChecked="{Binding LinkKeyboardZones, Mode=TwoWay}"
-                                                  IsEnabled="{Binding Zone2AffectsLighting}"
+                                                  IsChecked="{Binding Keyboard.LinkZones, Mode=TwoWay}"
+                                                  IsEnabled="{Binding Keyboard.Zone2AffectsLighting}"
                                                   Margin="0,16,0,0" />
                                 <!-- A zone the running mode does not read is dimmed rather
                                      than disabled: the colour is still stored and still worth
@@ -455,37 +455,37 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" HorizontalAlignment="Center">
-                                        <TextBlock Text="{Binding Zone1Label}" HorizontalAlignment="Center" FontSize="12.5"
+                                        <TextBlock Text="{Binding Keyboard.Zone1Label}" HorizontalAlignment="Center" FontSize="12.5"
                                                    TextWrapping="Wrap" TextAlignment="Center"
                                                    Foreground="{StaticResource TextSecondaryBrush}" />
                                         <Button Tag="1" Click="OnZoneColorClick" Style="{StaticResource ZoneSwatch}"
-                                                Background="{Binding Zone1Brush}"
-                                                Opacity="{Binding Zone1AffectsLighting, Converter={StaticResource ActiveOpacity}}" />
-                                        <TextBlock Text="{Binding Zone1Hex}" HorizontalAlignment="Center" FontSize="11.5"
+                                                Background="{Binding Keyboard.Zone1Brush}"
+                                                Opacity="{Binding Keyboard.Zone1AffectsLighting, Converter={StaticResource ActiveOpacity}}" />
+                                        <TextBlock Text="{Binding Keyboard.Zone1Hex}" HorizontalAlignment="Center" FontSize="11.5"
                                                    FontFamily="Consolas" Foreground="{StaticResource TextSecondaryBrush}" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
                                         <TextBlock Text="Zone 2" HorizontalAlignment="Center" FontSize="12.5"
                                                    Foreground="{StaticResource TextSecondaryBrush}" />
                                         <Button Tag="2" Click="OnZoneColorClick" Style="{StaticResource ZoneSwatch}"
-                                                Background="{Binding Zone2Brush}"
-                                                Opacity="{Binding Zone2AffectsLighting, Converter={StaticResource ActiveOpacity}}" />
-                                        <TextBlock Text="{Binding Zone2Hex}" HorizontalAlignment="Center" FontSize="11.5"
+                                                Background="{Binding Keyboard.Zone2Brush}"
+                                                Opacity="{Binding Keyboard.Zone2AffectsLighting, Converter={StaticResource ActiveOpacity}}" />
+                                        <TextBlock Text="{Binding Keyboard.Zone2Hex}" HorizontalAlignment="Center" FontSize="11.5"
                                                    FontFamily="Consolas" Foreground="{StaticResource TextSecondaryBrush}" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="2" HorizontalAlignment="Center">
                                         <TextBlock Text="Zone 3" HorizontalAlignment="Center" FontSize="12.5"
                                                    Foreground="{StaticResource TextSecondaryBrush}" />
                                         <Button Tag="3" Click="OnZoneColorClick" Style="{StaticResource ZoneSwatch}"
-                                                Background="{Binding Zone3Brush}"
-                                                Opacity="{Binding Zone3AffectsLighting, Converter={StaticResource ActiveOpacity}}" />
-                                        <TextBlock Text="{Binding Zone3Hex}" HorizontalAlignment="Center" FontSize="11.5"
+                                                Background="{Binding Keyboard.Zone3Brush}"
+                                                Opacity="{Binding Keyboard.Zone3AffectsLighting, Converter={StaticResource ActiveOpacity}}" />
+                                        <TextBlock Text="{Binding Keyboard.Zone3Hex}" HorizontalAlignment="Center" FontSize="11.5"
                                                    FontFamily="Consolas" Foreground="{StaticResource TextSecondaryBrush}" />
                                     </StackPanel>
                                 </Grid>
-                                <TextBlock Text="{Binding InactiveZoneNote}" Style="{StaticResource Hint}"
+                                <TextBlock Text="{Binding Keyboard.InactiveZoneNote}" Style="{StaticResource Hint}"
                                            Margin="0,14,0,0" TextAlignment="Center" HorizontalAlignment="Center"
-                                           Visibility="{Binding HasInactiveZones, Converter={StaticResource BoolVisible}}" />                      </StackPanel>
+                                           Visibility="{Binding Keyboard.HasInactiveZones, Converter={StaticResource BoolVisible}}" />                      </StackPanel>
                         </Border>
                     </StackPanel>
                 </ScrollViewer>

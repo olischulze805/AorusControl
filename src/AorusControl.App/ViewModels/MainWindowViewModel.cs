@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows.Threading;
 using System.Windows.Input;
 using MediaBrush = System.Windows.Media.Brush;
+using AorusControl.App.Features.Keyboard;
 using AorusControl.App.Infrastructure;
 using AorusControl.Core.Models;
 using AorusControl.Core.Services;
@@ -16,19 +17,6 @@ namespace AorusControl.App.ViewModels;
 public sealed class MainWindowViewModel : ObservableObject, IDisposable
 {
     private readonly IAorusTelemetryReader _reader;
-    private readonly IAorusKeyboardRgbController _keyboardRgb;
-    private readonly KeyboardLightingSession _keyboardSession;
-    private readonly IKeyboardSettingsStore? _keyboardSettingsStore;
-    private readonly Func<Action<KeyboardBrightnessLevel>, CancellationToken, Task>? _brightnessListener;
-    private readonly Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
-    private CancellationTokenSource _brightnessCancellation = new();
-    private Task? _brightnessListenerTask;
-    private Task _brightnessDrainTask = Task.CompletedTask;
-    private KeyboardBrightnessLevel? _pendingBrightness;
-    private bool _drainingBrightness;
-    private string _brightnessEventStatus = "Fn+Space-Ereignisleser nicht gestartet";
-    public string BrightnessEventStatus { get => _brightnessEventStatus; private set => SetProperty(ref _brightnessEventStatus, value); }
-    private readonly DispatcherTimer _rgbTimer;
     private readonly IAorusFanController _fanController;
     private readonly WindowsPowerOverlayController _powerOverlay;
     private readonly DispatcherTimer _timer;
@@ -44,20 +32,6 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private string _status = "Bereit";
     private string _lastUpdated = "Noch keine Messung";
     private string _toggleButtonText = "Überwachung starten";
-    private bool _keyboardControlsEnabled;
-    private bool _keyboardBusy;
-    private bool _keyboardInitialized;
-    private bool _keyboardPowerOn;
-    private KeyboardBrightnessLevel _keyboardBrightness = KeyboardBrightnessLevel.High;
-    private KeyboardEffectSpeed _keyboardEffectSpeed = KeyboardEffectSpeed.Normal;
-    private bool _keyboardModeIsEffect;
-    private string _keyboardPaletteHint = "Gespeicherte manuelle Farben";
-    private bool _linkKeyboardZones;
-    private string _keyboardStatus = "Tastatur wird geprüft …";
-    private KeyboardRgbColor _zone1Color = new(0, 255, 0);
-    private KeyboardRgbColor _zone2Color = new(0, 255, 0);
-    private KeyboardRgbColor _zone3Color = new(0, 255, 0);
-    private bool _keyboardEffectRunning;
     private bool _fanControlsEnabled;
     private bool _fanBusy;
     private bool _restoreNormalFanOnDispose;
@@ -77,7 +51,6 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private bool _startWithWindows;
     private bool _startupBusy;
     private string _startupStatus = "Autostart wird geprüft …";
-    private readonly Func<TimeSpan, Task> _resumeReapplyDelay;
     private readonly Debouncer _applyFanCurve;
     private readonly Debouncer _applyFixedFan;
     private bool _disposed;
@@ -112,26 +85,15 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         Func<TimeSpan, CancellationToken, Task>? debounceWait = null)
     {
         _reader = reader;
+        Keyboard = new KeyboardViewModel(keyboardRgb, keyboardSettingsStore, brightnessListener, resumeReapplyDelay);
         // Defaults to the real out-of-process worker client: only that implementation
         // survives this process crashing, which is the entire point of Fixed-mode safety.
         _fixedFanLeaseClient = fixedFanLeaseClient ?? new WorkerFixedFanLeaseClient();
         _fanCurveStore = fanCurveStore ?? new FanCurveStore(System.IO.Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AorusControl", "fan-curve-v1.json"));
         _startupManager = startupManager ?? new StartupManager(Environment.ProcessPath ?? "AorusControl.exe");
-        _resumeReapplyDelay = resumeReapplyDelay ?? Task.Delay;
         Battery = new BatteryViewModel(batteryController ?? new GigabyteWmiBatteryChargeController(), debounceWait);
         Updates = new UpdateViewModel();
-        Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
-        _keyboardRgb = keyboardRgb;
-        _keyboardSession = new KeyboardLightingSession(keyboardRgb);
-        _keyboardSettingsStore = keyboardSettingsStore;
-        _brightnessListener = brightnessListener;
-        _rgbTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(2) };
-        _rgbTimer.Tick += OnRgbTimerTick;
-        // 20 Hz is enough for the eye and a third of the renderer's own rate; it only
-        // ever runs while the Tastatur section is visible and an effect is playing.
-        _previewTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(50) };
-        _previewTimer.Tick += OnPreviewTimerTick;
         _fanController = fanController;
         _powerOverlay = powerOverlay;
         _timer = new DispatcherTimer(DispatcherPriority.Background)
@@ -146,10 +108,6 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             Enum.TryParse(modeName, ignoreCase: true, out WindowsPowerOverlayMode mode)
                 ? SetWindowsPowerModeAsync(mode)
                 : Task.CompletedTask);
-        ToggleKeyboardPowerCommand = new AsyncRelayCommand(() => SetKeyboardPowerAsync(!KeyboardPowerOn));
-        ReapplyKeyboardCommand = new AsyncRelayCommand(ReapplyKeyboardAsync);
-        StartKeyboardEffectCommand = new AsyncRelayCommand(() => StartKeyboardEffectAsync(SelectedKeyboardEffect));
-        StopKeyboardEffectCommand = new AsyncRelayCommand(StopKeyboardEffectAsync);
         ApplyFanCurveCommand = new AsyncRelayCommand(ApplyFanCurveAsync);
         ReloadFanCurveFromDeviceCommand = new AsyncRelayCommand(ReloadFanCurveFromDeviceAsync);
         ToggleStartWithWindowsCommand = new AsyncRelayCommand(() => SetStartWithWindowsAsync(!StartWithWindows));
@@ -162,24 +120,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         // Only ever reschedules an ALREADY active Fixed mode - entering it stays an
         // explicit act, see SetFixedFanAsync.
         _applyFixedFan = new Debouncer(TimeSpan.FromMilliseconds(600), ReapplyFixedFanAsync, debounceWait);
-        ApplyKeyboardEffectCommand = new AsyncRelayCommand<string>(name =>
-            // "Manual" is the tenth tile rather than a separate button: picking it is
-            // simply choosing no effect.
-            name == "Manual" ? StopKeyboardEffectAsync()
-                : Enum.TryParse(name, ignoreCase: true, out KeyboardRgbEffect effect)
-                    ? StartKeyboardEffectAsync(effect)
-                    : Task.CompletedTask);
     }
 
     private string _activeFanProfile = "Normal";
     private string? _activePowerMode;
-    private KeyboardRgbEffect? _activeKeyboardEffect;
-    private readonly DispatcherTimer _previewTimer;
-    private readonly System.Diagnostics.Stopwatch _effectClock = new();
-    private MediaBrush _previewZone1 = CreateBrush(new KeyboardRgbColor(0, 0, 0));
-    private MediaBrush _previewZone2 = CreateBrush(new KeyboardRgbColor(0, 0, 0));
-    private MediaBrush _previewZone3 = CreateBrush(new KeyboardRgbColor(0, 0, 0));
-    private double _previewOpacity;
     private string _selectedSection = "Dashboard";
 
     /// <summary>Which navigation section is visible. Pure UI state - no hardware
@@ -190,9 +134,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         get => _selectedSection;
         set
         {
-            // The live keyboard preview only animates while its own section is on
-            // screen: an animation nobody is looking at is pure battery drain.
-            if (SetProperty(ref _selectedSection, value)) UpdatePreviewTimer();
+            if (SetProperty(ref _selectedSection, value)) UpdateModuleVisibility();
         }
     }
 
@@ -200,14 +142,15 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public AsyncRelayCommand<string> SetFanProfileCommand { get; }
     public AsyncRelayCommand SetFixedFanCommand { get; }
     public AsyncRelayCommand<string> SetPowerModeCommand { get; }
-    public AsyncRelayCommand ToggleKeyboardPowerCommand { get; }
-    public AsyncRelayCommand ReapplyKeyboardCommand { get; }
-    public AsyncRelayCommand StartKeyboardEffectCommand { get; }
-    public AsyncRelayCommand StopKeyboardEffectCommand { get; }
     public AsyncRelayCommand ApplyFanCurveCommand { get; }
     public AsyncRelayCommand ReloadFanCurveFromDeviceCommand { get; }
     public AsyncRelayCommand ToggleStartWithWindowsCommand { get; }
-    public AsyncRelayCommand<string> ApplyKeyboardEffectCommand { get; }
+    /// <summary>The attached feature modules. Everything the shell does to all of them -
+    /// start them, wait for them, release them - goes through this list, so a new feature
+    /// is a class plus one entry rather than another branch in three methods.</summary>
+    private IReadOnlyList<IFeatureModule> Modules => [Keyboard, Battery];
+
+    public KeyboardViewModel Keyboard { get; }
     public BatteryViewModel Battery { get; }
     public UpdateViewModel Updates { get; }
 
@@ -220,66 +163,6 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public string Status { get => _status; private set => SetProperty(ref _status, value); }
     public string LastUpdated { get => _lastUpdated; private set => SetProperty(ref _lastUpdated, value); }
     public string ToggleButtonText { get => _toggleButtonText; private set => SetProperty(ref _toggleButtonText, value); }
-    public bool KeyboardControlsEnabled { get => _keyboardControlsEnabled; private set => SetProperty(ref _keyboardControlsEnabled, value); }
-    public bool KeyboardPowerOn { get => _keyboardPowerOn; private set => SetProperty(ref _keyboardPowerOn, value); }
-    public string KeyboardPowerButtonText => KeyboardPowerOn ? "Ausschalten" : "Einschalten";
-
-    public KeyboardBrightnessLevel KeyboardBrightness
-    {
-        get => _keyboardBrightness;
-        private set => SetProperty(ref _keyboardBrightness, value);
-    }
-
-    /// <summary>
-    /// The four steps the firmware accepts. Anything else is either off or full, so no
-    /// slider is offered.
-    /// </summary>
-    public KeyboardEffectSpeed KeyboardEffectSpeed
-    {
-        get => _keyboardEffectSpeed;
-        private set => SetProperty(ref _keyboardEffectSpeed, value);
-    }
-
-    public IReadOnlyList<KeyboardEffectSpeedChoice> KeyboardEffectSpeedChoices { get; } =
-        KeyboardEffectSpeeds.All
-            .Select(speed => new KeyboardEffectSpeedChoice(speed, DescribeSpeed(speed)))
-            .ToArray();
-
-    public IReadOnlyList<KeyboardBrightnessChoice> KeyboardBrightnessLevelChoices { get; } =
-        KeyboardBrightnessLevels.All
-            .Select(level => new KeyboardBrightnessChoice(level, DescribeBrightness(level)))
-            .ToArray();
-
-    public IReadOnlyList<KeyboardEffectChoice> KeyboardEffectChoices { get; } = new[]
-    {
-        (KeyboardRgbEffect.Breathing, "Atmen"),
-        (KeyboardRgbEffect.Pulse, "Pulsieren"),
-        (KeyboardRgbEffect.ColorCycle, "Farbwechsel"),
-        (KeyboardRgbEffect.RainbowMarquee, "Regenbogen-Lauflicht"),
-        (KeyboardRgbEffect.Wave, "Welle"),
-        (KeyboardRgbEffect.Marquee, "Lauflicht"),
-        (KeyboardRgbEffect.Rotate, "Pendel"),
-        (KeyboardRgbEffect.Raindrop, "Regentropfen"),
-        (KeyboardRgbEffect.FadeSweep, "Ausblendende Welle"),
-    }.Select(pair => new KeyboardEffectChoice(pair.Item1, pair.Item2)).ToArray();
-
-    private KeyboardRgbEffect _selectedKeyboardEffect = KeyboardRgbEffect.Breathing;
-    public KeyboardRgbEffect SelectedKeyboardEffect
-    {
-        get => _selectedKeyboardEffect;
-        set => SetProperty(ref _selectedKeyboardEffect, value);
-    }
-    public bool LinkKeyboardZones { get => _linkKeyboardZones; set => SetProperty(ref _linkKeyboardZones, value); }
-    public bool KeyboardEffectRunning { get => _keyboardEffectRunning; private set => SetProperty(ref _keyboardEffectRunning, value); }
-    public bool KeyboardModeIsEffect { get => _keyboardModeIsEffect; private set => SetProperty(ref _keyboardModeIsEffect, value); }
-    public string KeyboardPaletteHint { get => _keyboardPaletteHint; private set => SetProperty(ref _keyboardPaletteHint, value); }
-    public string KeyboardStatus { get => _keyboardStatus; private set => SetProperty(ref _keyboardStatus, value); }
-    public string Zone1Hex => _zone1Color.Hex;
-    public string Zone2Hex => _zone2Color.Hex;
-    public string Zone3Hex => _zone3Color.Hex;
-    public MediaBrush Zone1Brush => CreateBrush(_zone1Color);
-    public MediaBrush Zone2Brush => CreateBrush(_zone2Color);
-    public MediaBrush Zone3Brush => CreateBrush(_zone3Color);
     public bool FanControlsEnabled { get => _fanControlsEnabled; private set => SetProperty(ref _fanControlsEnabled, value); }
     public string FanStatus { get => _fanStatus; private set => SetProperty(ref _fanStatus, value); }
 
@@ -349,135 +232,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     /// than from the last click.</summary>
     public string? ActivePowerMode { get => _activePowerMode; private set => SetProperty(ref _activePowerMode, value); }
 
-    /// <summary>
-    /// Brightness as a 0-3 slider position over the four steps the firmware accepts.
-    /// The setter goes through the same guarded write path as every other brightness
-    /// change, and the getter always reflects the device, so a rejected write makes the
-    /// slider snap back rather than lie.
-    /// </summary>
-    public int KeyboardBrightnessIndex
-    {
-        get
-        {
-            int index = KeyboardBrightnessLevels.All.ToList().IndexOf(KeyboardBrightness);
-            return index < 0 ? 0 : index;
-        }
-        set
-        {
-            IReadOnlyList<KeyboardBrightnessLevel> levels = KeyboardBrightnessLevels.All;
-            if (value < 0 || value >= levels.Count || levels[value] == KeyboardBrightness)
-            {
-                // Push the real position back over whatever the thumb was dragged to.
-                OnPropertyChanged(nameof(KeyboardBrightnessIndex));
-                return;
-            }
-
-            PendingSliderWrite = SetKeyboardBrightnessAsync(levels[value]);
-        }
-    }
-
-    public string KeyboardBrightnessLabel => DescribeBrightness(KeyboardBrightness);
-
-    /// <summary>
-    /// The device write a slider drag started. A two-way bound property setter cannot be
-    /// awaited, so the task it launches is published here rather than dropped: that keeps
-    /// the write observable (tests await it; a caller can tell when the device has really
-    /// been told) instead of being fire-and-forget.
-    /// </summary>
-    internal Task PendingSliderWrite { get; private set; } = Task.CompletedTask;
-
-    /// <summary>Playback speed as a 0-4 slider position over the five named steps.</summary>
-    public int KeyboardEffectSpeedIndex
-    {
-        get
-        {
-            int index = KeyboardEffectSpeeds.All.ToList().IndexOf(KeyboardEffectSpeed);
-            return index < 0 ? 2 : index;
-        }
-        set
-        {
-            IReadOnlyList<KeyboardEffectSpeed> speeds = KeyboardEffectSpeeds.All;
-            if (value < 0 || value >= speeds.Count || speeds[value] == KeyboardEffectSpeed)
-            {
-                OnPropertyChanged(nameof(KeyboardEffectSpeedIndex));
-                return;
-            }
-
-            PendingSliderWrite = SetKeyboardEffectSpeedAsync(speeds[value]);
-        }
-    }
-
-    public string KeyboardEffectSpeedLabel => DescribeSpeed(KeyboardEffectSpeed);
-
-    /// <summary>
-    /// The effect actually running on the device, or null for manual zone colours -
-    /// this is what highlights an effect tile. Deliberately separate from
-    /// <see cref="SelectedKeyboardEffect"/>, which is only the last pick: if a write
-    /// fails, the tile must keep showing what is really on the keyboard.
-    /// </summary>
-    public KeyboardRgbEffect? ActiveKeyboardEffect
-    {
-        get => _activeKeyboardEffect;
-        private set
-        {
-            if (!SetProperty(ref _activeKeyboardEffect, value)) return;
-            OnPropertyChanged(nameof(ActiveKeyboardEffectName));
-        }
-    }
-
-    /// <summary>Tile identity of the running effect; "Manual" when none runs, so the
-    /// manual-colours tile is a state among equals rather than a special case.</summary>
-    public string ActiveKeyboardEffectName => _activeKeyboardEffect?.ToString() ?? "Manual";
-
-    // ---- Live keyboard preview -------------------------------------------------
-    // Rendered from KeyboardEffectFrames, the very function whose output is written to
-    // the device, so the preview shows the actual frame rather than a lookalike.
-    public MediaBrush PreviewZone1Brush { get => _previewZone1; private set => SetProperty(ref _previewZone1, value); }
-    public MediaBrush PreviewZone2Brush { get => _previewZone2; private set => SetProperty(ref _previewZone2, value); }
-    public MediaBrush PreviewZone3Brush { get => _previewZone3; private set => SetProperty(ref _previewZone3, value); }
-
-    /// <summary>Approximates the LEDs' perceived brightness. The frames themselves carry
-    /// no brightness - the device applies that separately - so this is a rendering of the
-    /// chosen step, not a measured luminance.</summary>
-    public double PreviewOpacity { get => _previewOpacity; private set => SetProperty(ref _previewOpacity, value); }
-
     /// <summary>Where the log files are, so "look in the log" is an actionable
     /// instruction rather than a scavenger hunt.</summary>
     public string LogDirectory => AppLog.Directory;
 
-    // ---- Which zone colours the running mode actually reads -------------------
-    // Offering a colour picker for an effect that ignores colours is a control that
-    // pretends to do something. These drive the swatches so the UI can say plainly which
-    // colour is in play - without hiding the others, since they stay stored and come back
-    // in manual mode.
-    public KeyboardEffectColorUsage KeyboardColorUsage => KeyboardEffectFrames.ColorUsage(_activeKeyboardEffect);
-
-    public bool Zone1AffectsLighting => KeyboardColorUsage is KeyboardEffectColorUsage.AllZones or KeyboardEffectColorUsage.BaseColorOnly;
-    public bool Zone2AffectsLighting => KeyboardColorUsage is KeyboardEffectColorUsage.AllZones;
-    public bool Zone3AffectsLighting => KeyboardColorUsage is KeyboardEffectColorUsage.AllZones;
-
-    /// <summary>Names zone 1's role, since for Atmen/Pulsieren it is not just "zone 1"
-    /// but the colour the whole effect is built from.</summary>
-    public string Zone1Label => KeyboardColorUsage == KeyboardEffectColorUsage.BaseColorOnly ? "Zone 1 · Basisfarbe" : "Zone 1";
-
-    public bool HasInactiveZones => KeyboardColorUsage != KeyboardEffectColorUsage.AllZones;
-
-    /// <summary>
-    /// Said once under the row rather than three times under the swatches. It has to
-    /// carry the reassurance too: dimmed means "no effect right now", never "lost".
-    /// </summary>
-    public string InactiveZoneNote => KeyboardColorUsage switch
-    {
-        KeyboardEffectColorUsage.BaseColorOnly =>
-            "Die gedimmten Zonen liest dieser Effekt nicht - er baut alles aus der Basisfarbe. Sie bleiben gespeichert und gelten wieder im manuellen Modus.",
-        KeyboardEffectColorUsage.None =>
-            "Dieser Effekt liest keine der gespeicherten Farben. Sie bleiben erhalten und gelten wieder im manuellen Modus.",
-        _ => string.Empty
-    };
-
-    public string PreviewCaption => KeyboardPowerOn
-        ? $"Läuft: {(_activeKeyboardEffect is { } effect ? GetEffectName(effect) : "Manuelle Zonenfarben")} · Tempo {DescribeSpeed(KeyboardEffectSpeed)} · Helligkeit {DescribeBrightness(KeyboardBrightness)}"
-        : "Beleuchtung aus · Auswahl bleibt gespeichert";
 
     /// <summary>The 15 editable curve points shown in the Cooling section. Text-backed
     /// like FanCurveRowViewModel elsewhere, so invalid/incomplete typing survives until
@@ -495,11 +253,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _starting = true;
         try
         {
-            await LoadKeyboardAsync();
+            foreach (IFeatureModule module in Modules) await module.StartAsync();
             await LoadFanAsync();
             await LoadPowerModeAsync();
             await LoadStartupStateAsync();
-            await Battery.RefreshAsync();
 
             if (_isRunning)
             {
@@ -531,21 +288,18 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         try { await Battery.PendingLimitWrite.FlushAsync(); } catch (Exception error) { AppLog.Error("battery", "Ausstehendes Ladelimit nicht mehr geschrieben.", error); }
 
         _closing = true;
-        _brightnessCancellation.Cancel();
-        if (_brightnessListenerTask is not null) await _brightnessListenerTask;
-        if (_brightnessListenerTask is not null) BrightnessEventStatus = "Fn+Space-Ereignisleser beendet.";
-        await _brightnessDrainTask;
+        await Keyboard.StopListeningAsync();
         _timer.Stop();
-        while (_starting || _fanBusy || _keyboardBusy || _powerBusy || _isReading || Battery.IsBusy)
+        while (_starting || _fanBusy || _powerBusy || _isReading || Modules.Any(module => module.IsBusy))
             await Task.Delay(50);
         _timer.Stop();
-        _rgbTimer.Stop();
-        _previewTimer.Stop();
-        try { await _keyboardSession.SuspendAsync(); }
+        try { await Keyboard.SuspendAsync(); }
         catch
         {
+            // The lighting stayed with us, so the window stays open and everything that was
+            // stopped for the close has to come back up.
             _closing = false;
-            RestartBrightnessAfterFailedClose();
+            Keyboard.ResumeAfterFailedClose();
             if (_isRunning) _timer.Start();
             throw;
         }
@@ -569,7 +323,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             catch
             {
                 _closing = false;
-                RestartBrightnessAfterFailedClose();
+                Keyboard.ResumeAfterFailedClose();
                 if (_isRunning) _timer.Start();
                 throw;
             }
@@ -581,20 +335,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _disposed = true;
         _applyFanCurve.Cancel();
         _applyFixedFan.Cancel();
-        Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerModeChanged;
-        _brightnessCancellation.Cancel();
-        _previewTimer.Stop();
-        _previewTimer.Tick -= OnPreviewTimerTick;
-        _rgbTimer.Stop();
-        _rgbTimer.Tick -= OnRgbTimerTick;
-        _keyboardSession.DisposeAsync().AsTask().GetAwaiter().GetResult();
-
         _timer.Stop();
         _timer.Tick -= OnTimerTick;
         _reader.Dispose();
-        Battery.Dispose();
+        foreach (IFeatureModule module in Modules) module.Dispose();
         Updates.Dispose();
-        _keyboardRgb.Dispose();
         if (_fixedFanActive && _fixedFanLease is { } disposeLease)
         {
             try { _fixedFanLeaseClient.ReleaseAsync(disposeLease).GetAwaiter().GetResult(); }
@@ -614,50 +359,6 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _fanController.Dispose();
     }
 
-    public KeyboardRgbColor GetKeyboardZoneColor(int zone) => zone switch
-    {
-        1 => _zone1Color,
-        2 => _zone2Color,
-        3 => _zone3Color,
-        _ => throw new ArgumentOutOfRangeException(nameof(zone))
-    };
-
-    public Task SetKeyboardPowerAsync(bool enabled) =>
-        RunKeyboardChangeAsync(s => s with { Enabled = enabled });
-
-    public Task ReapplyKeyboardAsync() => RunKeyboardChangeAsync(s => s, forceWrite: true);
-
-    public Task SetKeyboardBrightnessAsync(KeyboardBrightnessLevel level) =>
-        level == KeyboardBrightness ? Task.CompletedTask : RunKeyboardChangeAsync(s => s.WithBrightness(level));
-
-    public Task SetKeyboardEffectSpeedAsync(KeyboardEffectSpeed speed) =>
-        speed == KeyboardEffectSpeed ? Task.CompletedTask : RunKeyboardChangeAsync(s => s with { Speed = speed });
-
-    public static string DescribeSpeed(KeyboardEffectSpeed speed) => speed switch
-    {
-        KeyboardEffectSpeed.VerySlow => "Sehr langsam",
-        KeyboardEffectSpeed.Slow => "Langsam",
-        KeyboardEffectSpeed.Fast => "Schnell",
-        KeyboardEffectSpeed.VeryFast => "Sehr schnell",
-        _ => "Normal"
-    };
-
-    public static string DescribeBrightness(KeyboardBrightnessLevel level) => level switch
-    {
-        KeyboardBrightnessLevel.Off => "Aus",
-        KeyboardBrightnessLevel.Low => "Niedrig",
-        KeyboardBrightnessLevel.Medium => "Mittel",
-        _ => "Hell"
-    };
-
-    public Task SetKeyboardColorAsync(int zone, KeyboardRgbColor color) =>
-        RunKeyboardChangeAsync(s => s.WithColor(zone, color, LinkKeyboardZones));
-
-    public Task StartKeyboardEffectAsync(KeyboardRgbEffect effect) =>
-        RunKeyboardChangeAsync(s => s with { Effect = effect, Enabled = true });
-
-    public Task StopKeyboardEffectAsync() =>
-        RunKeyboardChangeAsync(s => s with { Effect = null });
 
     public async Task SetFanProfileAsync(string profile)
     {
@@ -867,7 +568,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public void SetDashboardVisible(bool visible)
     {
         _dashboardVisible = visible;
-        UpdatePreviewTimer();
+        UpdateModuleVisibility();
         // Never pause the existing safety sampling for a manually fixed fan.
         if (visible && _isRunning) _timer.Start();
         else if (!visible && !_fixedFanActive) _timer.Stop();
@@ -879,6 +580,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     /// responsible for eventually restoring Normal, independent of this app's state or
     /// even its continued existence. Retrying from here would just race that guarantee.
     /// </summary>
+    /// <summary>Tells each module whether its own section is actually on screen, so
+    /// nothing animates or polls for a view nobody is looking at.</summary>
+    private void UpdateModuleVisibility() =>
+        Keyboard.IsVisible = _dashboardVisible && SelectedSection == "Lighting";
+
     private async Task AbandonFixedLeaseAsync(string reason)
     {
         if (_fanBusy) return;
@@ -918,43 +624,6 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
-    private async Task LoadKeyboardAsync()
-    {
-        if (_keyboardBusy || _keyboardInitialized)
-        {
-            return;
-        }
-
-        _keyboardBusy = true;
-        KeyboardControlsEnabled = false;
-        try
-        {
-            KeyboardLightingSettings? saved = null;
-            string? warning = null;
-            if (_keyboardSettingsStore is not null)
-            {
-                try { saved = await Task.Run(_keyboardSettingsStore.Load); }
-                catch (Exception exception) { warning = $"Gespeicherte RGB-Auswahl nicht geladen: {exception.Message}"; }
-            }
-            ApplyKeyboardSettings(saved is null
-                ? await _keyboardSession.ReadSettingsAsync()
-                : await _keyboardSession.ChangeAsync(_ => saved));
-            if (warning is not null) KeyboardStatus = warning + " · Aktueller Gerätezustand gelesen, nichts automatisch überschrieben.";
-            _keyboardInitialized = true;
-            KeyboardControlsEnabled = true;
-            if (_brightnessListener is not null && _brightnessListenerTask is null)
-                _brightnessListenerTask = ListenForBrightnessAsync();
-        }
-        catch (Exception exception)
-        {
-            AppLog.Error("keyboard", "Tastatur nicht verfügbar.", exception);
-            KeyboardStatus = $"Tastatur nicht verfügbar: {exception.Message}";
-        }
-        finally
-        {
-            _keyboardBusy = false;
-        }
-    }
 
     private async Task LoadFanAsync()
     {
@@ -1289,274 +958,5 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                     ? "Ausbalanciert"
                     : $"Unbekannt ({guid})";
 
-    private async Task RunKeyboardChangeAsync(Func<KeyboardLightingSettings, KeyboardLightingSettings> change, bool forceWrite = false)
-    {
-        if (_closing || _disposed || _keyboardBusy || !KeyboardControlsEnabled) return;
-        _keyboardBusy = true;
-        KeyboardControlsEnabled = false;
-        KeyboardStatus = "Einstellung wird übernommen …";
-        try
-        {
-            KeyboardLightingSettings state = forceWrite ? await _keyboardSession.ReapplyAsync() : await _keyboardSession.ChangeAsync(change);
-            ApplyKeyboardSettings(state);
-            if (_keyboardSettingsStore is not null)
-            {
-                try { await Task.Run(() => _keyboardSettingsStore.Save(state)); }
-                catch (Exception exception) { KeyboardStatus += $" · Aktiv, aber nicht gespeichert: {exception.Message}"; }
-            }
-        }
-        catch (Exception exception)
-        {
-            ApplyKeyboardSettings(await _keyboardSession.ReadSettingsAsync());
-            KeyboardEffectRunning = false;
-            _rgbTimer.Stop();
-            AppLog.Error("keyboard", "RGB-Änderung fehlgeschlagen.", exception);
-            KeyboardStatus = $"RGB-Änderung fehlgeschlagen: {exception.Message}. Auswahl erneut anwenden.";
-        }
-        finally
-        {
-            _keyboardBusy = false;
-            KeyboardControlsEnabled = true;
-            OnPropertyChanged(nameof(ActiveKeyboardEffectName));
-            OnPropertyChanged(nameof(KeyboardBrightnessIndex));
-            OnPropertyChanged(nameof(KeyboardEffectSpeedIndex));
-        }
-    }
 
-    private async Task ListenForBrightnessAsync()
-    {
-        BrightnessEventStatus = "Fn+Space-Ereignisleser wird gestartet; noch kein Ereignis empfangen";
-        try
-        {
-            CancellationToken token = _brightnessCancellation.Token;
-            await KeyboardNotificationReconnect.RunAsync(_brightnessListener!, level => _dispatcher.BeginInvoke(new Action(() =>
-            {
-                if (!token.IsCancellationRequested && !_closing && !_disposed) _ = QueueExternalBrightness(level);
-            })), (error, pause) => _dispatcher.BeginInvoke(new Action(() =>
-            {
-                if (!token.IsCancellationRequested && !_disposed)
-                    BrightnessEventStatus = $"Fn+Space nicht verbunden; neuer Versuch in {pause.TotalSeconds:0} s: {error.Message}";
-            })), token).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (_brightnessCancellation.IsCancellationRequested) { }
-        catch (Exception error)
-        {
-            _ = _dispatcher.BeginInvoke(new Action(() =>
-            {
-                if (!_disposed) BrightnessEventStatus = "Fn+Space-Synchronisierung nicht verfügbar: " + error.Message;
-            }));
-        }
-    }
-
-    private void RestartBrightnessAfterFailedClose()
-    {
-        if (_brightnessListener is null || !_keyboardInitialized || _disposed) return;
-        _brightnessCancellation.Dispose();
-        _brightnessCancellation = new();
-        _brightnessListenerTask = ListenForBrightnessAsync();
-    }
-
-    internal Task QueueExternalBrightness(KeyboardBrightnessLevel level)
-    {
-        if (_closing || _disposed) return Task.CompletedTask;
-        if (!KeyboardBrightnessLevels.All.Contains(level)) throw new ArgumentOutOfRangeException(nameof(level));
-        _pendingBrightness = level;
-        if (!_drainingBrightness) _brightnessDrainTask = DrainBrightnessAsync();
-        return _brightnessDrainTask;
-    }
-
-    private async Task DrainBrightnessAsync()
-    {
-        _drainingBrightness = true;
-        try
-        {
-            while (!_closing && !_disposed && _pendingBrightness is not null)
-            {
-                // Only wait while an event is pending; no idle polling.
-                while (_keyboardBusy && !_closing && !_disposed) await Task.Delay(25);
-                if (_closing || _disposed) break;
-                if (!KeyboardControlsEnabled) { BrightnessEventStatus = "Fn+Space erkannt; RGB-Steuerung nicht bereit."; break; }
-                var level = _pendingBrightness.Value;
-                _pendingBrightness = null;
-                if (level == KeyboardBrightness)
-                {
-                    BrightnessEventStatus = "Fn+Space-Ereignis empfangen; Helligkeit bereits aktuell.";
-                    continue; // Avoid feedback writes and repeated disk saves for identical reports.
-                }
-                await RunKeyboardChangeAsync(s => s.WithBrightness(level));
-                BrightnessEventStatus = "Fn+Space-Ereignis verarbeitet; RGB-Ergebnis siehe Status oben.";
-            }
-        }
-        catch (Exception error) { BrightnessEventStatus = "Fn+Space-Übernahme fehlgeschlagen: " + error.Message; }
-        finally { _pendingBrightness = null; _drainingBrightness = false; }
-    }
-
-    /// <summary>
-    /// A well-known weak spot in RGB keyboard software: the USB HID lighting controller
-    /// often resets to its own power-on default after the laptop sleeps and wakes,
-    /// silently discarding whatever the user had set, and most tools never notice because
-    /// they only ever write on user action. Reapplying proactively after resume is the
-    /// fix; the delay gives the USB device a moment to re-enumerate before the first write
-    /// after wake, which otherwise reliably fails on this hardware.
-    /// </summary>
-    private void OnPowerModeChanged(object? sender, Microsoft.Win32.PowerModeChangedEventArgs eventArgs)
-    {
-        if (eventArgs.Mode != Microsoft.Win32.PowerModes.Resume) return;
-        // SystemEvents raises this on its own dedicated thread, not the UI dispatcher.
-        _dispatcher.BeginInvoke(new Action(() =>
-        {
-            if (!_closing && !_disposed) _ = ReapplyAfterResumeAsync();
-        }));
-    }
-
-    internal async Task ReapplyAfterResumeAsync()
-    {
-        if (_closing || _disposed || !_keyboardInitialized) return;
-        await _resumeReapplyDelay(TimeSpan.FromSeconds(2));
-        if (_closing || _disposed) return;
-        await ReapplyKeyboardAsync();
-    }
-
-    private void OnPreviewTimerTick(object? sender, EventArgs args) => RenderPreviewFrame();
-
-    /// <summary>
-    /// Starts the preview clock only when it can be seen and there is something moving:
-    /// the Tastatur section on screen, the window visible, an effect actually running.
-    /// A static (manual) selection needs no timer at all - it is painted once.
-    /// </summary>
-    private void UpdatePreviewTimer()
-    {
-        bool wanted = !_closing && !_disposed && _dashboardVisible
-            && SelectedSection == "Lighting"
-            && KeyboardPowerOn
-            && _activeKeyboardEffect is not null;
-        if (wanted && !_previewTimer.IsEnabled) _previewTimer.Start();
-        else if (!wanted && _previewTimer.IsEnabled) _previewTimer.Stop();
-        RenderPreviewFrame();
-    }
-
-    private void RenderPreviewFrame()
-    {
-        PreviewOpacity = KeyboardBrightness switch
-        {
-            KeyboardBrightnessLevel.Off => 0.10,
-            KeyboardBrightnessLevel.Low => 0.45,
-            KeyboardBrightnessLevel.Medium => 0.72,
-            _ => 1.0
-        };
-
-        if (!KeyboardPowerOn)
-        {
-            SetPreviewZones(new KeyboardRgbColor(0, 0, 0), new KeyboardRgbColor(0, 0, 0), new KeyboardRgbColor(0, 0, 0));
-            return;
-        }
-
-        if (_activeKeyboardEffect is not { } effect)
-        {
-            SetPreviewZones(_zone1Color, _zone2Color, _zone3Color);
-            return;
-        }
-
-        // Same call the renderer makes, with the same time scale - the clock started
-        // when this effect did, so the phase tracks the device rather than drifting on
-        // its own schedule.
-        double elapsed = _effectClock.Elapsed.TotalSeconds * KeyboardEffectSpeed.ToTimeScale();
-        KeyboardRgbColor[] frame = KeyboardEffectFrames.Create(effect, elapsed, _zone1Color);
-        SetPreviewZones(frame[0], frame[1], frame[2]);
-    }
-
-    private void SetPreviewZones(KeyboardRgbColor zone1, KeyboardRgbColor zone2, KeyboardRgbColor zone3)
-    {
-        PreviewZone1Brush = CreateBrush(zone1);
-        PreviewZone2Brush = CreateBrush(zone2);
-        PreviewZone3Brush = CreateBrush(zone3);
-    }
-
-    private async void OnRgbTimerTick(object? sender, EventArgs args)
-    {
-        if (_closing || _disposed || _keyboardBusy) return;
-        _keyboardBusy = true;
-        try { await _keyboardSession.CheckEffectAsync(); }
-        catch (Exception exception)
-        {
-            KeyboardEffectRunning = false;
-            _rgbTimer.Stop();
-            KeyboardStatus = $"Effekt beendet: {exception.Message}. Effekt erneut anwenden oder Manuell wählen.";
-        }
-        finally { _keyboardBusy = false; }
-    }
-
-    private static string GetEffectName(KeyboardRgbEffect effect) => effect switch
-    {
-        KeyboardRgbEffect.Breathing => "Atmen",
-        KeyboardRgbEffect.Pulse => "Pulsieren",
-        KeyboardRgbEffect.ColorCycle => "Farbwechsel",
-        KeyboardRgbEffect.RainbowMarquee => "Regenbogen-Lauflicht",
-        KeyboardRgbEffect.Wave => "Welle",
-        KeyboardRgbEffect.Marquee => "Lauflicht",
-        KeyboardRgbEffect.Rotate => "Pendel",
-        KeyboardRgbEffect.Raindrop => "Regentropfen",
-        KeyboardRgbEffect.FadeSweep => "Ausblendende Welle",
-        _ => effect.ToString()
-    };
-
-    private void ApplyKeyboardSettings(KeyboardLightingSettings state)
-    {
-        _zone1Color = state.Left;
-        _zone2Color = state.Center;
-        _zone3Color = state.Right;
-        KeyboardPowerOn = state.Enabled;
-        OnPropertyChanged(nameof(KeyboardPowerButtonText));
-        KeyboardBrightness = state.Enabled ? state.OnBrightness : KeyboardBrightnessLevel.Off;
-        KeyboardEffectSpeed = state.Speed;
-        KeyboardEffectRunning = state.Enabled && state.Effect is not null;
-        KeyboardModeIsEffect = state.Effect is not null;
-        OnPropertyChanged(nameof(KeyboardBrightnessIndex));
-        OnPropertyChanged(nameof(KeyboardBrightnessLabel));
-        OnPropertyChanged(nameof(KeyboardEffectSpeedIndex));
-        OnPropertyChanged(nameof(KeyboardEffectSpeedLabel));
-
-        // Restart the preview clock only when the running effect actually changed, so a
-        // brightness or colour tweak does not visibly jump the animation's phase.
-        KeyboardRgbEffect? running = state.Enabled ? state.Effect : null;
-        if (running != _activeKeyboardEffect || (running is not null && !_effectClock.IsRunning))
-        {
-            _effectClock.Restart();
-        }
-        if (running is null) _effectClock.Reset();
-        ActiveKeyboardEffect = running;
-        KeyboardStatus = $"{(state.Enabled ? "Ein" : "Aus · Auswahl gespeichert")} · " +
-            (state.Effect is { } effect ? GetEffectName(effect) : "Manuelle Zonenfarben");
-        KeyboardPaletteHint = KeyboardEffectFrames.ColorUsage(running) switch
-        {
-            KeyboardEffectColorUsage.AllZones => "Alle drei gespeicherten Farben werden direkt angezeigt.",
-            KeyboardEffectColorUsage.BaseColorOnly =>
-                "Dieser Effekt moduliert die Farbe von Zone 1 über alle drei Zonen. Zone 2 und 3 bleiben gespeichert und gelten wieder im manuellen Modus.",
-            _ => "Dieser Effekt bringt seine eigene Palette mit; keine der gespeicherten Farben wird gelesen. Sie bleiben erhalten und gelten wieder im manuellen Modus."
-        };
-        if (KeyboardEffectRunning && !_closing) _rgbTimer.Start(); else _rgbTimer.Stop();
-        OnPropertyChanged(nameof(Zone1Hex));
-        OnPropertyChanged(nameof(Zone2Hex));
-        OnPropertyChanged(nameof(Zone3Hex));
-        OnPropertyChanged(nameof(Zone1Brush));
-        OnPropertyChanged(nameof(Zone2Brush));
-        OnPropertyChanged(nameof(Zone3Brush));
-        OnPropertyChanged(nameof(PreviewCaption));
-        OnPropertyChanged(nameof(KeyboardColorUsage));
-        OnPropertyChanged(nameof(Zone1AffectsLighting));
-        OnPropertyChanged(nameof(Zone2AffectsLighting));
-        OnPropertyChanged(nameof(Zone3AffectsLighting));
-        OnPropertyChanged(nameof(Zone1Label));
-        OnPropertyChanged(nameof(InactiveZoneNote));
-        OnPropertyChanged(nameof(HasInactiveZones));
-        UpdatePreviewTimer();
-    }
-
-    private static MediaBrush CreateBrush(KeyboardRgbColor color)
-    {
-        var brush = new System.Windows.Media.SolidColorBrush(
-            System.Windows.Media.Color.FromRgb(color.Red, color.Green, color.Blue));
-        brush.Freeze();
-        return brush;
-    }
 }

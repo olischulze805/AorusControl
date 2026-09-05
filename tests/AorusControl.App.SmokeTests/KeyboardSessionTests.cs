@@ -2,6 +2,7 @@ using System.IO;
 using AorusControl.Core.Features.Keyboard;
 using AorusControl.Core.Models;
 using AorusControl.Core.Services;
+using AorusControl.App.Features.Keyboard;
 using AorusControl.App.ViewModels;
 using System.Reflection;
 
@@ -64,32 +65,32 @@ internal static class KeyboardSessionTests
 
         var uiTransport = new FakeTransport();
         using var vm = new MainWindowViewModel(new FakeReader(), uiTransport, new FakeFan(), new WindowsPowerOverlayController());
-        await (Task)typeof(MainWindowViewModel).GetMethod("LoadKeyboardAsync", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(vm, null)!;
-        await vm.SetKeyboardBrightnessAsync(KeyboardBrightnessLevel.Low);
-        await vm.StartKeyboardEffectAsync(KeyboardRgbEffect.Breathing);
-        await vm.SetKeyboardBrightnessAsync(KeyboardBrightnessLevel.Medium);
-        Assert(vm.KeyboardEffectRunning && vm.KeyboardBrightness == KeyboardBrightnessLevel.Medium, "UI brightness retains animation");
-        await vm.SetKeyboardColorAsync(2, color);
-        Assert(vm.KeyboardEffectRunning && vm.GetKeyboardZoneColor(2) == color, "UI colors preserve effect");
-        await vm.SetKeyboardPowerAsync(false);
-        Assert(!vm.KeyboardPowerOn && !vm.KeyboardEffectRunning && vm.KeyboardModeIsEffect, "UI off keeps mode");
-        await vm.SetKeyboardPowerAsync(true);
-        Assert(vm.KeyboardEffectRunning && vm.KeyboardBrightness == KeyboardBrightnessLevel.Medium, "UI resumes state");
-        typeof(MainWindowViewModel).GetField("_keyboardBusy", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(vm, true);
-        Task pendingLow = vm.QueueExternalBrightness(KeyboardBrightnessLevel.Low);
-        Task pendingMedium = vm.QueueExternalBrightness(KeyboardBrightnessLevel.Medium);
-        Task pendingOff = vm.QueueExternalBrightness(KeyboardBrightnessLevel.Off);
-        typeof(MainWindowViewModel).GetField("_keyboardBusy", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(vm, false);
+        await vm.Keyboard.StartAsync();
+        await vm.Keyboard.SetBrightnessAsync(KeyboardBrightnessLevel.Low);
+        await vm.Keyboard.StartEffectAsync(KeyboardRgbEffect.Breathing);
+        await vm.Keyboard.SetBrightnessAsync(KeyboardBrightnessLevel.Medium);
+        Assert(vm.Keyboard.EffectRunning && vm.Keyboard.Brightness == KeyboardBrightnessLevel.Medium, "UI brightness retains animation");
+        await vm.Keyboard.SetColorAsync(2, color);
+        Assert(vm.Keyboard.EffectRunning && vm.Keyboard.GetZoneColor(2) == color, "UI colors preserve effect");
+        await vm.Keyboard.SetPowerAsync(false);
+        Assert(!vm.Keyboard.PowerOn && !vm.Keyboard.EffectRunning && vm.Keyboard.ModeIsEffect, "UI off keeps mode");
+        await vm.Keyboard.SetPowerAsync(true);
+        Assert(vm.Keyboard.EffectRunning && vm.Keyboard.Brightness == KeyboardBrightnessLevel.Medium, "UI resumes state");
+        typeof(KeyboardViewModel).GetField("_busy", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(vm.Keyboard, true);
+        Task pendingLow = vm.Keyboard.QueueExternalBrightness(KeyboardBrightnessLevel.Low);
+        Task pendingMedium = vm.Keyboard.QueueExternalBrightness(KeyboardBrightnessLevel.Medium);
+        Task pendingOff = vm.Keyboard.QueueExternalBrightness(KeyboardBrightnessLevel.Off);
+        typeof(KeyboardViewModel).GetField("_busy", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(vm.Keyboard, false);
         await Task.WhenAll(pendingLow, pendingMedium, pendingOff);
-        Assert(!vm.KeyboardPowerOn && uiTransport.LastRestoredBrightness == KeyboardBrightnessLevel.Off, "latest external brightness wins after busy UI");
-        await vm.QueueExternalBrightness(KeyboardBrightnessLevel.Low);
-        Assert(vm.KeyboardPowerOn && vm.KeyboardEffectRunning && vm.KeyboardBrightness == KeyboardBrightnessLevel.Low, "external on resumes selected effect");
+        Assert(!vm.Keyboard.PowerOn && uiTransport.LastRestoredBrightness == KeyboardBrightnessLevel.Off, "latest external brightness wins after busy UI");
+        await vm.Keyboard.QueueExternalBrightness(KeyboardBrightnessLevel.Low);
+        Assert(vm.Keyboard.PowerOn && vm.Keyboard.EffectRunning && vm.Keyboard.Brightness == KeyboardBrightnessLevel.Low, "external on resumes selected effect");
         int repeatedWrites = uiTransport.Writes;
         int repeatedStarts = uiTransport.Starts;
-        for (int i = 0; i < 20; i++) await vm.QueueExternalBrightness(KeyboardBrightnessLevel.Low);
+        for (int i = 0; i < 20; i++) await vm.Keyboard.QueueExternalBrightness(KeyboardBrightnessLevel.Low);
         Assert(uiTransport.Writes == repeatedWrites && uiTransport.Starts == repeatedStarts, "repeated identical notifications do not resend or restart");
-        await vm.StopKeyboardEffectAsync();
-        Assert(!vm.KeyboardModeIsEffect && uiTransport.Hardware.GetZone(2).Color == color, "UI manual applies saved colors");
+        await vm.Keyboard.StopEffectAsync();
+        Assert(!vm.Keyboard.ModeIsEffect && uiTransport.Hardware.GetZone(2).Color == color, "UI manual applies saved colors");
         await vm.PrepareToCloseAsync();
         Console.WriteLine("PASS: WPF ViewModel RGB session integration");
         bool listenerStarted = false, listenerStopped = false;
@@ -100,7 +101,7 @@ internal static class KeyboardSessionTests
                 try { await Task.Delay(Timeout.Infinite, token); }
                 finally { listenerStopped = true; }
             });
-        await (Task)typeof(MainWindowViewModel).GetMethod("LoadKeyboardAsync", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(listenerVm, null)!;
+        await listenerVm.Keyboard.StartAsync();
         Assert(listenerStarted, "listener starts after keyboard initialization");
         await listenerVm.PrepareToCloseAsync();
         Assert(listenerStopped, "shutdown waits for event listener");
@@ -109,13 +110,13 @@ internal static class KeyboardSessionTests
         var savedStore = new MemoryStore { Settings = initial with { Enabled = false, OnBrightness = KeyboardBrightnessLevel.Low } };
         using var restoredVm = new MainWindowViewModel(new FakeReader(), new FakeTransport(), new FakeFan(),
             new WindowsPowerOverlayController(), keyboardSettingsStore: savedStore);
-        await (Task)typeof(MainWindowViewModel).GetMethod("LoadKeyboardAsync", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(restoredVm, null)!;
-        Assert(!restoredVm.KeyboardPowerOn, "stored off restored on initialization");
-        await restoredVm.SetKeyboardPowerAsync(true);
-        Assert(restoredVm.KeyboardBrightness == KeyboardBrightnessLevel.Low && savedStore.Settings!.Enabled, "saved brightness resumed and persisted");
+        await restoredVm.Keyboard.StartAsync();
+        Assert(!restoredVm.Keyboard.PowerOn, "stored off restored on initialization");
+        await restoredVm.Keyboard.SetPowerAsync(true);
+        Assert(restoredVm.Keyboard.Brightness == KeyboardBrightnessLevel.Low && savedStore.Settings!.Enabled, "saved brightness resumed and persisted");
         savedStore.FailSave = true;
-        await restoredVm.SetKeyboardBrightnessAsync(KeyboardBrightnessLevel.Medium);
-        Assert(restoredVm.KeyboardBrightness == KeyboardBrightnessLevel.Medium && restoredVm.KeyboardStatus.Contains("nicht gespeichert"),
+        await restoredVm.Keyboard.SetBrightnessAsync(KeyboardBrightnessLevel.Medium);
+        Assert(restoredVm.Keyboard.Brightness == KeyboardBrightnessLevel.Medium && restoredVm.Keyboard.Status.Contains("nicht gespeichert"),
             "storage failure must not falsely claim hardware failure");
         await restoredVm.PrepareToCloseAsync();
         Console.WriteLine("PASS: RGB startup restore, saving UI changes and visible persistence failure");
@@ -123,88 +124,88 @@ internal static class KeyboardSessionTests
         var resumeTransport = new FakeTransport();
         using var resumeVm = new MainWindowViewModel(new FakeReader(), resumeTransport, new FakeFan(), new WindowsPowerOverlayController(),
             resumeReapplyDelay: _ => Task.CompletedTask);
-        await (Task)typeof(MainWindowViewModel).GetMethod("ReapplyAfterResumeAsync", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(resumeVm, null)!;
+        await resumeVm.Keyboard.ReapplyAfterResumeAsync();
         Assert(resumeTransport.Writes == 0, "resume before the keyboard has ever initialized must not write");
-        await (Task)typeof(MainWindowViewModel).GetMethod("LoadKeyboardAsync", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(resumeVm, null)!;
+        await resumeVm.Keyboard.StartAsync();
         resumeTransport.SimulateReset();
         int writesBeforeResume = resumeTransport.Writes;
-        await (Task)typeof(MainWindowViewModel).GetMethod("ReapplyAfterResumeAsync", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(resumeVm, null)!;
+        await resumeVm.Keyboard.ReapplyAfterResumeAsync();
         Assert(resumeTransport.Writes > writesBeforeResume, "resume after device reset must reapply the last known lighting");
         await resumeVm.PrepareToCloseAsync();
         int writesAfterClose = resumeTransport.Writes;
-        await (Task)typeof(MainWindowViewModel).GetMethod("ReapplyAfterResumeAsync", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(resumeVm, null)!;
+        await resumeVm.Keyboard.ReapplyAfterResumeAsync();
         Assert(resumeTransport.Writes == writesAfterClose, "resume after closing must not reach for a disposed session");
         Console.WriteLine("PASS: resume-from-sleep reapplies lighting once initialized, skips before init and after close");
 
         var uiVm2Transport = new FakeTransport();
         using var uiVm2 = new MainWindowViewModel(new FakeReader(), uiVm2Transport, new FakeFan(), new WindowsPowerOverlayController());
-        await (Task)typeof(MainWindowViewModel).GetMethod("LoadKeyboardAsync", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(uiVm2, null)!;
+        await uiVm2.Keyboard.StartAsync();
 
         // The tile highlight follows what runs on the device, so manual colours are the
         // "Manual" tile rather than an absence of selection.
-        Assert(uiVm2.ActiveKeyboardEffectName == "Manual", "no effect running means the manual tile is the active one");
-        await uiVm2.StartKeyboardEffectAsync(KeyboardRgbEffect.Wave);
-        Assert(uiVm2.ActiveKeyboardEffect == KeyboardRgbEffect.Wave && uiVm2.ActiveKeyboardEffectName == "Wave",
+        Assert(uiVm2.Keyboard.ActiveEffectName == "Manual", "no effect running means the manual tile is the active one");
+        await uiVm2.Keyboard.StartEffectAsync(KeyboardRgbEffect.Wave);
+        Assert(uiVm2.Keyboard.ActiveEffect == KeyboardRgbEffect.Wave && uiVm2.Keyboard.ActiveEffectName == "Wave",
             "a running effect must be the highlighted tile");
-        await uiVm2.StopKeyboardEffectAsync();
-        Assert(uiVm2.ActiveKeyboardEffect is null && uiVm2.ActiveKeyboardEffectName == "Manual",
+        await uiVm2.Keyboard.StopEffectAsync();
+        Assert(uiVm2.Keyboard.ActiveEffect is null && uiVm2.Keyboard.ActiveEffectName == "Manual",
             "stopping returns the highlight to the manual tile");
 
         // Brightness and speed sliders address the firmware's own steps by index.
-        await uiVm2.SetKeyboardBrightnessAsync(KeyboardBrightnessLevel.Low);
-        Assert(uiVm2.KeyboardBrightnessIndex == KeyboardBrightnessLevels.All.ToList().IndexOf(KeyboardBrightnessLevel.Low),
+        await uiVm2.Keyboard.SetBrightnessAsync(KeyboardBrightnessLevel.Low);
+        Assert(uiVm2.Keyboard.BrightnessIndex == KeyboardBrightnessLevels.All.ToList().IndexOf(KeyboardBrightnessLevel.Low),
             "the brightness slider position must match the level actually set");
-        Assert(uiVm2.KeyboardBrightnessLabel == "Niedrig", "the readout names the step in German");
-        uiVm2.KeyboardBrightnessIndex = KeyboardBrightnessLevels.All.ToList().IndexOf(KeyboardBrightnessLevel.Medium);
-        await uiVm2.PendingSliderWrite;
-        Assert(uiVm2.KeyboardBrightness == KeyboardBrightnessLevel.Medium, "dragging the slider writes the level through");
-        uiVm2.KeyboardBrightnessIndex = 99;
-        Assert(uiVm2.KeyboardBrightness == KeyboardBrightnessLevel.Medium, "an out-of-range slider index changes nothing");
+        Assert(uiVm2.Keyboard.BrightnessLabel == "Niedrig", "the readout names the step in German");
+        uiVm2.Keyboard.BrightnessIndex = KeyboardBrightnessLevels.All.ToList().IndexOf(KeyboardBrightnessLevel.Medium);
+        await uiVm2.Keyboard.PendingSliderWrite;
+        Assert(uiVm2.Keyboard.Brightness == KeyboardBrightnessLevel.Medium, "dragging the slider writes the level through");
+        uiVm2.Keyboard.BrightnessIndex = 99;
+        Assert(uiVm2.Keyboard.Brightness == KeyboardBrightnessLevel.Medium, "an out-of-range slider index changes nothing");
 
-        await uiVm2.SetKeyboardEffectSpeedAsync(KeyboardEffectSpeed.Fast);
-        Assert(uiVm2.KeyboardEffectSpeedIndex == 3 && uiVm2.KeyboardEffectSpeedLabel == "Schnell",
+        await uiVm2.Keyboard.SetSpeedAsync(KeyboardEffectSpeed.Fast);
+        Assert(uiVm2.Keyboard.SpeedIndex == 3 && uiVm2.Keyboard.SpeedLabel == "Schnell",
             "the tempo slider position and readout follow the speed actually set");
-        uiVm2.KeyboardEffectSpeedIndex = 0;
-        await uiVm2.PendingSliderWrite;
-        Assert(uiVm2.KeyboardEffectSpeed == KeyboardEffectSpeed.VerySlow, "dragging the tempo slider writes it through");
-        uiVm2.KeyboardEffectSpeedIndex = -1;
-        Assert(uiVm2.KeyboardEffectSpeed == KeyboardEffectSpeed.VerySlow, "an out-of-range tempo index changes nothing");
+        uiVm2.Keyboard.SpeedIndex = 0;
+        await uiVm2.Keyboard.PendingSliderWrite;
+        Assert(uiVm2.Keyboard.Speed == KeyboardEffectSpeed.VerySlow, "dragging the tempo slider writes it through");
+        uiVm2.Keyboard.SpeedIndex = -1;
+        Assert(uiVm2.Keyboard.Speed == KeyboardEffectSpeed.VerySlow, "an out-of-range tempo index changes nothing");
 
         // The preview shows the same frame the renderer produces, not a lookalike.
-        await uiVm2.StartKeyboardEffectAsync(KeyboardRgbEffect.RainbowMarquee);
+        await uiVm2.Keyboard.StartEffectAsync(KeyboardRgbEffect.RainbowMarquee);
         await (Task)Task.Run(() => { });
-        typeof(MainWindowViewModel).GetMethod("RenderPreviewFrame", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(uiVm2, null);
-        Assert(uiVm2.PreviewZone1Brush is System.Windows.Media.SolidColorBrush,
+        typeof(KeyboardViewModel).GetMethod("RenderPreviewFrame", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(uiVm2.Keyboard, null);
+        Assert(uiVm2.Keyboard.PreviewZone1Brush is System.Windows.Media.SolidColorBrush,
             "the preview publishes a concrete brush per zone");
-        Assert(uiVm2.PreviewOpacity > 0, "a lit keyboard is previewed with visible lighting");
-        Assert(uiVm2.PreviewCaption.Contains("Regenbogen"), "the caption names the running effect");
+        Assert(uiVm2.Keyboard.PreviewOpacity > 0, "a lit keyboard is previewed with visible lighting");
+        Assert(uiVm2.Keyboard.PreviewCaption.Contains("Regenbogen"), "the caption names the running effect");
 
-        await uiVm2.SetKeyboardPowerAsync(false);
-        typeof(MainWindowViewModel).GetMethod("RenderPreviewFrame", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(uiVm2, null);
-        Assert(((System.Windows.Media.SolidColorBrush)uiVm2.PreviewZone1Brush).Color
+        await uiVm2.Keyboard.SetPowerAsync(false);
+        typeof(KeyboardViewModel).GetMethod("RenderPreviewFrame", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(uiVm2.Keyboard, null);
+        Assert(((System.Windows.Media.SolidColorBrush)uiVm2.Keyboard.PreviewZone1Brush).Color
                 == System.Windows.Media.Color.FromRgb(0, 0, 0),
             "an off keyboard previews as unlit rather than keeping the last frame");
-        Assert(uiVm2.PreviewCaption.Contains("aus"), "the caption says the lighting is off");
+        Assert(uiVm2.Keyboard.PreviewCaption.Contains("aus"), "the caption says the lighting is off");
         // Which zone swatches are meaningful depends on what is running: offering a colour
         // choice that changes nothing is a control that lies about what it does.
-        await uiVm2.SetKeyboardPowerAsync(true);
-        await uiVm2.StopKeyboardEffectAsync();
-        Assert(uiVm2.Zone1AffectsLighting && uiVm2.Zone2AffectsLighting && uiVm2.Zone3AffectsLighting,
+        await uiVm2.Keyboard.SetPowerAsync(true);
+        await uiVm2.Keyboard.StopEffectAsync();
+        Assert(uiVm2.Keyboard.Zone1AffectsLighting && uiVm2.Keyboard.Zone2AffectsLighting && uiVm2.Keyboard.Zone3AffectsLighting,
             "manual mode reads all three stored colours");
-        Assert(uiVm2.Zone1Label == "Zone 1", "no effect means zone 1 is just zone 1");
-        Assert(uiVm2.InactiveZoneNote.Length == 0, "nothing is inactive in manual mode");
+        Assert(uiVm2.Keyboard.Zone1Label == "Zone 1", "no effect means zone 1 is just zone 1");
+        Assert(uiVm2.Keyboard.InactiveZoneNote.Length == 0, "nothing is inactive in manual mode");
 
-        await uiVm2.StartKeyboardEffectAsync(KeyboardRgbEffect.Breathing);
-        Assert(uiVm2.Zone1AffectsLighting && !uiVm2.Zone2AffectsLighting && !uiVm2.Zone3AffectsLighting,
+        await uiVm2.Keyboard.StartEffectAsync(KeyboardRgbEffect.Breathing);
+        Assert(uiVm2.Keyboard.Zone1AffectsLighting && !uiVm2.Keyboard.Zone2AffectsLighting && !uiVm2.Keyboard.Zone3AffectsLighting,
             "breathing is built from zone 1 only");
-        Assert(uiVm2.Zone1Label.Contains("Basisfarbe"), "zone 1 must be named as the effect's base colour");
-        Assert(uiVm2.KeyboardPaletteHint.Contains("Zone 1"), "the hint must say which colour is in play");
+        Assert(uiVm2.Keyboard.Zone1Label.Contains("Basisfarbe"), "zone 1 must be named as the effect's base colour");
+        Assert(uiVm2.Keyboard.PaletteHint.Contains("Zone 1"), "the hint must say which colour is in play");
 
-        await uiVm2.StartKeyboardEffectAsync(KeyboardRgbEffect.RainbowMarquee);
-        Assert(!uiVm2.Zone1AffectsLighting && !uiVm2.Zone2AffectsLighting && !uiVm2.Zone3AffectsLighting,
+        await uiVm2.Keyboard.StartEffectAsync(KeyboardRgbEffect.RainbowMarquee);
+        Assert(!uiVm2.Keyboard.Zone1AffectsLighting && !uiVm2.Keyboard.Zone2AffectsLighting && !uiVm2.Keyboard.Zone3AffectsLighting,
             "the rainbow marquee reads no stored colour at all");
-        Assert(uiVm2.InactiveZoneNote.Length > 0, "the swatches must say they have no effect right now");
-        Assert(uiVm2.KeyboardPaletteHint.Contains("gespeichert"),
+        Assert(uiVm2.Keyboard.InactiveZoneNote.Length > 0, "the swatches must say they have no effect right now");
+        Assert(uiVm2.Keyboard.PaletteHint.Contains("gespeichert"),
             "and the hint must promise the colours are kept, not lost");
 
         await uiVm2.PrepareToCloseAsync();

@@ -5,7 +5,7 @@ using AorusControl.Core.Services;
 namespace AorusControl.App.ViewModels;
 
 /// <summary>UI state only; firmware validation and transactional writes stay in Core.</summary>
-public sealed class BatteryViewModel : ObservableObject, IDisposable
+public sealed class BatteryViewModel : ObservableObject, IFeatureModule
 {
     private readonly IAorusBatteryChargeController controller;
     private bool _busy;
@@ -63,6 +63,9 @@ public sealed class BatteryViewModel : ObservableObject, IDisposable
 
     public AsyncRelayCommand RefreshCommand { get; }
     public AsyncRelayCommand ApplyStandardCommand { get; }
+
+    /// <summary>The module's start: read the device, write nothing.</summary>
+    public Task StartAsync() => RefreshAsync();
 
     public async Task RefreshAsync()
     {
