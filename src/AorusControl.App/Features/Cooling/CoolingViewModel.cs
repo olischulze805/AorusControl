@@ -59,6 +59,11 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         _applyFixed = new Debouncer(TimeSpan.FromMilliseconds(600), ReapplyFixedAsync, debounceWait);
     }
 
+    /// <summary>What the fans are actually doing, for the rotors and the live marker on the
+    /// curve. Fed by the shell's telemetry, so adjusting a curve or a fixed value can be
+    /// watched happening instead of only being read back as a number.</summary>
+    public FanLiveViewModel Live { get; } = new();
+
     public AsyncRelayCommand<string> SetProfileCommand { get; }
     public AsyncRelayCommand SetFixedCommand { get; }
     public AsyncRelayCommand ReloadCurveCommand { get; }

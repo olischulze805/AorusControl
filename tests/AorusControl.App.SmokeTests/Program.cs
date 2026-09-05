@@ -321,6 +321,28 @@ await Run("The Fixed slider moves smoothly across the firmware's whole range", a
     vm.Cooling.FixedFanPercent = -20;
     Check(vm.Cooling.FixedFanRaw == 0, "and below it to off");
 });
+await Run("The live fan readings never claim to be current when they are not", async (vm, reader, fan) =>
+{
+    await Task.CompletedTask;
+    // Before anything was read, nothing may look like a measurement - a rotor drawn turning
+    // on invented numbers would undo the entire point of live feedback.
+    Check(!vm.Cooling.Live.IsLive, "an unread device is not live");
+    Check(vm.Cooling.Live.CpuRpmText.Contains('–'), "and shows a dash rather than a speed");
+    Check(double.IsNaN(vm.Cooling.Live.MarkerTemperature), "so the curve gets no live marker either");
+
+    vm.Cooling.Live.Update(new TelemetrySnapshot(DateTimeOffset.Now, 61, 55, 3200, 0, 137, 0));
+    Check(vm.Cooling.Live.IsLive, "a reading makes it live");
+    Check(vm.Cooling.Live.CpuRpm == 3200 && vm.Cooling.Live.CpuRpmText.Contains("U/min"), "the CPU fan reports its speed");
+    // A fan at rest and a fan nobody read are different things, and have to read differently.
+    Check(vm.Cooling.Live.GpuRpmText == "steht", "a stopped fan says so instead of showing 0");
+    Check(vm.Cooling.Live.MarkerTemperature == 61, "the marker follows the hotter of the two");
+    Check(Math.Abs(vm.Cooling.Live.MarkerPercent - FanSpeedPercent.ToPercent(137)) < 0.001,
+        "and the harder-working fan's duty");
+
+    vm.Cooling.Live.MarkStale();
+    Check(!vm.Cooling.Live.IsLive, "a failed read stops the numbers claiming to be current");
+    Check(double.IsNaN(vm.Cooling.Live.MarkerTemperature), "and takes the marker off the curve");
+});
 Console.WriteLine("PASS: profile chip tracks device state; Fixed slider spans the whole firmware range");
 
 Console.WriteLine("All smoke tests passed. No hardware setters invoked.");

@@ -152,6 +152,59 @@
                               Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisible}, ConverterParameter=Cooling}">
                     <StackPanel MaxWidth="880" HorizontalAlignment="Center">
 
+                        <!-- Live: was die Lüfter gerade wirklich tun. Steht bewusst über allem
+                             anderen auf dieser Seite - jede Einstellung darunter beantwortet die
+                             Frage, die diese Karte stellt, und man sieht die Antwort sofort. -->
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Live" Style="{StaticResource CardTitle}" />
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Beide Lüfter drehen hier so schnell, wie sie es wirklich tun, und färben sich mit der Temperatur. Beim Verstellen sieht man dadurch direkt, was die Änderung bewirkt - die Messung kommt alle zwei Sekunden." />
+                                <Grid Margin="0,18,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Grid.Column="0" Style="{StaticResource InnerPanel}" Margin="0,0,8,0">
+                                        <StackPanel HorizontalAlignment="Center">
+                                            <ctrl:FanRotor Width="112" Height="112"
+                                                           Rpm="{Binding Cooling.Live.CpuRpm}"
+                                                           Temperature="{Binding Cooling.Live.CpuTemperature}"
+                                                           IsLive="{Binding Cooling.Live.IsLive}" />
+                                            <TextBlock Text="CPU-Lüfter" Style="{StaticResource Hint}" Margin="0,12,0,0"
+                                                       HorizontalAlignment="Center" />
+                                            <TextBlock Text="{Binding Cooling.Live.CpuRpmText}" Style="{StaticResource SliderReadoutSmall}"
+                                                       MinWidth="0" HorizontalAlignment="Center" Margin="0,2,0,0" />
+                                            <TextBlock Style="{StaticResource Hint}" HorizontalAlignment="Center" Margin="0,2,0,0">
+                                                <Run Text="{Binding Cooling.Live.CpuTemperatureText, Mode=OneWay}" />
+                                                <Run Text=" · " />
+                                                <Run Text="{Binding Cooling.Live.CpuDutyText, Mode=OneWay}" />
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Grid.Column="1" Style="{StaticResource InnerPanel}" Margin="8,0,0,0">
+                                        <StackPanel HorizontalAlignment="Center">
+                                            <ctrl:FanRotor Width="112" Height="112"
+                                                           Rpm="{Binding Cooling.Live.GpuRpm}"
+                                                           Temperature="{Binding Cooling.Live.GpuTemperature}"
+                                                           IsLive="{Binding Cooling.Live.IsLive}" />
+                                            <TextBlock Text="GPU-Lüfter" Style="{StaticResource Hint}" Margin="0,12,0,0"
+                                                       HorizontalAlignment="Center" />
+                                            <TextBlock Text="{Binding Cooling.Live.GpuRpmText}" Style="{StaticResource SliderReadoutSmall}"
+                                                       MinWidth="0" HorizontalAlignment="Center" Margin="0,2,0,0" />
+                                            <TextBlock Style="{StaticResource Hint}" HorizontalAlignment="Center" Margin="0,2,0,0">
+                                                <Run Text="{Binding Cooling.Live.GpuTemperatureText, Mode=OneWay}" />
+                                                <Run Text=" · " />
+                                                <Run Text="{Binding Cooling.Live.GpuDutyText, Mode=OneWay}" />
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
                                 <TextBlock Text="Lüfter" Style="{StaticResource CardTitle}" />
@@ -197,6 +250,8 @@
                                     <ctrl:FanCurveChart Rows="{Binding Cooling.DisplayedCurve}"
                                                         IsEditable="{Binding Cooling.IsCurveEditable}"
                                                         ConstantPercent="{Binding Cooling.ConstantPercent}"
+                                                        LiveTemperature="{Binding Cooling.Live.MarkerTemperature}"
+                                                        LivePercent="{Binding Cooling.Live.MarkerPercent}"
                                                         CurveEdited="OnFanCurveEdited"
                                                         MinHeight="220" Height="300" />
                                 </Border>
@@ -212,6 +267,10 @@
                                             Visibility="{Binding Cooling.IsCurveEditable, Converter={StaticResource InverseBoolVisible}}" />
                                     <TextBlock Style="{StaticResource Hint}" Margin="6,0,0,0" Text="eigene Kurve, gespeichert"
                                                Visibility="{Binding Cooling.IsCurveEditable, Converter={StaticResource InverseBoolVisible}}" />
+                                    <Ellipse Width="9" Height="9" Fill="White" VerticalAlignment="Center" Margin="18,0,0,0"
+                                             Visibility="{Binding Cooling.Live.IsLive, Converter={StaticResource BoolVisible}}" />
+                                    <TextBlock Style="{StaticResource Hint}" Margin="6,0,0,0" Text="jetzt gemessen"
+                                               Visibility="{Binding Cooling.Live.IsLive, Converter={StaticResource BoolVisible}}" />
                                 </StackPanel>
                                 <!-- Nur sichtbar, solange sich die Kurve überhaupt bearbeiten lässt:
                                      unter den Firmware-Profilen wäre eine Bedienanleitung für etwas,

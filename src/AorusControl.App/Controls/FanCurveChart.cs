@@ -63,6 +63,16 @@ public sealed class FanCurveChart : Canvas
         nameof(ConstantPercent), typeof(double), typeof(FanCurveChart),
         new PropertyMetadata(double.NaN, (chart, _) => ((FanCurveChart)chart).Redraw()));
 
+    /// <summary>Where the machine is right now: the temperature it is running at and the duty
+    /// the fans are really at. NaN draws nothing.</summary>
+    public static readonly DependencyProperty LiveTemperatureProperty = DependencyProperty.Register(
+        nameof(LiveTemperature), typeof(double), typeof(FanCurveChart),
+        new PropertyMetadata(double.NaN, (chart, _) => ((FanCurveChart)chart).Redraw()));
+
+    public static readonly DependencyProperty LivePercentProperty = DependencyProperty.Register(
+        nameof(LivePercent), typeof(double), typeof(FanCurveChart),
+        new PropertyMetadata(double.NaN, (chart, _) => ((FanCurveChart)chart).Redraw()));
+
     public static readonly DependencyProperty IsEditableProperty = DependencyProperty.Register(
         nameof(IsEditable), typeof(bool), typeof(FanCurveChart),
         new PropertyMetadata(false, (chart, _) => ((FanCurveChart)chart).OnEditableChanged()));
@@ -84,6 +94,18 @@ public sealed class FanCurveChart : Canvas
     {
         get => (double)GetValue(ConstantPercentProperty);
         set => SetValue(ConstantPercentProperty, value);
+    }
+
+    public double LiveTemperature
+    {
+        get => (double)GetValue(LiveTemperatureProperty);
+        set => SetValue(LiveTemperatureProperty, value);
+    }
+
+    public double LivePercent
+    {
+        get => (double)GetValue(LivePercentProperty);
+        set => SetValue(LivePercentProperty, value);
     }
 
     public bool IsEditable
@@ -389,6 +411,7 @@ public sealed class FanCurveChart : Canvas
         }
 
         DrawConstant();
+        DrawLivePoint();
         // An empty chart still shows its axes: a blank box reads as broken, while an empty grid
         // reads as "nothing to show here", which is what it is.
         if (handles.Count == 0) return;
@@ -469,6 +492,39 @@ public sealed class FanCurveChart : Canvas
         };
         SetLeft(dot, center.X - radius);
         SetTop(dot, center.Y - radius);
+        Children.Add(dot);
+    }
+
+    /// <summary>
+    /// Where the machine actually is: a dot at the current temperature and fan duty, with a
+    /// dropped line to the axis. It is what turns the chart from a drawing into feedback -
+    /// while a curve is being shaped, this dot says what the fans are doing about it.
+    /// </summary>
+    private void DrawLivePoint()
+    {
+        if (double.IsNaN(LiveTemperature) || double.IsNaN(LivePercent)) return;
+        double x = ToCanvasX(LiveTemperature), y = ToCanvasY(LivePercent);
+        var brush = new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF));
+        brush.Freeze();
+
+        Children.Add(new Line
+        {
+            X1 = x, Y1 = y, X2 = x, Y2 = PlotBottom,
+            Stroke = brush, StrokeThickness = 1, Opacity = 0.25, StrokeDashArray = [2, 3]
+        });
+
+        var dot = new Ellipse
+        {
+            Width = 11,
+            Height = 11,
+            Fill = brush,
+            Stroke = new SolidColorBrush(Color.FromRgb(0x0E, 0x10, 0x13)),
+            StrokeThickness = 2,
+            Effect = new DropShadowEffect { Color = Colors.White, BlurRadius = 12, ShadowDepth = 0, Opacity = 0.8 },
+            ToolTip = $"Jetzt: {LiveTemperature:0} °C / {LivePercent:0} %"
+        };
+        SetLeft(dot, x - 5.5);
+        SetTop(dot, y - 5.5);
         Children.Add(dot);
     }
 

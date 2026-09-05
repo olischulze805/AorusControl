@@ -127,11 +127,15 @@ static void RenderCoolingStates(string output)
         ("gaming", new FanControlState(0, 0, 1, 0, 57, 66, StubFan.Curve)),
         ("maximum", new FanControlState(1, 1, 0, 0, 229, 229, StubFan.Curve)),
         ("fixed", new FanControlState(1, 0, 0, 0, 114, 114, StubFan.Curve)),
+        ("dynamic", new FanControlState(0, 1, 0, 0, 57, 66, StubFan.Curve)),
     })
     {
         var vm = new MainWindowViewModel(new StubReader(), new StubKeyboard(), new StubFan(state), new WindowsPowerOverlayController(),
             batteryController: new StubBattery(), fanCurveStore: new StubCurveStore(), startupManager: new StubStartup());
         vm.Cooling.StartAsync().GetAwaiter().GetResult();
+        // A reading the rotors and the live marker can be drawn from: without one they would
+        // render in their "nothing measured" state, which is the one picture that says least.
+        vm.Cooling.Live.Update(new TelemetrySnapshot(DateTimeOffset.Now, 62, 58, 3100, 2750, 137, 114));
         vm.SelectedSection = "Cooling";
         var window = new MainWindow(vm);
         var content = (FrameworkElement)window.Content;

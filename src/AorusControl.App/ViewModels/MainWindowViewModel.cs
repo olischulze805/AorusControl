@@ -240,6 +240,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             }
             _timer.Stop();
             _isRunning = false;
+            Cooling.Live.MarkStale();
             ToggleButtonText = "Überwachung starten";
             Status = "Überwachung angehalten";
             return;
@@ -270,6 +271,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             GpuFan = $"{snapshot.GpuFanRpm:N0} U/min";
             CpuDuty = DescribeDuty(snapshot.CpuFanDutyPercent);
             GpuDuty = DescribeDuty(snapshot.GpuFanDutyPercent);
+            Cooling.Live.Update(snapshot);
             Windows.RefreshPowerSource();
             LastUpdated = $"Letzte Messung: {snapshot.CapturedAt.ToLocalTime():HH:mm:ss}";
             Status = "Live-Telemetrie verbunden";
@@ -280,6 +282,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
         catch (Exception exception)
         {
+            // The rotors stop and the numbers stop claiming to be current the moment a read
+            // fails - a fan drawn turning on stale data would be the one lie this page cannot
+            // afford.
+            Cooling.Live.MarkStale();
             if (Cooling.IsFixedActive) await Cooling.AbandonFixedAsync("Temperaturmessung ausgefallen");
             // Keep retrying the safety restoration if WMI temporarily fails.
             if (!Cooling.IsFixedActive) _timer.Stop();
@@ -303,9 +309,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>Tells each module whether its own section is actually on screen, so nothing
-    /// animates or polls for a view nobody is looking at.</summary>
-    private void UpdateModuleVisibility() =>
+    /// animates or polls for a view nobody is looking at - and reads a little more often while
+    /// the cooling page is open, where the rotors and the live marker are the whole point and
+    /// two seconds between readings is visibly coarse.</summary>
+    private void UpdateModuleVisibility()
+    {
         Keyboard.IsVisible = _dashboardVisible && SelectedSection == "Lighting";
+        _timer.Interval = TimeSpan.FromSeconds(_dashboardVisible && SelectedSection == "Cooling" ? 1 : 2);
+    }
 
 
 
