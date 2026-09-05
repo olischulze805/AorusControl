@@ -240,6 +240,31 @@ await Run("A Windows shutdown hands the fans back to the firmware", async (vm, r
     vm.RestoreFansToFirmware();
     Check(fan.NormalWrites == before + 1, "a second shutdown notification must not write again");
 });
+await Run("The curve below the profiles shows that profile, and only Dynamic can be edited", async (vm, reader, fan) =>
+{
+    // Dragging points that change nothing would be a lie told with a cursor, so the chart is
+    // editable exactly when the stored curve is the thing in force.
+    await vm.Cooling.SetProfileAsync("Gaming");
+    Check(!vm.Cooling.IsCurveEditable, "a firmware-regulated profile must not offer an editable curve");
+    Check(!vm.Cooling.DisplayedCurve.Any(), "and must not draw the stored curve as if it were in force");
+    Check(double.IsNaN(vm.Cooling.ConstantPercent), "nothing is known about its shape, so nothing is drawn");
+    Check(vm.Cooling.CurveNote.Contains("Gaming"), "the note names the profile it is talking about");
+
+    // Two profiles are known exactly, and a straight line is the honest picture of both.
+    await vm.Cooling.SetProfileAsync("Maximum");
+    Check(vm.Cooling.ConstantPercent == 100, "Maximum holds full speed at every temperature");
+
+    await vm.Cooling.SetProfileAsync("Dynamic");
+    Check(vm.Cooling.IsCurveEditable, "the stored curve is editable exactly when it regulates the fans");
+    Check(vm.Cooling.DisplayedCurve.Count() == 15, "and is the curve on show");
+
+    reader.Temperature = 50;
+    await vm.Cooling.SetFixedAsync();
+    Check(vm.Cooling.IsFixedActive, "the fixed value must be held for this to test anything");
+    Check(Math.Abs(vm.Cooling.ConstantPercent - vm.Cooling.FixedFanPercent) < 0.001,
+        "a held fixed value is drawn as the flat line it is");
+    Check(!vm.Cooling.IsCurveEditable, "and the stored curve is out of force, so it cannot be edited");
+});
 await Run("The power section says what the mode does and what the fans are doing", async (vm, reader, fan) =>
 {
     // The point of this text is that it never claims the power mode drives the fans, and

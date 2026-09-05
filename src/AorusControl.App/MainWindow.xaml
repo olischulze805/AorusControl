@@ -153,7 +153,7 @@
 
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
-                                <TextBlock Text="Lüfterprofil" Style="{StaticResource CardTitle}" />
+                                <TextBlock Text="Lüfter" Style="{StaticResource CardTitle}" />
                                 <TextBlock Style="{StaticResource Hint}"
                                            Text="Getestete Herstellerprofile. Normal ist der sichere Rückweg und wird bei Absturz automatisch wiederhergestellt. Hervorgehoben ist, was zurückgelesen wurde - nicht, was zuletzt geklickt wurde." />
                                 <WrapPanel Margin="0,16,0,-10" IsEnabled="{Binding Cooling.ControlsEnabled}">
@@ -185,8 +185,39 @@
                                 </WrapPanel>
                                 <TextBlock Text="{Binding Cooling.Status}" Style="{StaticResource StatusText}" />
 
-                                <TextBlock Style="{StaticResource Hint}" Margin="0,16,0,0" TextWrapping="Wrap"
-                                           Text="Diese Modi stellen keine Lüfterkurve ein - sie setzen vier Statusflags, die Firmware regelt intern, und die 15 Kurvenpunkte auf der EC bleiben unverändert. Gigabytes eigene Software hatte für dieses Modell genau eine Kurve; sie steht unten in der Kurvenkarte zum Vergleich." />
+
+                                <!-- Ein Diagramm für alle Modi: es zeigt, was der laufende Modus tut,
+                                     und lässt sich nur bearbeiten, wenn es die eigene Kurve ist.
+                                     Bearbeitbar aussehende Punkte, die nichts bewirken, wären eine
+                                     Lüge mit dem Mauszeiger. -->
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,20,0,0" TextWrapping="Wrap"
+                                           Text="{Binding Cooling.CurveNote}" />
+                                <Border Style="{StaticResource InnerPanel}" Margin="0,12,0,0">
+                                    <ctrl:FanCurveChart Rows="{Binding Cooling.DisplayedCurve}"
+                                                        IsEditable="{Binding Cooling.IsCurveEditable}"
+                                                        ConstantPercent="{Binding Cooling.ConstantPercent}"
+                                                        Reference="{Binding Cooling.GigabyteCurve}"
+                                                        MinHeight="220" Height="300" />
+                                </Border>
+                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0" HorizontalAlignment="Center">
+                                    <Border Width="14" Height="3" CornerRadius="2" VerticalAlignment="Center"
+                                            Background="{StaticResource AccentBrush}" />
+                                    <TextBlock Style="{StaticResource Hint}" Margin="6,0,18,0" Text="was jetzt gilt" />
+                                    <Border Width="14" Height="3" CornerRadius="2" VerticalAlignment="Center" Background="#FFF2B14C" />
+                                    <TextBlock Style="{StaticResource Hint}" Margin="6,0,0,0"
+                                               Text="Kurve aus Gigabytes Control Center" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding Cooling.CurveStatus}" Style="{StaticResource StatusText}" Margin="0,14,0,0" />
+                                <WrapPanel Margin="0,10,0,-10" IsEnabled="{Binding Cooling.IsCurveEditable}">
+                                    <ui:Button Style="{StaticResource SecondaryButton}" Content="Gigabyte-Kurve übernehmen"
+                                               Command="{Binding Cooling.LoadGigabyteCurveCommand}" Margin="0,0,10,10">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowImport24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                    <ui:Button Style="{StaticResource SecondaryButton}" Content="Von Firmware neu laden"
+                                               Command="{Binding Cooling.ReloadCurveCommand}" Margin="0,0,10,10">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowClockwise24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                </WrapPanel>
                             </StackPanel>
                         </Border>
 
@@ -227,41 +258,6 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Style="{StaticResource Card}">
-                            <StackPanel IsEnabled="{Binding Cooling.ControlsEnabled}">
-                                <TextBlock Text="Eigene Lüfterkurve" Style="{StaticResource CardTitle}" />
-                                <TextBlock Style="{StaticResource Hint}"
-                                           Text="Punkte ziehen, um Temperatur und Lüfterdrehzahl anzupassen. Kurz nach dem Loslassen schreibt sich die Kurve von selbst auf die EC, aktiviert Dynamic und wird lokal gespeichert - kein Übernehmen-Knopf nötig. Der letzte Punkt ist fest (spätestens 90 °C bei 100 %) - das erzwingt die Firmware." />
-                                <TextBlock Text="{Binding Cooling.CurveStatus}" Style="{StaticResource StatusText}" Margin="0,12,0,14" />
-                                <Border Style="{StaticResource InnerPanel}">
-                                    <!-- Drawn at its real size instead of a fixed canvas in a Viewbox, so the
-                                         chart grows with the window without the labels going fuzzy. -->
-                                    <ctrl:FanCurveChart Rows="{Binding Cooling.CurveRows}" IsEditable="True"
-                                                        Reference="{Binding Cooling.GigabyteCurve}"
-                                                        MinHeight="220" Height="300" Cursor="Hand"
-                                                        CurveEdited="OnFanCurveEdited" />
-                                </Border>
-                                <!-- Zwei Spuren brauchen eine Legende, sonst sind sie ein Rätsel. -->
-                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0" HorizontalAlignment="Center">
-                                    <Border Width="14" Height="3" CornerRadius="2" VerticalAlignment="Center"
-                                            Background="{StaticResource AccentBrush}" />
-                                    <TextBlock Style="{StaticResource Hint}" Margin="6,0,18,0" Text="eingestellte Kurve" />
-                                    <Border Width="14" Height="3" CornerRadius="2" VerticalAlignment="Center" Background="#FFF2B14C" />
-                                    <TextBlock Style="{StaticResource Hint}" Margin="6,0,0,0"
-                                               Text="Kurve aus Gigabytes Control Center" />
-                                </StackPanel>
-                                <WrapPanel Margin="0,18,0,-10">
-                                    <ui:Button Style="{StaticResource SecondaryButton}" Content="Gigabyte-Kurve übernehmen"
-                                               Command="{Binding Cooling.LoadGigabyteCurveCommand}" Margin="0,0,10,10">
-                                        <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowImport24" /></ui:Button.Icon>
-                                    </ui:Button>
-                                    <ui:Button Style="{StaticResource SecondaryButton}" Content="Von Firmware neu laden"
-                                               Command="{Binding Cooling.ReloadCurveCommand}" Margin="0,0,10,10">
-                                        <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowClockwise24" /></ui:Button.Icon>
-                                    </ui:Button>
-                                </WrapPanel>
-                            </StackPanel>
-                        </Border>
                     </StackPanel>
                 </ScrollViewer>
 

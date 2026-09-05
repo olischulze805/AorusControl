@@ -122,6 +122,8 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
             OnPropertyChanged(nameof(FixedFanPercent));
             OnPropertyChanged(nameof(FixedFanPercentText));
             OnPropertyChanged(nameof(Summary));
+            OnPropertyChanged(nameof(ConstantPercent));
+            OnPropertyChanged(nameof(CurveNote));
         }
     }
 
@@ -158,6 +160,45 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     /// FixedFanRawChoices rather than restated, so the marks cannot come to show values the
     /// slider can no longer reach.</summary>
     public System.Windows.Media.DoubleCollection FixedFanTicks { get; }
+
+    /// <summary>
+    /// Whether the curve below the profile chips can be dragged. Only "Dynamic" runs the
+    /// stored curve; under every other profile the chart is showing something the user does
+    /// not control, and a chart that can be dragged but changes nothing is a lie told with a
+    /// cursor.
+    /// </summary>
+    public bool IsCurveEditable => ActiveProfile == "Dynamic";
+
+    /// <summary>The curve the chart draws as the one in force - the stored points only while
+    /// Dynamic runs them, and nothing otherwise.</summary>
+    public IEnumerable<FanCurveRowViewModel> DisplayedCurve => IsCurveEditable ? CurveRows : [];
+
+    /// <summary>
+    /// A flat line where the profile really is a flat line: Maximum pins the fans at full
+    /// speed and Fixed at the chosen step, and both are worth drawing because they are known
+    /// exactly. NaN elsewhere, where nothing is known.
+    /// </summary>
+    public double ConstantPercent => ActiveProfile switch
+    {
+        "Maximum" => 100,
+        "Fixed" => FanSpeedPercent.ToPercent(_fixedRaw),
+        _ => double.NaN
+    };
+
+    /// <summary>
+    /// What the chart is showing, in words, per profile. The uncomfortable case is the middle
+    /// one: Leise, Normal and Gaming regulate inside the firmware and publish nothing, so the
+    /// honest chart is an empty one with this sentence under it rather than a plausible line.
+    /// </summary>
+    public string CurveNote => ActiveProfile switch
+    {
+        "Dynamic" => "Die eigene Kurve regelt die Lüfter. Punkte ziehen; kurz nach dem Loslassen wird sie übernommen.",
+        "Maximum" => "Maximal hält die Lüfter unabhängig von jeder Kurve auf voller Stufe.",
+        "Fixed" => $"Fester Wert: {FanSpeedPercent.ToPercent(_fixedRaw)} %, unabhängig von der Temperatur. Die eigene Kurve ist gespeichert, aber außer Kraft.",
+        _ => $"{ActiveProfile} regelt in der Firmware und gibt keine Kurve preis - es gibt hier nichts anzuzeigen, was stimmen würde. " +
+             "Gestrichelt liegt darunter die einzige Kurve, die Gigabytes eigene Software für dieses Modell hatte. " +
+             "Zum Bearbeiten oben auf \"Dynamic (eigene Kurve)\" wechseln."
+    };
 
     /// <summary>The 15 editable curve points. Text-backed like FanCurveRowViewModel
     /// elsewhere, so invalid or incomplete typing survives until it is validated, instead of
@@ -566,9 +607,15 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     {
         FixedFanRaw = state.FixedSpeedRaw is >= 57 and <= 229 ? checked((byte)state.FixedSpeedRaw) : FixedFanRaw;
         ActiveProfile = DescribeFanProfileKey(state);
+        foreach (string derived in CurveView) OnPropertyChanged(derived);
         Status = $"Aktiv: {profile} · Fixed {state.FixedStatusRaw} · Step {state.StepStatusRaw} · Auto {state.AutoStatusRaw} · Thermal {state.NvidiaThermalTargetRaw}";
         OnPropertyChanged(nameof(Summary));
     }
+
+    /// <summary>Everything the chart and its caption read, announced together whenever the
+    /// running profile changes - the chart follows the device, like the chips do.</summary>
+    private static readonly string[] CurveView =
+        [nameof(IsCurveEditable), nameof(DisplayedCurve), nameof(ConstantPercent), nameof(CurveNote)];
 
     /// <summary>The chip identity for a read-back state. "Fixed" is its own key so no profile
     /// chip lights up while a manual fixed value is held.</summary>

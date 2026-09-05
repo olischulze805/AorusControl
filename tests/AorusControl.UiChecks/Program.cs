@@ -58,6 +58,7 @@ var thread = new Thread(() =>
 
         RenderProfileWindow(output);
         RenderMainWindow(output);
+        RenderCoolingStates(output);
         Console.WriteLine("PASS: profile and main window laid out at every checked width; no native window or hardware started.");
         app.Shutdown();
     }
@@ -112,6 +113,34 @@ static void RenderMainWindow(string output)
     }
 }
 
+/// <summary>
+/// The cooling section under each fan profile. The chart is meant to show what the running
+/// profile does and to be draggable only when it is the user's own curve, and that is four
+/// different pictures - none of which the other renders would ever reach, since they all show
+/// whatever state the stub happens to report.
+/// </summary>
+static void RenderCoolingStates(string output)
+{
+    foreach ((string name, FanControlState state) in new (string, FanControlState)[]
+    {
+        ("normal", new FanControlState(0, 0, 0, 0, 57, 66, StubFan.Curve)),
+        ("gaming", new FanControlState(0, 0, 1, 0, 57, 66, StubFan.Curve)),
+        ("maximum", new FanControlState(1, 1, 0, 0, 229, 229, StubFan.Curve)),
+        ("fixed", new FanControlState(1, 0, 0, 0, 114, 114, StubFan.Curve)),
+    })
+    {
+        var vm = new MainWindowViewModel(new StubReader(), new StubKeyboard(), new StubFan(state), new WindowsPowerOverlayController(),
+            batteryController: new StubBattery(), fanCurveStore: new StubCurveStore(), startupManager: new StubStartup());
+        vm.Cooling.StartAsync().GetAwaiter().GetResult();
+        vm.SelectedSection = "Cooling";
+        var window = new MainWindow(vm);
+        var content = (FrameworkElement)window.Content;
+        content.DataContext = vm;
+        Layout(content, 1000, 1200);
+        Save(content, output, $"cooling-{name}.png", 1000, 1200);
+    }
+}
+
 static void Layout(FrameworkElement content, int width, int height)
 {
     content.Width = width;
@@ -142,13 +171,13 @@ sealed class StubReader : IAorusTelemetryReader
     public void Dispose() { }
 }
 
-sealed class StubFan : IAorusFanController
+sealed class StubFan(FanControlState? state = null) : IAorusFanController
 {
-    private static readonly FanCurvePoint[] Curve = Enumerable.Range(0, 15)
+    public static readonly FanCurvePoint[] Curve = Enumerable.Range(0, 15)
         .Select(i => new FanCurvePoint((byte)i, (byte)(30 + i * 4), (byte)(i == 14 ? 229 : 57 + i * 12))).ToArray();
+    private readonly FanControlState _state = state ?? new FanControlState(0, 1, 0, 0, 114, 120, Curve);
     public DeviceCompatibility CheckCompatibility() => new(true, "Test", "Test", "Test", "Test");
-    public Task<FanControlState> ReadAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult(new FanControlState(0, 1, 0, 0, 114, 120, Curve));
+    public Task<FanControlState> ReadAsync(CancellationToken cancellationToken = default) => Task.FromResult(_state);
     public Task<FanProfileChangeResult> SetNormalAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task<FanProfileChangeResult> SetFixedAsync(byte rawValue, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task<FanProfileChangeResult> SetQuietAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();

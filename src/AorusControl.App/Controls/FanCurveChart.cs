@@ -53,6 +53,12 @@ public sealed class FanCurveChart : Canvas
         nameof(Reference), typeof(IEnumerable<(byte TemperatureCelsius, byte Percent)>), typeof(FanCurveChart),
         new PropertyMetadata(null, (chart, _) => ((FanCurveChart)chart).Redraw()));
 
+    /// <summary>A single speed held at every temperature - what Maximum and a fixed value
+    /// really are. NaN draws nothing.</summary>
+    public static readonly DependencyProperty ConstantPercentProperty = DependencyProperty.Register(
+        nameof(ConstantPercent), typeof(double), typeof(FanCurveChart),
+        new PropertyMetadata(double.NaN, (chart, _) => ((FanCurveChart)chart).Redraw()));
+
     public static readonly DependencyProperty IsEditableProperty = DependencyProperty.Register(
         nameof(IsEditable), typeof(bool), typeof(FanCurveChart),
         new PropertyMetadata(false, (chart, _) => ((FanCurveChart)chart).Redraw()));
@@ -67,6 +73,12 @@ public sealed class FanCurveChart : Canvas
     {
         get => (IEnumerable<(byte TemperatureCelsius, byte Percent)>?)GetValue(ReferenceProperty);
         set => SetValue(ReferenceProperty, value);
+    }
+
+    public double ConstantPercent
+    {
+        get => (double)GetValue(ConstantPercentProperty);
+        set => SetValue(ConstantPercentProperty, value);
     }
 
     public bool IsEditable
@@ -216,6 +228,7 @@ public sealed class FanCurveChart : Canvas
         }
 
         DrawReference(reference);
+        DrawConstant();
         // An empty chart still shows its axes: a blank box reads as broken, while an empty
         // grid reads as "nothing measured yet", which is what it is.
         if (rows.Count == 0) return;
@@ -273,6 +286,24 @@ public sealed class FanCurveChart : Canvas
             SetTop(dot, center.Y - radius);
             Children.Add(dot);
         }
+    }
+
+    /// <summary>A profile that holds one speed is one straight line, and drawing it is more
+    /// honest than leaving the chart empty as if nothing were known.</summary>
+    private void DrawConstant()
+    {
+        if (double.IsNaN(ConstantPercent)) return;
+        double y = ToCanvasY(ConstantPercent);
+        var brush = new SolidColorBrush(AccentColor);
+        brush.Freeze();
+        Children.Add(new Polyline
+        {
+            Points = [new Point(PlotLeft, y), new Point(ToCanvasX(TemperatureMax), y)],
+            Stroke = brush,
+            StrokeThickness = 3,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round
+        });
     }
 
     /// <summary>

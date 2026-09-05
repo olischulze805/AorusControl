@@ -182,6 +182,31 @@ from four across to one without ragged gaps. A `WrapPanel` with a fixed `ItemWid
 correctly but leaves a gap on the right; computing that width from the panel's own
 `ActualWidth` feeds the layout back into itself and settles on one column.
 
+## One cooling card: the profile on top, what it does below
+
+Fan profiles and the curve editor used to be two cards, which asked the reader to connect them
+themselves - and the connection is the whole point, since the profile decides whether the
+curve means anything at all. They are one card now: chips on top, and under them the chart of
+what the *running* profile does.
+
+The chart is editable exactly when the stored curve is the thing regulating the fans, which is
+only under Dynamic. Under everything else it is disabled, along with the two buttons that
+write to it. Points that can be dragged but change nothing are a lie told with a cursor.
+
+What it draws depends on what is actually known, which is not the same for every profile:
+
+| Profile | Shown | Why |
+|---|---|---|
+| Dynamic | the stored fifteen points, draggable | this is the curve in force |
+| Maximum | a flat line at 100% | it pins the fans there, whatever the temperature |
+| Fixed | a flat line at the chosen step | same, at the user's value |
+| Leise / Normal / Gaming | nothing but the grid and a sentence | the firmware regulates internally and publishes no curve |
+
+The last row is the uncomfortable one and the reason the others are drawn at all: an empty
+chart with an explanation is worth more than a plausible line nobody can stand behind.
+Gigabyte's own curve stays dashed underneath in every mode, as the one piece of vendor data
+that does exist for this model.
+
 ## Showing what a vendor profile does, without inventing it
 
 The obvious feature request is "show me the curve behind Leise / Normal / Gaming / Maximal".
