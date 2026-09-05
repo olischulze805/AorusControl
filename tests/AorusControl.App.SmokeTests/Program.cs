@@ -200,18 +200,18 @@ Console.WriteLine("PASS: fan curve startup load, apply/activate/persist, invalid
 await RunWithStartup("Startup state is read on launch and toggling enables/disables it", async (vm, reader, fan, startup) =>
 {
     await Task.CompletedTask;
-    Check(!vm.StartWithWindows, "must reflect the fake's initial disabled state, not assume enabled");
-    await vm.SetStartWithWindowsAsync(true);
-    Check(vm.StartWithWindows && startup.Enabled, "enabling must reach the manager and be reflected back");
-    await vm.SetStartWithWindowsAsync(false);
-    Check(!vm.StartWithWindows && !startup.Enabled, "disabling must reach the manager and be reflected back");
+    Check(!vm.Windows.StartWithWindows, "must reflect the fake's initial disabled state, not assume enabled");
+    await vm.Windows.SetStartWithWindowsAsync(true);
+    Check(vm.Windows.StartWithWindows && startup.Enabled, "enabling must reach the manager and be reflected back");
+    await vm.Windows.SetStartWithWindowsAsync(false);
+    Check(!vm.Windows.StartWithWindows && !startup.Enabled, "disabling must reach the manager and be reflected back");
 });
 await RunWithStartup("A failed startup change is surfaced, not silently ignored", async (vm, reader, fan, startup) =>
 {
     startup.FailEnable = true;
-    await vm.SetStartWithWindowsAsync(true);
-    Check(!vm.StartWithWindows, "a failed enable must not report itself as enabled");
-    Check(vm.StartupStatus.Contains("fehlgeschlagen"), "the failure must be visible to the user");
+    await vm.Windows.SetStartWithWindowsAsync(true);
+    Check(!vm.Windows.StartWithWindows, "a failed enable must not report itself as enabled");
+    Check(vm.Windows.StartupStatus.Contains("fehlgeschlagen"), "the failure must be visible to the user");
 });
 Console.WriteLine("PASS: startup toggle reflects manager state and surfaces failures");
 
@@ -243,7 +243,7 @@ await Run("The power section says what the mode does and what the fans are doing
     Check(vm.Cooling.Summary.Contains("Gaming"), "the summary must follow the profile that was read back");
     await vm.Cooling.SetFixedAsync();
     Check(vm.Cooling.Summary.Contains("%"), "a held fixed value must be summarised with its percentage");
-    Check(vm.PowerModeEffect.Contains("Netzbetrieb"), "the effect text must name the tested power source");
+    Check(vm.Windows.PowerModeEffect.Contains("Netzbetrieb"), "the effect text must name the tested power source");
 });
 await Run("The Fixed slider can only land on tested steps", async (vm, reader, fan) =>
 {

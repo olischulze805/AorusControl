@@ -93,9 +93,9 @@
                             <Border Style="{StaticResource Tile}">
                                 <StackPanel>
                                     <TextBlock Text="LEISTUNGSMODUS" Style="{StaticResource TileLabel}" />
-                                    <TextBlock Text="{Binding ActivePowerModeLabel}" Style="{StaticResource TileValueSmall}" />
-                                    <TextBlock Text="{Binding PowerSource}" Style="{StaticResource TileLine}" />
-                                    <TextBlock Text="{Binding PowerStatus}" Style="{StaticResource TileSubLine}" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding Windows.ActivePowerModeLabel}" Style="{StaticResource TileValueSmall}" />
+                                    <TextBlock Text="{Binding Windows.PowerSource}" Style="{StaticResource TileLine}" />
+                                    <TextBlock Text="{Binding Windows.PowerStatus}" Style="{StaticResource TileSubLine}" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
                             <Border Style="{StaticResource Tile}">
@@ -542,24 +542,24 @@
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
                                     </ui:Button>
                                 </Grid>
-                                <WrapPanel Margin="0,16,0,-10" IsEnabled="{Binding PowerControlsEnabled}">
+                                <WrapPanel Margin="0,16,0,-10" IsEnabled="{Binding Windows.PowerControlsEnabled}">
                                     <RadioButton Style="{StaticResource Chip}" GroupName="PowerMode" Content="Energieeffizienz"
-                                                 Command="{Binding SetPowerModeCommand}" CommandParameter="BestEfficiency"
-                                                 IsChecked="{Binding ActivePowerMode, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=BestEfficiency}">
+                                                 Command="{Binding Windows.SetPowerModeCommand}" CommandParameter="BestEfficiency"
+                                                 IsChecked="{Binding Windows.ActivePowerMode, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=BestEfficiency}">
                                         <RadioButton.Tag><ui:SymbolIcon Symbol="LeafTwo24" FontSize="16" /></RadioButton.Tag>
                                     </RadioButton>
                                     <RadioButton Style="{StaticResource Chip}" GroupName="PowerMode" Content="Ausbalanciert"
-                                                 Command="{Binding SetPowerModeCommand}" CommandParameter="Balanced"
-                                                 IsChecked="{Binding ActivePowerMode, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Balanced}">
+                                                 Command="{Binding Windows.SetPowerModeCommand}" CommandParameter="Balanced"
+                                                 IsChecked="{Binding Windows.ActivePowerMode, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=Balanced}">
                                         <RadioButton.Tag><ui:SymbolIcon Symbol="Gauge24" FontSize="16" /></RadioButton.Tag>
                                     </RadioButton>
                                     <RadioButton Style="{StaticResource Chip}" GroupName="PowerMode" Content="Beste Leistung"
-                                                 Command="{Binding SetPowerModeCommand}" CommandParameter="BestPerformance"
-                                                 IsChecked="{Binding ActivePowerMode, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=BestPerformance}">
+                                                 Command="{Binding Windows.SetPowerModeCommand}" CommandParameter="BestPerformance"
+                                                 IsChecked="{Binding Windows.ActivePowerMode, Mode=OneWay, Converter={StaticResource IsSelected}, ConverterParameter=BestPerformance}">
                                         <RadioButton.Tag><ui:SymbolIcon Symbol="Rocket24" FontSize="16" /></RadioButton.Tag>
                                     </RadioButton>
                                 </WrapPanel>
-                                <TextBlock Text="{Binding PowerStatus}" Style="{StaticResource StatusText}" />
+                                <TextBlock Text="{Binding Windows.PowerStatus}" Style="{StaticResource StatusText}" />
 
                                 <!-- What changing the mode really does. Vendor tools tend to imply a
                                      performance mode also drives the fans; on this laptop it does not,
@@ -574,7 +574,7 @@
                                         <StackPanel Grid.Column="0" Margin="0,0,18,0">
                                             <TextBlock Text="Was dieser Modus verändert" Style="{StaticResource SubLabel}" />
                                             <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
-                                                       Text="{Binding PowerModeEffect}" TextWrapping="Wrap" />
+                                                       Text="{Binding Windows.PowerModeEffect}" TextWrapping="Wrap" />
                                             <TextBlock Style="{StaticResource SubLabel}" Margin="0,18,0,0" Text="Kühlung gerade" />
                                             <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
                                                        Text="{Binding Cooling.Summary}" TextWrapping="Wrap" />
@@ -651,10 +651,10 @@
                                 <TextBlock Text="Autostart" Style="{StaticResource CardTitle}" />
                                 <TextBlock Style="{StaticResource Hint}"
                                            Text="Läuft über eine geplante Aufgabe (nicht den Registry-Autostart), damit bei jedem Login kein neuer Rechte-Dialog erscheint - die Aufgabe ist bereits als erhöht markiert." />
-                                <TextBlock Text="{Binding StartupStatus}" Style="{StaticResource StatusText}" />
+                                <TextBlock Text="{Binding Windows.StartupStatus}" Style="{StaticResource StatusText}" />
                                 <ui:Button Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left" Margin="0,16,0,0"
-                                           Content="{Binding StartWithWindowsButtonText}"
-                                           Command="{Binding ToggleStartWithWindowsCommand}">
+                                           Content="{Binding Windows.StartWithWindowsButtonText}"
+                                           Command="{Binding Windows.ToggleStartWithWindowsCommand}">
                                     <ui:Button.Icon><ui:SymbolIcon Symbol="Power24" /></ui:Button.Icon>
                                 </ui:Button>
                             </StackPanel>
@@ -665,7 +665,7 @@
                                 <TextBlock Text="Protokoll" Style="{StaticResource CardTitle}" />
                                 <TextBlock Style="{StaticResource Hint}"
                                            Text="Jeder Fehler wird mitgeschrieben - auch der des Hardware-Workers, der erhöht und ohne sichtbares Fenster läuft. Eine Datei pro Tag und Prozess, älteres als 14 Tage wird automatisch entfernt." />
-                                <TextBlock Text="{Binding LogDirectory}" Margin="0,12,0,0" FontSize="12"
+                                <TextBlock Text="{Binding Windows.LogDirectory}" Margin="0,12,0,0" FontSize="12"
                                            FontFamily="Consolas" TextWrapping="Wrap"
                                            Foreground="{StaticResource TextSecondaryBrush}" />
                                 <ui:Button Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left" Margin="0,14,0,0"
