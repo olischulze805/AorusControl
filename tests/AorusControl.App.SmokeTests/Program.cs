@@ -37,6 +37,9 @@ RecentColorsStoreTests.Run();
 StartupManagerTests.Run();
 FanSpeedPercentTests.Run();
 KeyboardEffectFrameTests.Run();
+KeyboardLayoutTests.Run();
+await DebouncerTests.RunAsync();
+await AutoApplyTests.RunAsync();
 await WorkerDiscoveryTests.RunAsync();
 
 Check(PowerSampleMath.CpuUsage(new(100, 200, 100), new(150, 300, 200)) == 75, "CPU kernel includes idle");

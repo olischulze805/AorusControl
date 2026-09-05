@@ -78,6 +78,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private bool _startupBusy;
     private string _startupStatus = "Autostart wird geprüft …";
     private readonly Func<TimeSpan, Task> _resumeReapplyDelay;
+    private readonly Debouncer _applyFanCurve;
+    private readonly Debouncer _applyFixedFan;
     private bool _disposed;
 
     public MainWindowViewModel()
@@ -106,7 +108,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         IFixedFanLeaseClient? fixedFanLeaseClient = null,
         IFanCurveStore? fanCurveStore = null,
         IStartupManager? startupManager = null,
-        Func<TimeSpan, Task>? resumeReapplyDelay = null)
+        Func<TimeSpan, Task>? resumeReapplyDelay = null,
+        Func<TimeSpan, CancellationToken, Task>? debounceWait = null)
     {
         _reader = reader;
         // Defaults to the real out-of-process worker client: only that implementation
@@ -116,7 +119,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AorusControl", "fan-curve-v1.json"));
         _startupManager = startupManager ?? new StartupManager(Environment.ProcessPath ?? "AorusControl.exe");
         _resumeReapplyDelay = resumeReapplyDelay ?? Task.Delay;
-        Battery = new BatteryViewModel(batteryController ?? new GigabyteWmiBatteryChargeController());
+        Battery = new BatteryViewModel(batteryController ?? new GigabyteWmiBatteryChargeController(), debounceWait);
         Updates = new UpdateViewModel();
         Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
         _keyboardRgb = keyboardRgb;
@@ -152,6 +155,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         ToggleStartWithWindowsCommand = new AsyncRelayCommand(() => SetStartWithWindowsAsync(!StartWithWindows));
         FixedFanTicks = new System.Windows.Media.DoubleCollection(
             FixedFanRawChoices.Select(raw => (double)FanSpeedPercent.ToPercent(raw)));
+        // Dragging applies by itself once the gesture settles. The curve waits a little
+        // longer than a single value would: shaping it means many small drags, and each
+        // write is a fifteen-point EC transaction plus a mode switch.
+        _applyFanCurve = new Debouncer(TimeSpan.FromMilliseconds(900), ApplyPendingFanCurveAsync, debounceWait);
+        // Only ever reschedules an ALREADY active Fixed mode - entering it stays an
+        // explicit act, see SetFixedFanAsync.
+        _applyFixedFan = new Debouncer(TimeSpan.FromMilliseconds(600), ReapplyFixedFanAsync, debounceWait);
         ApplyKeyboardEffectCommand = new AsyncRelayCommand<string>(name =>
             // "Manual" is the tenth tile rather than a separate button: picking it is
             // simply choosing no effect.
@@ -315,8 +325,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             byte nearest = FixedFanRawChoices
                 .OrderBy(raw => Math.Abs(FanSpeedPercent.ToPercent(raw) - value))
                 .First();
+            bool changed = nearest != _fixedFanRaw;
             FixedFanRaw = nearest;
             OnPropertyChanged(nameof(FixedFanPercent));
+            // Following the slider while Fixed is already held is what the user expects;
+            // silently ENTERING a mode that pins the fans because a slider was brushed is
+            // not, so that still needs the button.
+            if (changed && _fixedFanActive) _applyFixedFan.Schedule();
         }
     }
 
@@ -509,6 +524,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public async Task PrepareToCloseAsync()
     {
+        // Flush BEFORE _closing goes up: a value the user set a moment ago must reach the
+        // device rather than vanish because the window happened to close right after.
+        try { await _applyFanCurve.FlushAsync(); } catch (Exception error) { AppLog.Error("fan", "Ausstehende Kurve nicht mehr geschrieben.", error); }
+        try { await _applyFixedFan.FlushAsync(); } catch (Exception error) { AppLog.Error("fan", "Ausstehender Fixed-Wert nicht mehr geschrieben.", error); }
+        try { await Battery.PendingLimitWrite.FlushAsync(); } catch (Exception error) { AppLog.Error("battery", "Ausstehendes Ladelimit nicht mehr geschrieben.", error); }
+
         _closing = true;
         _brightnessCancellation.Cancel();
         if (_brightnessListenerTask is not null) await _brightnessListenerTask;
@@ -558,6 +579,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _disposed = true;
+        _applyFanCurve.Cancel();
+        _applyFixedFan.Cancel();
         Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         _brightnessCancellation.Cancel();
         _previewTimer.Stop();
@@ -1065,6 +1088,38 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     /// <summary>Discards edits and re-reads whatever curve is currently on the EC —
     /// an escape hatch back to known hardware truth, not a guessed default.</summary>
+    /// <summary>The waiting curve write, so shutdown and tests can observe it rather than
+    /// guess at a clock.</summary>
+    internal Debouncer PendingFanCurveWrite => _applyFanCurve;
+
+    /// <summary>The waiting Fixed re-apply, exposed for the same reason.</summary>
+    internal Debouncer PendingFixedFanWrite => _applyFixedFan;
+
+    /// <summary>Called by the chart after a drag: the curve writes itself once the user
+    /// stops moving points, so there is no apply button to forget.</summary>
+    public void ScheduleFanCurveApply()
+    {
+        if (_closing || _disposed || !FanControlsEnabled) return;
+        FanCurveStatus = "Änderung wird gleich übernommen …";
+        _applyFanCurve.Schedule();
+    }
+
+    /// <summary>The debounced curve write. With the apply button gone there is nobody to
+    /// retry a change that lands while the fan controller is busy, so it waits its turn.</summary>
+    private Task ApplyPendingFanCurveAsync()
+    {
+        if (_closing || _disposed) return Task.CompletedTask;
+        if (_fanBusy || !FanControlsEnabled) { _applyFanCurve.Schedule(); return Task.CompletedTask; }
+        return ApplyFanCurveAsync();
+    }
+
+    /// <summary>Re-applies a Fixed value while Fixed mode is already held.</summary>
+    private async Task ReapplyFixedFanAsync()
+    {
+        if (_closing || _disposed || !_fixedFanActive) return;
+        await SetFixedFanAsync();
+    }
+
     public async Task ReloadFanCurveFromDeviceAsync()
     {
         if (_closing || _fanBusy)
@@ -1076,6 +1131,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         try
         {
             FanControlState state = await _fanController.ReadAsync();
+            _applyFanCurve.Cancel();
             PopulateFanCurveRows(state.Curve);
             FanCurveStatus = "Aktuelle Firmware-Kurve geladen (noch nicht gespeichert oder aktiviert).";
         }

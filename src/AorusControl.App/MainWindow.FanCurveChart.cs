@@ -84,8 +84,13 @@ public partial class MainWindow
 
     private void OnFanCurveMouseUp(object sender, MouseButtonEventArgs eventArgs)
     {
+        bool wasDragging = _draggingFanCurveIndex is not null;
         _draggingFanCurveIndex = null;
         FanCurveCanvas.ReleaseMouseCapture();
+        // Scheduled on release rather than on every move: a user who pauses mid-drag is
+        // still shaping the curve, and a write there would switch the fan mode underneath
+        // the gesture. The debouncer then still collapses several quick drags into one.
+        if (wasDragging) _viewModel.ScheduleFanCurveApply();
     }
 
     private void UpdateFanCurvePoint(int index, Point canvasPosition)
@@ -134,6 +139,13 @@ public partial class MainWindow
 
         var points = new PointCollection(rows.Select(row => new Point(ToCanvasX(row.TemperatureNumber), ToCanvasY(row.Percent))));
 
+        // Carry the curve out to both edges of the plot. Below the first point and above
+        // the last one the fan does not stop existing - the firmware holds those values -
+        // so drawing the line only between the points left the chart ending in mid-air
+        // with a vertical drop at the right, which read as "and then nothing".
+        points.Insert(0, new Point(PlotLeft, points[0].Y));
+        points.Add(new Point(ToCanvasX(TemperatureMax), points[^1].Y));
+
         // Soft area fill under the curve for a modern "area chart" look.
         var areaPoints = new PointCollection { new(points[0].X, PlotBottom) };
         foreach (Point point in points) areaPoints.Add(point);
@@ -170,7 +182,8 @@ public partial class MainWindow
         for (int index = 0; index < rows.Count; index++)
         {
             bool locked = index == rows.Count - 1;
-            Point center = points[index];
+            // +1: points[0] is the synthetic left edge, not a real curve point.
+            Point center = points[index + 1];
             Color color = locked ? LockedColor : AccentColor;
             double radius = locked ? 6 : 7;
             var dot = new Ellipse

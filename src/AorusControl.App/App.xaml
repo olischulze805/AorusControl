@@ -167,6 +167,7 @@
                  exclusive, so the control should carry that meaning (and its
                  IsChecked visual) instead of us tracking a highlight by hand. -->
             <Style x:Key="Chip" TargetType="RadioButton">
+                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
                 <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
                 <Setter Property="FontSize" Value="13" />
                 <Setter Property="FontWeight" Value="SemiBold" />
@@ -200,6 +201,9 @@
                                     <Setter TargetName="Root" Property="BorderBrush" Value="Transparent" />
                                     <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
                                 </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                </Trigger>
                                 <Trigger Property="IsEnabled" Value="False">
                                     <Setter TargetName="Root" Property="Opacity" Value="0.4" />
                                 </Trigger>
@@ -211,6 +215,7 @@
 
             <!-- ================= Icon tile: choose from many equal options ================= -->
             <Style x:Key="IconTile" TargetType="RadioButton">
+                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
                 <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
                 <Setter Property="FontSize" Value="11.5" />
                 <Setter Property="Margin" Value="0,0,10,10" />
@@ -276,6 +281,9 @@
                                         <StopStoryboard BeginStoryboardName="PulseDot" />
                                     </Trigger.ExitActions>
                                 </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                </Trigger>
                                 <Trigger Property="IsEnabled" Value="False">
                                     <Setter TargetName="Root" Property="Opacity" Value="0.4" />
                                 </Trigger>
@@ -293,6 +301,7 @@
                  hover a dark chip with a pencil appears - legible on top of any colour,
                  which a plain white icon would not be. -->
             <Style x:Key="ZoneSwatch" TargetType="Button">
+                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
                 <Setter Property="Width" Value="132" />
                 <Setter Property="Height" Value="58" />
                 <Setter Property="HorizontalAlignment" Value="Center" />
@@ -341,6 +350,9 @@
                                 <Trigger Property="IsPressed" Value="True">
                                     <Setter TargetName="Face" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
                                 </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="Face" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>
@@ -356,6 +368,7 @@
                 <Setter Property="Height" Value="38" />
                 <Setter Property="IsMoveToPointEnabled" Value="True" />
                 <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Slider">
@@ -400,15 +413,26 @@
                                         </RepeatButton>
                                     </Track.IncreaseRepeatButton>
                                     <Track.Thumb>
-                                        <Thumb Width="22" Height="22" Cursor="Hand">
+                                        <Thumb Width="22" Height="22" Cursor="Hand" FocusVisualStyle="{x:Null}">
                                             <Thumb.Template>
                                                 <ControlTemplate TargetType="Thumb">
                                                     <Grid>
-                                                        <Ellipse Width="30" Height="30" Fill="{StaticResource AccentSoftBrush}" />
+                                                        <!-- Round halo instead of a square focus rectangle;
+                                                             it grows when the slider has keyboard focus. -->
+                                                        <Ellipse x:Name="Halo" Width="30" Height="30"
+                                                                 Fill="{StaticResource AccentSoftBrush}" />
                                                         <Ellipse Width="22" Height="22"
                                                                  Fill="{StaticResource AccentBrush}"
                                                                  Stroke="#FF14161A" StrokeThickness="3" />
                                                     </Grid>
+                                                    <ControlTemplate.Triggers>
+                                                        <DataTrigger Value="True"
+                                                                     Binding="{Binding IsKeyboardFocusWithin, RelativeSource={RelativeSource AncestorType=Slider}}">
+                                                            <Setter TargetName="Halo" Property="Width" Value="38" />
+                                                            <Setter TargetName="Halo" Property="Height" Value="38" />
+                                                            <Setter TargetName="Halo" Property="Fill" Value="{StaticResource AccentSoftStrongBrush}" />
+                                                        </DataTrigger>
+                                                    </ControlTemplate.Triggers>
                                                 </ControlTemplate>
                                             </Thumb.Template>
                                         </Thumb>

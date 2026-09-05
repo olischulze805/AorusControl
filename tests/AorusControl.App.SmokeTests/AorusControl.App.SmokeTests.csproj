@@ -8,5 +8,6 @@
     <ProjectReference Include="../../src/AorusControl.Core/AorusControl.Core.csproj" />
     <Compile Include="../../src/AorusControl.App/ViewModels/*.cs" Link="ViewModels/%(Filename)%(Extension)" />
     <Compile Include="../../src/AorusControl.App/Infrastructure/*.cs" Link="Infrastructure/%(Filename)%(Extension)" />
+    <Compile Include="../../src/AorusControl.App/Controls/KeyboardLayout.cs" Link="Controls/%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

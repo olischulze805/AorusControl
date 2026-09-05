@@ -80,9 +80,9 @@ using one widget type everywhere. The choices made, and why:
 | "Link all three RGB zones" | `ui:ToggleSwitch` | Purely a local UI preference (`LinkKeyboardZones`) with no device write of its own and no failure mode — it only affects how the *next* color write is fanned out. A real toggle is correct here because flipping it can never fail or need to be rolled back. |
 | Keyboard brightness / effect speed | `Slider` over the ordinal steps (0-3 and 0-4), with a **named** readout ("Hell", "Normal") | Both are small ordered sets fixed by the firmware (`KeyboardBrightnessLevels.All`, `KeyboardEffectSpeeds.All`), so the slider addresses them by index and snaps per step - no invalid value exists to land on. The readout names the step rather than showing a number, because "Mittel" means something to a reader and "2" does not. A property setter cannot be awaited, so the write it launches is published as `PendingSliderWrite` instead of being fire-and-forget. |
 | RGB effect selection | A grid of icon tiles (`RadioButton`s), applied on click | Nine named, equal-weight options belong on screen, not behind a dropdown - and "manual zone colours" is the tenth tile rather than a separate button, since choosing it is just choosing no effect. Highlighting follows `ActiveKeyboardEffect` (what is *running*), not the last pick, and the active tile carries a pulsing dot so the running effect is readable without looking at the keyboard. |
-| Battery charge limit (60-100%) | `Slider` + explicit "Limit übernehmen" button | A genuinely continuous range, so a slider is the right shape. The write stays behind an explicit apply: dragging must not hammer the EC with a verified, rollback-checked transaction per pixel. |
+| Battery charge limit (60-100%) | `Slider`, self-applying via `Debouncer` (700 ms) | A genuinely continuous range, so a slider is the right shape. The apply button is gone: the write fires once the slider comes to rest, so a drag across the range is still one verified, rollback-checked EC transaction, not one per pixel. The slider deliberately stays enabled during that write (`CanAdjust`, not `CanApply`) so it cannot go dead under the user's own hand. |
 | Update check | Single button ("Jetzt prüfen") + status text + conditional `ui:HyperlinkButton` | It's a one-shot, infrequent action with a clear success/failure outcome, not a setting; a hyperlink (not an auto-download) is used deliberately since the app never downloads or installs anything itself (see below). |
-| Custom fan curve (15 points) | A draggable point-and-line chart (temperature °C × fan speed %), not a grid of numbers | This is fundamentally a *shape* the user is designing, not 15 independent settings - a chart lets them see and feel that shape directly, the way the hardware vendor's own tool does, instead of cross-referencing 15 rows of raw numbers. Dragging is live-clamped against every neighbor so the curve can never even be dragged into an invalid shape; the explicit "Kurve übernehmen" button still gates the actual hardware write and Dynamic-mode activation, matching the project's "never write on drag" rule used everywhere else. |
+| Custom fan curve (15 points) | A draggable point-and-line chart (temperature °C × fan speed %), not a grid of numbers | This is fundamentally a *shape* the user is designing, not 15 independent settings - a chart lets them see and feel that shape directly, the way the hardware vendor's own tool does, instead of cross-referencing 15 rows of raw numbers. Dragging is live-clamped against every neighbor so the curve can never even be dragged into an invalid shape; the write itself is scheduled on mouse-up and debounced by 900 ms, so a user who pauses mid-gesture never has the fan mode switched underneath them, and several quick corrections still collapse into one EC transaction. |
 
 ### Which colours an effect actually uses
 
@@ -160,9 +160,34 @@ a live hex textbox, and a row of recently-used swatches.
   without a feedback loop, since each setter recomputes the other two directly instead of
   reacting to its own property-changed notification.
 - The picker is modal (`ShowDialog`) and only commits to the device (and to the recent-colors
-  list) when "Übernehmen" is clicked - dragging around the square never writes anything,
-  matching the project's existing "explicit apply, not write-on-drag" pattern already used
-  for battery limit and the fan curve.
+  list) when "Übernehmen" is clicked - dragging around the square never writes anything.
+  This one keeps its explicit apply where the fan curve and charge limit dropped theirs: a
+  modal dialog already *is* the confirmation gesture, and a picker that wrote continuously
+  would repaint the keyboard for every pixel crossed on the way to the colour wanted.
+
+## Debounced apply instead of apply buttons
+
+An "Einstellung übernehmen" button is honest but tiring: the app knows perfectly well when
+a gesture has finished, and making the user say so again is friction that RGB and fan tools
+are rightly criticised for. `AorusControl.App.Infrastructure.Debouncer` replaces those
+buttons: every `Schedule()` restarts the wait, so a drag becomes exactly one device write
+at the value the user settled on.
+
+What the mechanism has to get right to be an improvement rather than a hazard:
+
+- **Nothing fires mid-gesture.** The curve schedules on mouse-up, not on every move, so a
+  pause while shaping the curve cannot trigger a mode switch under the user's hand.
+- **Nothing is silently lost.** `PrepareToCloseAsync` flushes the curve, the Fixed value and
+  the charge limit before closing, so a value set a moment earlier still reaches the device.
+  A write that lands while the controller is busy reschedules itself instead of being
+  dropped - with no button, there is nobody left to retry it.
+- **Nothing writes back what was just read.** Populating a control from the device is
+  wrapped (`_applyingDeviceState`), and `ReloadFanCurveFromDeviceAsync` cancels a pending
+  write so a reload cannot be undone by a change scheduled a moment before it.
+- **Entering a mode stays explicit.** The Fixed slider follows the drag only when Fixed is
+  *already* running; brushing it never pins the fans on its own. That is still a button.
+- **The wait is injected**, not a `DispatcherTimer`, so `DebouncerTests` and `AutoApplyTests`
+  drive it directly and the behaviour above is checked without sleeping on a real clock.
 
 ## Autostart: a Scheduled Task, not the registry Run key
 
@@ -212,7 +237,7 @@ Two things are handled deliberately, not left as loose ends:
 - **Percent, not raw duty bytes.** The Dashboard already reports fan duty as "Rohwert X /
   229", so `AorusControl.Core.Features.Cooling.FanSpeedPercent` treats that same 229 as
   100% for every percent shown anywhere in the app (`ToPercent`/`ToRaw`, tested for
-  clamping and round-trip tolerance) - including the Fixed-fan dropdown, which now shows
+  clamping and round-trip tolerance) - including the Fixed-fan slider, which now shows
   "25%"/"30%"/.../"100%" for its eight tested raw steps instead of the raw byte value. The
   curve's own tested floor (raw 57) reads as 25%, deliberately not 0%, since 0% would read
   as "fan off" and that is not what that value means.

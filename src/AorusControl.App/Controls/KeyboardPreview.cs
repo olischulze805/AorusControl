@@ -141,8 +141,8 @@ public sealed class KeyboardPreview : Control
             foreach (KeyboardLayout.Key key in KeyboardLayout.Rows[row])
             {
                 int span = (int)Math.Round(key.Units * ColumnsPerUnit);
-                FrameworkElement cap = CreateKey(key, span, row, column);
-                _grid.Children.Add(cap);
+                // A gap reserves its columns without drawing anything.
+                if (!key.IsGap) _grid.Children.Add(CreateKey(key, span, row, column));
                 column += span;
             }
         }

@@ -161,7 +161,7 @@
                             <StackPanel IsEnabled="{Binding FanControlsEnabled}">
                                 <TextBlock Text="Fester Wert · Fixed-Modus (Test)" Style="{StaticResource CardTitle}" />
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="Der Regler rastet auf die acht am Gerät vermessenen Stufen ein - die Marken sitzen dort, wo die Stufen wirklich liegen, deshalb sind die Abstände ungleich. Zwischenwerte sind nicht linear und teils firmwareseitig ungültig, sie lassen sich gar nicht erst wählen. Der Fixed-Modus läuft ausschließlich über den absturzsicheren Hardware-Worker." />
+                                           Text="Der Regler rastet auf die acht am Gerät vermessenen Stufen ein - die Marken sitzen dort, wo die Stufen wirklich liegen, deshalb sind die Abstände ungleich. Zwischenwerte sind nicht linear und teils firmwareseitig ungültig, sie lassen sich gar nicht erst wählen. Der Fixed-Modus läuft ausschließlich über den absturzsicheren Hardware-Worker. Aktivieren ist bewusst ein Knopfdruck; läuft Fixed erst einmal, folgt der Regler dann von selbst." />
                                 <Grid Margin="0,20,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -183,7 +183,7 @@
                                         </Grid>
                                     </StackPanel>
                                     <ui:Button Grid.Column="2" Style="{StaticResource SecondaryButton}" Margin="0"
-                                               Content="Fixed setzen" Command="{Binding SetFixedFanCommand}"
+                                               Content="Fixed aktivieren" Command="{Binding SetFixedFanCommand}"
                                                VerticalAlignment="Center">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="Flash24" /></ui:Button.Icon>
                                     </ui:Button>
@@ -195,7 +195,7 @@
                             <StackPanel IsEnabled="{Binding FanControlsEnabled}">
                                 <TextBlock Text="Eigene Lüfterkurve" Style="{StaticResource CardTitle}" />
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="Punkte ziehen, um Temperatur und Lüfterdrehzahl anzupassen. Übernehmen schreibt die Kurve auf die EC und aktiviert Dynamic; sie bleibt danach lokal gespeichert. Der letzte Punkt ist fest (spätestens 90 °C bei 100 %) - das erzwingt die Firmware." />
+                                           Text="Punkte ziehen, um Temperatur und Lüfterdrehzahl anzupassen. Kurz nach dem Loslassen schreibt sich die Kurve von selbst auf die EC, aktiviert Dynamic und wird lokal gespeichert - kein Übernehmen-Knopf nötig. Der letzte Punkt ist fest (spätestens 90 °C bei 100 %) - das erzwingt die Firmware." />
                                 <TextBlock Text="{Binding FanCurveStatus}" Style="{StaticResource StatusText}" Margin="0,12,0,14" />
                                 <Border Style="{StaticResource InnerPanel}">
                                     <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Center">
@@ -207,10 +207,6 @@
                                     </Viewbox>
                                 </Border>
                                 <WrapPanel Margin="0,18,0,-10">
-                                    <ui:Button Style="{StaticResource PrimaryButton}" Content="Kurve übernehmen"
-                                               Command="{Binding ApplyFanCurveCommand}" Margin="0,0,10,10">
-                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
-                                    </ui:Button>
                                     <ui:Button Style="{StaticResource SecondaryButton}" Content="Von Firmware neu laden"
                                                Command="{Binding ReloadFanCurveFromDeviceCommand}" Margin="0,0,10,10">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowClockwise24" /></ui:Button.Icon>
@@ -541,7 +537,9 @@
                             <StackPanel>
                                 <TextBlock Text="Akku · Ladelimit" Style="{StaticResource CardTitle}" />
                                 <TextBlock Text="{Binding Battery.ActivePolicy}" Style="{StaticResource Hint}" />
-                                <Grid Margin="0,20,0,0" IsEnabled="{Binding Battery.CanApply}">
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
+                                           Text="Der Regler übernimmt sich selbst, kurz nachdem er zur Ruhe kommt - das Ergebnis wird zurückgelesen und darunter bestätigt." />
+                                <Grid Margin="0,20,0,0" IsEnabled="{Binding Battery.CanAdjust}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
@@ -560,11 +558,6 @@
                                     </StackPanel>
                                 </Grid>
                                 <WrapPanel Margin="0,20,0,-10">
-                                    <ui:Button Style="{StaticResource PrimaryButton}" Content="Limit übernehmen"
-                                               Command="{Binding Battery.ApplyLimitCommand}"
-                                               IsEnabled="{Binding Battery.CanApply}" Margin="0,0,10,10">
-                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
-                                    </ui:Button>
                                     <ui:Button Style="{StaticResource SecondaryButton}" Content="Standardladen"
                                                Command="{Binding Battery.ApplyStandardCommand}"
                                                IsEnabled="{Binding Battery.CanApply}" Margin="0,0,10,10">

@@ -14,7 +14,12 @@ internal static class KeyboardLayout
     /// <param name="Units">Key width in standard key units (1u = a letter key).</param>
     /// <param name="Zone">RGB zone 1-3.</param>
     /// <param name="RowSpan">Grid rows covered; 2 for the tall numeric-pad keys.</param>
-    internal sealed record Key(string Legend, int Zone, double Units = 1, int RowSpan = 1);
+    /// <param name="IsGap">Empty space rather than a key. The arrow cluster needs it: the
+    /// up arrow sits above the down arrow with nothing to its right, so that slot has to
+    /// be reserved or every key after it lands one position too far left.</param>
+    internal sealed record Key(string Legend, int Zone, double Units = 1, int RowSpan = 1, bool IsGap = false);
+
+    private static Key Gap(double units) => new(string.Empty, 0, units, IsGap: true);
 
     internal static IReadOnlyList<IReadOnlyList<Key>> Rows { get; } =
     [
@@ -50,7 +55,10 @@ internal static class KeyboardLayout
         [
             new("⇧", 1, 2.25), new("Z", 1), new("X", 1), new("C", 1), new("V", 1),
             new("B", 2), new("N", 2), new("M", 2),
-            new(",", 3), new(".", 3), new("/", 3), new("⇧", 3, 1.75), new("▲", 3),
+            // The right shift is short on this laptop precisely so the up arrow fits, and
+            // the up arrow sits above the DOWN arrow of the row below - hence the reserved
+            // slot to its right. Getting this wrong put it above the right arrow instead.
+            new(",", 3), new(".", 3), new("/", 3), new("⇧", 3, 0.75), new("▲", 3), Gap(1),
             new("1", 3), new("2", 3), new("3", 3), new("↵", 3, 1, RowSpan: 2)
         ],
         // Modifier row
