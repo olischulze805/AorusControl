@@ -1711,6 +1711,9 @@ void RunFanCurveFloorProbe()
 
 void RunFanCurveFloorLiveProbe()
 {
+    // Eigener Berichtsname: beide Tests in dieselbe Datei zu schreiben hiess, dass man erst an
+    // der Ueberschrift merkt, welcher gelaufen ist.
+    string reportPrefix = "fan-floor-rpm-test";
     bool confirmed = args.Any(argument =>
         argument.Equals("--confirm-fan-curve-write", StringComparison.OrdinalIgnoreCase));
     var test = new StringBuilder();
@@ -1829,7 +1832,17 @@ void RunFanCurveFloorLiveProbe()
         }
     }
 
-    WriteCurveTestReport(test);
+    WriteNamedTestReport(test, reportPrefix);
+}
+
+void WriteNamedTestReport(StringBuilder test, string prefix)
+{
+    string reportDirectory = Path.Combine(FindRepositoryRoot(), "research", "runs");
+    Directory.CreateDirectory(reportDirectory);
+    string reportPath = Path.Combine(reportDirectory, $"{prefix}-{DateTime.Now:yyyyMMdd-HHmmss}.md");
+    File.WriteAllText(reportPath, test.ToString(), new UTF8Encoding(false));
+    Console.WriteLine(test);
+    Console.WriteLine($"Report written to: {reportPath}");
 }
 
 void WriteFanChangeReport(StringBuilder change)
