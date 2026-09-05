@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using AorusControl.App.ViewModels;
@@ -52,6 +53,7 @@ public sealed class FanCurveChart : Canvas
     private static readonly Color LockedColor = Color.FromRgb(0x8A, 0x93, 0x9B);
 
     private int? _dragging;
+    private Point? _lastLivePoint;
 
     public static readonly DependencyProperty RowsProperty = DependencyProperty.Register(
         nameof(Rows), typeof(IEnumerable<FanCurveRowViewModel>), typeof(FanCurveChart),
@@ -130,7 +132,7 @@ public sealed class FanCurveChart : Canvas
         ClipToBounds = true;
         Focusable = true;
         FocusVisualStyle = null;
-        SizeChanged += (_, _) => Redraw();
+        SizeChanged += (_, _) => { _lastLivePoint = null; Redraw(); };
     }
 
     private void OnEditableChanged()
@@ -526,7 +528,24 @@ public sealed class FanCurveChart : Canvas
         SetLeft(dot, x - 5.5);
         SetTop(dot, y - 5.5);
         Children.Add(dot);
+
+        // Readings arrive a second apart, and a dot that teleports between them looks like a
+        // glitch rather than like a machine warming up. It is slid from where it last was -
+        // but only across a redraw that kept it in place; after a resize or a first reading
+        // there is nothing to slide from.
+        if (_lastLivePoint is { } from && (Math.Abs(from.X - x) > 0.5 || Math.Abs(from.Y - y) > 0.5))
+        {
+            Slide(dot, LeftProperty, from.X - 5.5, x - 5.5);
+            Slide(dot, TopProperty, from.Y - 5.5, y - 5.5);
+        }
+        _lastLivePoint = new Point(x, y);
     }
+
+    private static void Slide(UIElement element, DependencyProperty property, double from, double to) =>
+        element.BeginAnimation(property, new DoubleAnimation(from, to, TimeSpan.FromMilliseconds(700))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        });
 
     /// <summary>A profile that holds one speed is one straight line, and drawing it is more
     /// honest than leaving the chart empty as if nothing were known.</summary>

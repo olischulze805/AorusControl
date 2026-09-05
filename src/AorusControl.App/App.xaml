@@ -176,6 +176,28 @@
                 <Setter Property="Foreground" Value="{StaticResource TextTertiaryBrush}" />
                 <Setter Property="Margin" Value="0,2,0,0" />
             </Style>
+            <!-- Ein Abschnitt taucht auf, statt zu erscheinen. Bewusst als EnterAction mit
+                 From=0 statt als Setter auf Opacity: ohne laufende Animation - offscreen
+                 gerendert etwa - bleibt die Seite dann sichtbar statt unsichtbar. -->
+            <Style x:Key="SectionPage" TargetType="ScrollViewer">
+                <Style.Triggers>
+                    <Trigger Property="IsVisible" Value="True">
+                        <Trigger.EnterActions>
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1"
+                                                     Duration="0:0:0.22">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </Trigger.EnterActions>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
             <Style x:Key="InnerPanel" TargetType="Border">
                 <Setter Property="Background" Value="#FF0F1113" />
                 <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}" />

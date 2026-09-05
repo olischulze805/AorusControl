@@ -385,6 +385,30 @@ a softly blurred duplicate line underneath the crisp one for a subtle glow, and 
 point markers with a drop-shadow), matching the reference screenshot's look while fitting
 the app's own dark/accent palette rather than copying its exact colors.
 
+### Live feedback on the cooling page
+
+The page opens with the two fans drawn turning (`Controls/FanRotor.cs`) at the speed they
+are really turning at, tinted from cyan to warm orange by the temperature that fan is
+answering to, with the RPM, temperature and duty underneath. The curve carries a white dot
+at the machine's current temperature and duty, so an adjustment can be watched taking
+effect rather than only read back.
+
+Three rules keep it honest and smooth:
+
+- **Nothing is drawn as live that was not measured.** `FanLiveViewModel.IsLive` is false
+  before the first reading and again the moment a read fails or monitoring stops; the
+  rotors then stand still and grey out, the numbers show a dash, and the marker leaves the
+  curve. A stopped fan ("steht") and an unread fan ("– U/min") are different states and
+  read differently.
+- **Motion is eased, never stepped.** The rotor approaches each new reading exponentially
+  and blurs in proportion to its speed, and the live marker slides to its new position over
+  700 ms. Readings arrive once a second while the cooling page is open (twice as often as
+  elsewhere), and without easing that would look like teleporting rather than like a
+  machine warming up.
+- **It costs nothing when nobody is looking.** The per-frame tick is unhooked when the
+  control leaves the tree, when its section is hidden, and when a fan has come to a
+  standstill; the readings themselves are the ones the app already takes.
+
 Two things are handled deliberately, not left as loose ends:
 
 - **Percent, not raw duty bytes.** The Dashboard already reports fan duty as "Rohwert X /

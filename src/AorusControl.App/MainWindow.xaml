@@ -61,7 +61,7 @@
             <ui:NavigationView.ContentOverlay>
             <Grid Background="{StaticResource ContentBrush}">
                 <!-- ===================== Dashboard ===================== -->
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28"
+                <ScrollViewer Style="{StaticResource SectionPage}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28"
                               Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisible}, ConverterParameter=Dashboard}">
                     <!-- Tiles in WrapPanels rather than a fixed two-column Grid: they reflow from
                          four across to one as the window narrows, instead of being squeezed. The
@@ -148,7 +148,7 @@
                 </ScrollViewer>
 
                 <!-- ===================== Kühlung ===================== -->
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28"
+                <ScrollViewer Style="{StaticResource SectionPage}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28"
                               Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisible}, ConverterParameter=Cooling}">
                     <StackPanel MaxWidth="880" HorizontalAlignment="Center">
 
@@ -159,7 +159,7 @@
                             <StackPanel>
                                 <TextBlock Text="Live" Style="{StaticResource CardTitle}" />
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="Beide Lüfter drehen hier so schnell, wie sie es wirklich tun, und färben sich mit der Temperatur. Beim Verstellen sieht man dadurch direkt, was die Änderung bewirkt - die Messung kommt alle zwei Sekunden." />
+                                           Text="Beide Lüfter drehen hier so schnell, wie sie es wirklich tun, und färben sich mit der Temperatur. Beim Verstellen sieht man dadurch direkt, was die Änderung bewirkt - gemessen wird jede Sekunde, solange diese Seite offen ist." />
                                 <Grid Margin="0,18,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -335,7 +335,7 @@
                 </ScrollViewer>
 
                 <!-- ===================== Tastatur ===================== -->
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28"
+                <ScrollViewer Style="{StaticResource SectionPage}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28"
                               Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisible}, ConverterParameter=Lighting}">
                     <StackPanel MaxWidth="880" HorizontalAlignment="Center">
 
@@ -597,7 +597,7 @@
                 </ScrollViewer>
 
                 <!-- ===================== Leistung & Akku ===================== -->
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28"
+                <ScrollViewer Style="{StaticResource SectionPage}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28"
                               Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisible}, ConverterParameter=Power}">
                     <StackPanel MaxWidth="880" HorizontalAlignment="Center">
 
@@ -711,7 +711,7 @@
                 </ScrollViewer>
 
                 <!-- ===================== Info & Updates ===================== -->
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28"
+                <ScrollViewer Style="{StaticResource SectionPage}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28"
                               Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisible}, ConverterParameter=About}">
                     <StackPanel MaxWidth="880" HorizontalAlignment="Center">
                         <Border Style="{StaticResource Card}">
