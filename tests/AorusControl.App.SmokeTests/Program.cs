@@ -296,31 +296,32 @@ await Run("The power section says what the mode does and what the fans are doing
     Check(vm.Cooling.Summary.Contains("%"), "a held fixed value must be summarised with its percentage");
     Check(vm.Windows.PowerModeEffect.Contains("Netzbetrieb"), "the effect text must name the tested power source");
 });
-await Run("The Fixed slider can only land on tested steps", async (vm, reader, fan) =>
+await Run("The Fixed slider moves smoothly across the firmware's whole range", async (vm, reader, fan) =>
 {
     await Task.CompletedTask;
-    // Every raw step reads back as its own percentage...
-    foreach (byte raw in vm.Cooling.FixedFanRawChoices)
+    // Every raw value reads back as its own percentage, and every percentage reaches the raw
+    // value it names - no step table in between, so the control moves as smoothly as the
+    // firmware's own scale allows.
+    for (byte raw = 0; raw < FanSpeedPercent.MaxRaw; raw++)
     {
         vm.Cooling.FixedFanRaw = raw;
         Check(Math.Abs(vm.Cooling.FixedFanPercent - FanSpeedPercent.ToPercent(raw)) < 0.001,
             $"raw {raw} must report its own percent");
     }
-    // ...and a value between two steps snaps to the nearer tested one instead of
-    // reaching the firmware as an unverified duty.
-    vm.Cooling.FixedFanPercent = 63;
-    Check(vm.Cooling.FixedFanRaw == 137, $"63 % must snap to the 60 % step (raw 137), got {vm.Cooling.FixedFanRaw}");
-    vm.Cooling.FixedFanPercent = 78;
-    Check(vm.Cooling.FixedFanRaw == 194, $"78 % must snap to the 85 % step (raw 194), got {vm.Cooling.FixedFanRaw}");
+    for (int percent = 0; percent <= 100; percent++)
+    {
+        vm.Cooling.FixedFanPercent = percent;
+        Check(vm.Cooling.FixedFanRaw == FanSpeedPercent.ToRaw(percent),
+            $"{percent} % must reach the firmware as its own raw value, got {vm.Cooling.FixedFanRaw}");
+    }
     vm.Cooling.FixedFanPercent = 0;
     Check(vm.Cooling.FixedFanRaw == 0, "the left end of the slider is fans off");
-    vm.Cooling.FixedFanPercent = 20;
-    Check(vm.Cooling.FixedFanRaw == 57, "between off and the lowest step it snaps to the nearer one");
     vm.Cooling.FixedFanPercent = 500;
-    Check(vm.Cooling.FixedFanRaw == 229, "above the ceiling must snap down to the highest tested step");
-    Check(vm.Cooling.FixedFanTicks.Count == vm.Cooling.FixedFanRawChoices.Count, "one tick per tested step");
+    Check(vm.Cooling.FixedFanRaw == 229, "above the ceiling it clamps to full speed");
+    vm.Cooling.FixedFanPercent = -20;
+    Check(vm.Cooling.FixedFanRaw == 0, "and below it to off");
 });
-Console.WriteLine("PASS: profile chip tracks device state; Fixed slider snaps to tested steps only");
+Console.WriteLine("PASS: profile chip tracks device state; Fixed slider spans the whole firmware range");
 
 Console.WriteLine("All smoke tests passed. No hardware setters invoked.");
 

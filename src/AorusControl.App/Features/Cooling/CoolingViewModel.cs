@@ -54,8 +54,6 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         ReloadCurveCommand = new AsyncRelayCommand(ReloadCurveFromDeviceAsync);
         ApplyCurveCommand = new AsyncRelayCommand(ApplyCurveAsync);
         LoadGigabyteCurveCommand = new RelayCommand(LoadGigabyteCurve);
-        FixedFanTicks = new System.Windows.Media.DoubleCollection(
-            FixedFanRawChoices.Select(raw => (double)FanSpeedPercent.ToPercent(raw)));
         // Only ever reschedules an ALREADY active Fixed mode - entering it stays an
         // explicit act, see SetFixedAsync.
         _applyFixed = new Debouncer(TimeSpan.FromMilliseconds(600), ReapplyFixedAsync, debounceWait);
@@ -126,26 +124,24 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         }
     }
 
-    /// <summary>The eight steps measured on the device, plus fans off - which was measured
-    /// too, at 0 RPM on both fans, and is what the vendor's Quiet profile does anyway.</summary>
-    public IReadOnlyList<byte> FixedFanRawChoices { get; } = [0, 57, 68, 91, 114, 137, 160, 194, 229];
-
     /// <summary>
-    /// The Fixed slider's value. Reads and writes percent, but can only ever land on one of
-    /// <see cref="FixedFanRawChoices"/>: the setter snaps to the nearest tested raw step, so
-    /// a value the firmware was never measured at is unreachable even if the slider's own
-    /// snapping were bypassed.
+    /// The Fixed slider's value, in percent of the firmware's own 0-229 scale.
+    ///
+    /// It used to snap to the eight raw steps that had been measured one by one, which made
+    /// the slider jump in uneven leaps. The device takes every value in between just as
+    /// readily - the curve table has always written arbitrary raw values - and the write is
+    /// verified by readback and rolled back if the EC disagrees, so a step table bought
+    /// nothing but a jerky control. What actually keeps this safe is unchanged: the worker's
+    /// lease, which refuses to hold any fixed value at 65 °C.
     /// </summary>
     public double FixedFanPercent
     {
         get => FanSpeedPercent.ToPercent(_fixedRaw);
         set
         {
-            byte nearest = FixedFanRawChoices
-                .OrderBy(raw => Math.Abs(FanSpeedPercent.ToPercent(raw) - value))
-                .First();
-            bool changed = nearest != _fixedRaw;
-            FixedFanRaw = nearest;
+            byte raw = FanSpeedPercent.ToRaw((int)Math.Round(value));
+            bool changed = raw != _fixedRaw;
+            FixedFanRaw = raw;
             OnPropertyChanged(nameof(FixedFanPercent));
             // Following the slider while Fixed is already held is what the user expects;
             // silently ENTERING a mode that pins the fans because a slider was brushed is
@@ -155,12 +151,6 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     }
 
     public string FixedFanPercentText => $"{FanSpeedPercent.ToPercent(_fixedRaw)} %";
-
-    /// <summary>Tick positions for the Fixed slider, on the percentages the tested raw steps
-    /// really sit at - hence unevenly spaced, which is the honest picture. Derived from
-    /// FixedFanRawChoices rather than restated, so the marks cannot come to show values the
-    /// slider can no longer reach.</summary>
-    public System.Windows.Media.DoubleCollection FixedFanTicks { get; }
 
     /// <summary>
     /// Edits that have not reached the device. Writing a curve is a fifteen-point EC
