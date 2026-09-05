@@ -26,7 +26,8 @@ public static class WorkerLauncher
             // Fixed-mode writes need administrator rights (the same gate the battery
             // charge setter already uses), so the worker itself must run elevated, not
             // just the one-off request. UseShellExecute+Verb triggers the normal UAC
-            // prompt; ShellExecute cannot set CreateNoWindow, so a console briefly shows.
+            // prompt; ShellExecute cannot set CreateNoWindow, which is why the worker is a
+            // WinExe - it never allocates a console to begin with.
             Process.Start(new ProcessStartInfo(executable, "--serve")
             {
                 UseShellExecute = true,

@@ -5,6 +5,8 @@ using AorusControl.Core.Features.Diagnostics;
 using AorusControl.Core.Features.Worker;
 using AorusControl.Core.Services;
 
+ConsoleAttach.ToParentIfAny();
+
 // Development host, not yet an installed Windows service or autostart entry.
 string sid = WindowsIdentity.GetCurrent().User?.Value ?? throw new InvalidOperationException("Benutzerkennung fehlt.");
 bool isolatedTest = args.Length == 2 && args[0] == "--serve-test" && Guid.TryParseExact(args[1], "N", out _);

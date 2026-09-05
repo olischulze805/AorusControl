@@ -70,10 +70,14 @@ async Task Bad(string name, Func<NamedPipeClientStream, Task> write)
         await write(client);
         try
         {
-            int count = await client.ReadAsync(new byte[1], timeout.Token);
-            if (count != 0) throw new Exception("Malformed request produced data instead of disconnection");
+            // Either answer is correct: a named rejection (preferred - a silent
+            // disconnect is indistinguishable from a hang at the caller's end) or a
+            // closed pipe, for requests too malformed to carry an id to answer.
+            WorkerResponse rejection = await WorkerProtocol.ReadAsync<WorkerResponse>(client, timeout.Token);
+            if (rejection.Success) throw new Exception("Malformed request was accepted");
+            if (rejection.ErrorCode != "rejected_request") throw new Exception("Rejection lacks its error code: " + rejection.ErrorCode);
         }
-        catch (IOException) { } // Windows may report pipe closure as EOF or broken pipe.
+        catch (Exception error) when (error is IOException or EndOfStreamException or InvalidDataException) { }
     }
     await Status();
     report.AppendLine("PASS: " + name + "; connection rejected, next status succeeds.");
