@@ -359,21 +359,40 @@ public sealed class FanCurveChart : Canvas
         List<FanCurveRowViewModel> handles = Handles;
         var reference = Reference?.OrderBy(point => point.TemperatureCelsius).ToList() ?? [];
 
-        Brush gridBrush = new SolidColorBrush(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF));
+        // Two densities rather than one: five-degree lines to actually read a value off the
+        // chart, twenty-degree lines to keep it navigable, and labels only on the latter -
+        // twenty-one of them would collide into a grey band. On a short chart the fine grid
+        // would be a hatch pattern instead of a grid, so it is dropped and the labels thin out.
+        bool roomy = ActualHeight >= 190;
+        Brush minorBrush = new SolidColorBrush(Color.FromArgb(0x18, 0xFF, 0xFF, 0xFF));
+        Brush majorBrush = new SolidColorBrush(Color.FromArgb(0x32, 0xFF, 0xFF, 0xFF));
         Brush labelBrush = (Brush)(TryFindResource("TextFillColorSecondaryBrush") ?? Brushes.Gray);
-        // A short chart has no room for five labelled gridlines without them colliding.
-        int step = ActualHeight < 190 ? 50 : 20;
+        int labelStep = roomy ? 20 : 50;
 
-        for (int temperature = 0; temperature <= 100; temperature += step)
+        if (roomy)
+        {
+            for (int temperature = 5; temperature < 100; temperature += 5)
+            {
+                if (temperature % 20 == 0) continue;
+                AddLine(ToCanvasX(temperature), PlotTop, ToCanvasX(temperature), PlotBottom, minorBrush, dashed: false);
+            }
+            for (int percent = 5; percent < 100; percent += 5)
+            {
+                if (percent % 20 == 0) continue;
+                AddLine(PlotLeft, ToCanvasY(percent), PlotRight, ToCanvasY(percent), minorBrush, dashed: false);
+            }
+        }
+
+        for (int temperature = 0; temperature <= 100; temperature += labelStep)
         {
             double x = ToCanvasX(temperature);
-            AddLine(x, PlotTop, x, PlotBottom, gridBrush);
+            AddLine(x, PlotTop, x, PlotBottom, majorBrush);
             AddLabel($"{temperature}°", x, PlotBottom + 6, labelBrush, centerHorizontally: true);
         }
-        for (int percent = 0; percent <= 100; percent += step)
+        for (int percent = 0; percent <= 100; percent += labelStep)
         {
             double y = ToCanvasY(percent);
-            AddLine(PlotLeft, y, PlotRight, y, gridBrush);
+            AddLine(PlotLeft, y, PlotRight, y, majorBrush);
             AddLabel($"{percent}%", PlotLeft - 8, y - 8, labelBrush, rightAlign: true);
         }
 
@@ -506,8 +525,20 @@ public sealed class FanCurveChart : Canvas
         Effect = effect
     };
 
-    private void AddLine(double x1, double y1, double x2, double y2, Brush brush) =>
-        Children.Add(new Line { X1 = x1, Y1 = y1, X2 = x2, Y2 = y2, Stroke = brush, StrokeThickness = 1, StrokeDashArray = [2, 3] });
+    private void AddLine(double x1, double y1, double x2, double y2, Brush brush, bool dashed = true) =>
+        Children.Add(new Line
+        {
+            X1 = x1,
+            Y1 = y1,
+            X2 = x2,
+            Y2 = y2,
+            Stroke = brush,
+            StrokeThickness = 1,
+            // The fine grid stays solid: dashes at five-degree spacing read as noise rather
+            // than as lines.
+            StrokeDashArray = dashed ? [2, 3] : null,
+            SnapsToDevicePixels = true
+        });
 
     private void AddLabel(string text, double x, double y, Brush brush, bool centerHorizontally = false, bool rightAlign = false)
     {
