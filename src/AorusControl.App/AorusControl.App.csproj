@@ -15,7 +15,7 @@
     <RootNamespace>AorusControl.App</RootNamespace>
     <!-- Bump this on every user-visible release. tools/Build-Release.ps1 defaults to it,
          and the app reads it back from the running assembly to compare against the feed. -->
-    <Version>0.3.1</Version>
+    <Version>0.3.2</Version>
   </PropertyGroup>
 
   <ItemGroup>
