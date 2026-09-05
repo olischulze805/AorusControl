@@ -140,6 +140,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         try
         {
             foreach (IFeatureModule module in Modules) await module.StartAsync();
+            // Not awaited: looking for a newer version is nobody's reason to wait for the
+            // window, and it says nothing unless it finds one.
+            _ = Updates.CheckOnStartupAsync();
 
             if (_isRunning)
             {
@@ -170,6 +173,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         try { await Battery.PendingLimitWrite.FlushAsync(); } catch (Exception error) { AppLog.Error("battery", "Ausstehendes Ladelimit nicht mehr geschrieben.", error); }
 
         _closing = true;
+        Updates.CancelStartupCheck();
         await Keyboard.StopListeningAsync();
         _timer.Stop();
         Cooling.BeginClose();

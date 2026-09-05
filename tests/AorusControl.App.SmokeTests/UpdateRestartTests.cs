@@ -29,6 +29,36 @@ internal static class UpdateRestartTests
         Console.WriteLine("PASS: update restart is requested, not performed, and does nothing without a download");
     }
 
+    public static async Task RunStartupCheckAsync()
+    {
+        // The automatic check must stay quiet. On a build tree there is nothing to check at
+        // all; on a real installation a failed check goes to the log and nowhere else,
+        // because an app that greets every launch with "update check failed" from a café
+        // network teaches the user to ignore the one time it matters.
+        var immediately = new TaskCompletionSource();
+        immediately.SetResult();
+        var updates = new UpdateViewModel(wait: (_, _) => immediately.Task);
+        string before = updates.Status;
+
+        int announced = 0;
+        updates.UpdateFound += (_, _) => announced++;
+        await updates.CheckOnStartupAsync();
+
+        Check(announced == 0, "nothing may be announced when no update was found");
+        Check(updates.Status == before, "an automatic check must not overwrite the status with noise");
+
+        // Cancelling is safe at any point, including before anything was ever started.
+        updates.CancelStartupCheck();
+        await updates.CheckOnStartupAsync();
+        Check(announced == 0 && updates.Status == before, "a cancelled check leaves everything as it was");
+
+        // What this cannot cover: the network path itself. UpdateManager refuses to construct
+        // outside an installed copy, so on a build tree there is nothing to check against -
+        // which is exactly the case asserted above, and the reason the rest is verified by
+        // installing a real build rather than pretended at here.
+        Console.WriteLine("PASS: the automatic update check stays silent on a build tree and cancels cleanly");
+    }
+
     private static void Check(bool value, string message)
     {
         if (!value) throw new InvalidOperationException(message);

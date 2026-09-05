@@ -44,7 +44,8 @@ killed, that process still returns the fans to firmware control on its own.
 ## Install
 
 Run `AorusControl-win-Setup.exe` from the releases page. It installs into your own user
-folder, brings its own .NET, and the app updates itself from there: checking and downloading
+folder, brings its own .NET, and the app updates itself from there. It looks for a newer
+version once at launch and only says something if it finds one; checking and downloading
 are separate buttons, and the downloaded version is applied either at the next start or right
 away - "Übernehmen und neu starten" closes the app properly, hands the fans and lighting back
 to the firmware, swaps the files and opens it again. The installer is not code-signed, so

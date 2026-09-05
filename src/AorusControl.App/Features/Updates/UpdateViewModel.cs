@@ -23,13 +23,16 @@ namespace AorusControl.App.Features.Updates;
 public sealed class UpdateViewModel : ObservableObject
 {
     private readonly UpdateManager? _updates;
+    private readonly Func<TimeSpan, CancellationToken, Task> _wait;
+    private readonly CancellationTokenSource _closing = new();
     private readonly string _unavailableReason;
     private UpdateInfo? _available;
     private bool _busy, _downloaded;
     private string _status = "Noch nicht geprüft.";
 
-    public UpdateViewModel(IUpdateSource? source = null)
+    public UpdateViewModel(IUpdateSource? source = null, Func<TimeSpan, CancellationToken, Task>? wait = null)
     {
+        _wait = wait ?? Task.Delay;
         try
         {
             _updates = new UpdateManager(source ?? new GithubSource("https://github.com/olischulze805/AorusControl", null, prerelease: false));
@@ -104,11 +107,41 @@ public sealed class UpdateViewModel : ObservableObject
         }
     }
 
-    public async Task CheckAsync()
+    public Task CheckAsync() => CheckAsync(announceFailure: true);
+
+    /// <summary>
+    /// Looks once, quietly, shortly after launch, and only says something if there is
+    /// actually a newer version - <see cref="UpdateFound"/> is what the tray icon listens to.
+    ///
+    /// Quiet matters more here than anywhere else: an app that greets every launch with
+    /// "update check failed" because the laptop is on a café network has trained the user to
+    /// ignore it by the time an update really is waiting. A failed automatic check goes to
+    /// the log and nowhere else; pressing the button still reports failures out loud, because
+    /// then somebody is waiting for an answer.
+    ///
+    /// The delay keeps launch to itself: the device reads matter first, and nobody is looking
+    /// at the update card in the first seconds anyway.
+    /// </summary>
+    public async Task CheckOnStartupAsync()
+    {
+        if (!CanCheck) return;
+        try { await _wait(TimeSpan.FromSeconds(8), _closing.Token); }
+        catch (OperationCanceledException) { return; }
+        if (_closing.IsCancellationRequested) return;
+
+        await CheckAsync(announceFailure: false);
+        if (HasUpdate) UpdateFound?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Raised when an automatic check found a newer version. Nothing is downloaded;
+    /// the user is told, and decides.</summary>
+    public event EventHandler? UpdateFound;
+
+    private async Task CheckAsync(bool announceFailure)
     {
         if (!CanCheck) return;
         IsBusy = true;
-        Status = "Suche nach Updates …";
+        if (announceFailure) Status = "Suche nach Updates …";
         try
         {
             _available = await _updates!.CheckForUpdatesAsync();
@@ -119,10 +152,13 @@ public sealed class UpdateViewModel : ObservableObject
         catch (Exception error)
         {
             AppLog.Error("update", "Update-Prüfung fehlgeschlagen.", error);
-            Status = "Update-Prüfung fehlgeschlagen: " + error.Message;
+            if (announceFailure) Status = "Update-Prüfung fehlgeschlagen: " + error.Message;
         }
         finally { IsBusy = false; }
     }
+
+    /// <summary>Stops a pending automatic check from firing into a closing app.</summary>
+    public void CancelStartupCheck() => _closing.Cancel();
 
     public async Task InstallAsync()
     {

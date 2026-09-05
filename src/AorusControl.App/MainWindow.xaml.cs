@@ -50,6 +50,14 @@ public partial class MainWindow : FluentWindow
     /// is no time for the normal close sequence.</summary>
     public void RestoreHardwareBeforeShutdown() => _viewModel.RestoreFansToFirmware();
 
+    /// <summary>Brings the window up on the update card - what clicking the tray notice does,
+    /// so the notice leads somewhere instead of just being an announcement.</summary>
+    public void ShowUpdates()
+    {
+        _viewModel.SelectedSection = "About";
+        Nav.Navigate("About");
+    }
+
     public void RequestExit()
     {
         _exitRequested = true;

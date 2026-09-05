@@ -672,7 +672,7 @@
                             <StackPanel>
                                 <TextBlock Text="Updates" Style="{StaticResource CardTitle}" />
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="Prüfen und Installieren sind zwei getrennte Schritte. Eine geladene Version wird beim nächsten Start aktiv - oder sofort: &quot;Übernehmen und neu starten&quot; beendet die App geordnet (Lüfter und Beleuchtung gehen an die Firmware zurück), tauscht sie aus und öffnet sie wieder." />
+                                           Text="Beim Start wird einmal still nach einer neueren Version gesucht; gemeldet wird nur, wenn es eine gibt. Eine geladene Version wird beim nächsten Start aktiv - oder sofort: &quot;Übernehmen und neu starten&quot; beendet die App geordnet (Lüfter und Beleuchtung gehen an die Firmware zurück), tauscht sie aus und öffnet sie wieder." />
                                 <Grid Margin="0,18,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" MinWidth="120" />

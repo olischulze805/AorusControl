@@ -92,6 +92,22 @@ public partial class App : System.Windows.Application
                 Visible = true
             };
             _tray.DoubleClick += (_, _) => ShowWindow();
+            // The automatic check says nothing unless it found something; when it does, this
+            // is how a user who is not looking at the window gets to hear about it. One
+            // balloon per launch, and clicking it lands on the update card.
+            _tray.BalloonTipClicked += (_, _) => Dispatcher.BeginInvoke(new Action(() =>
+            {
+                ShowWindow();
+                window.ShowUpdates();
+            }));
+            window.ViewModel.Updates.UpdateFound += (_, _) => Dispatcher.BeginInvoke(new Action(() =>
+            {
+                string version = window.ViewModel.Updates.AvailableVersion ?? "neu";
+                AppLog.Info("update", $"Version {version} verfügbar; Hinweis im Infobereich gezeigt.");
+                _tray?.ShowBalloonTip(10_000, "AORUS Control",
+                    $"Version {version} ist verfügbar. Zum Herunterladen hier klicken.",
+                    System.Windows.Forms.ToolTipIcon.Info);
+            }));
             // Windows shutdown and logoff never reach the window's own close path, so
             // without this the machine could come back up with the fans still pinned to a
             // Fixed or Maximum value and nothing running that knows why.

@@ -40,6 +40,7 @@ KeyboardEffectFrameTests.Run();
 KeyboardLayoutTests.Run();
 SliderGeometryTests.Run();
 UpdateRestartTests.Run();
+await UpdateRestartTests.RunStartupCheckAsync();
 await DebouncerTests.RunAsync();
 await AutoApplyTests.RunAsync();
 await WorkerDiscoveryTests.RunAsync();

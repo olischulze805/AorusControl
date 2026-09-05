@@ -70,6 +70,7 @@ never a replacement for it.
 | A pane that renders light when transparency effects are off | The navigation pane sets its background explicitly instead of relying on Mica. |
 | Autostart that throws its window in your face at every login | The logon task passes `--background`; the app starts into the tray and stays there until asked for. |
 | Having to open the window for one thing | The tray menu can put the fans back on Normal and toggle the lighting without it. |
+| Update notices nobody sees, or nagging that trains people to ignore them | One silent check a few seconds after launch. It reports nothing unless it finds a version - then a single tray balloon that opens the update card when clicked - and a failed automatic check goes only to the log, because an app that greets every launch with "check failed" from a café network has spent its credibility by the time it matters. |
 | An updater that swaps the executable while the app still holds hardware | The restart is requested by the update module and performed by the window's close sequence: fans and lighting go back to the firmware first, and only then does Velopack get told to wait for the exit and relaunch. Velopack's own ApplyUpdatesAndRestart would kill the process on the spot. |
 | Two copies fighting over the device | A named single-instance gate; the second copy activates the first and exits. |
 | No idea why something failed | Every error goes to `%LocalAppData%\AorusControl\logs`, app and worker alike, one file per day, 14-day retention, and the folder is one button away in the app. |
