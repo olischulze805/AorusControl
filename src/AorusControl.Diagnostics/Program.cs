@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Management;
 using System.Security.Principal;
 using System.Text;
+using AorusControl.Core.Device;
 using AorusControl.Core.Models;
 using AorusControl.Core.Services;
 using HidSharp;
@@ -101,6 +102,8 @@ bool testFanDynamic = args.Any(argument =>
     argument.Equals("--test-fan-dynamic", StringComparison.OrdinalIgnoreCase));
 bool testFanCurveWrite = args.Any(argument =>
     argument.Equals("--test-fan-curve-write", StringComparison.OrdinalIgnoreCase));
+bool probeFanCurveFloor = args.Any(argument =>
+    argument.Equals("--probe-fan-curve-floor", StringComparison.OrdinalIgnoreCase));
 int? requestedChargeLimit = ReadOptionalIntArgument("--set-charge-limit");
 bool setStandardChargeMode = args.Any(argument =>
     argument.Equals("--set-standard-charge-mode", StringComparison.OrdinalIgnoreCase));
@@ -162,6 +165,12 @@ if (testFanDynamic)
 if (testFanCurveWrite)
 {
     RunFanCurveWriteTest();
+    return;
+}
+
+if (probeFanCurveFloor)
+{
+    RunFanCurveFloorProbe();
     return;
 }
 
@@ -1591,6 +1600,96 @@ static void AppendFanState(StringBuilder target, string label, FanControlState s
         $"- {label}: fixed `{state.FixedStatusRaw}`, step `{state.StepStatusRaw}`, " +
         $"auto `{state.AutoStatusRaw}`, thermal `{state.NvidiaThermalTargetRaw}`, " +
         $"stored fixed speed `{state.FixedSpeedRaw}`, current GPU duty `{state.GpuDutyRaw}`");
+}
+
+void RunFanCurveFloorProbe()
+{
+    bool confirmed = args.Any(argument =>
+        argument.Equals("--confirm-fan-curve-write", StringComparison.OrdinalIgnoreCase));
+    var test = new StringBuilder();
+    test.AppendLine("# AORUS fan-curve floor probe");
+    test.AppendLine();
+    test.AppendLine($"- Created: {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}");
+    test.AppendLine("- Question: does the EC store curve values below the verified floor of raw 57, or clamp them?");
+    test.AppendLine("- Method: write one candidate into points 0 and 1, read all 15 points back, restore.");
+    test.AppendLine("- The fan mode is never switched to Dynamic, so the probe curve never regulates the fans.");
+    test.AppendLine($"- Explicit curve-write confirmation present: {(confirmed ? "yes" : "no")}");
+    test.AppendLine();
+
+    if (!confirmed)
+    {
+        test.AppendLine("- Refused before opening the setter: `--confirm-fan-curve-write` is required.");
+        test.AppendLine("- Firmware/EC write methods invoked: **no**");
+        WriteCurveTestReport(test);
+        Environment.ExitCode = 2;
+        return;
+    }
+
+    using IAorusFanController controller = new GigabyteWmiFanController();
+    FanControlState? original = null;
+    bool written = false;
+    try
+    {
+        original = controller.ReadAsync().GetAwaiter().GetResult();
+        if (original.FixedStatusRaw != 0 || original.StepStatusRaw != 0 ||
+            original.AutoStatusRaw != 0 || original.NvidiaThermalTargetRaw != 0)
+        {
+            throw new AorusFanControlException("Der Test startet nur aus dem verifizierten Normalzustand.");
+        }
+
+        test.AppendLine("## Original curve");
+        test.AppendLine();
+        test.AppendLine("- " + string.Join(", ", original.Curve.Select(point => $"({point.Temperature},{point.Value})")));
+        test.AppendLine();
+        test.AppendLine("## Candidates");
+        test.AppendLine();
+        test.AppendLine("| Written | Read back point 0 | Read back point 1 | Other 13 points unchanged |");
+        test.AppendLine("|---|---|---|---|");
+
+        // Descending, so the first refusal answers the question and everything below it is
+        // recorded anyway - a clamp at one value does not prove the same clamp lower down.
+        using var setterProbe = new CurvePointWriter();
+        foreach (byte candidate in new byte[] { 50, 40, 30, 20, 10, 0 })
+        {
+            written = true;
+            setterProbe.Write(0, original.Curve[0].Temperature, candidate);
+            setterProbe.Write(1, original.Curve[1].Temperature, candidate);
+            FanControlState after = controller.ReadAsync().GetAwaiter().GetResult();
+            bool restUnchanged = after.Curve.Skip(2).SequenceEqual(original.Curve.Skip(2));
+            test.AppendLine($"| {candidate} | {after.Curve[0].Value} | {after.Curve[1].Value} | {(restUnchanged ? "yes" : "**no**")} |");
+        }
+    }
+    catch (Exception exception)
+    {
+        test.AppendLine();
+        test.AppendLine($"- Probe failed: {Escape(exception.Message)}");
+        Environment.ExitCode = 5;
+    }
+    finally
+    {
+        if (written && original is not null)
+        {
+            test.AppendLine();
+            test.AppendLine("## Restore");
+            test.AppendLine();
+            try
+            {
+                FanProfileChangeResult restored = controller.SetCurveAsync(original.Curve).GetAwaiter().GetResult();
+                bool exact = restored.VerifiedState.Curve.SequenceEqual(original.Curve);
+                test.AppendLine($"- All 15 original points restored and verified: {(exact ? "yes" : "**no**")}");
+                test.AppendLine("- " + string.Join(", ", restored.VerifiedState.Curve.Select(point => $"({point.Temperature},{point.Value})")));
+                if (!exact) Environment.ExitCode = 6;
+            }
+            catch (Exception restoreError)
+            {
+                test.AppendLine($"- Restore failed: {Escape(restoreError.Message)}");
+                test.AppendLine("- Use tools/Start-FanNormalRestore.cmd and re-check the curve.");
+                Environment.ExitCode = 7;
+            }
+        }
+    }
+
+    WriteCurveTestReport(test);
 }
 
 void WriteFanChangeReport(StringBuilder change)
@@ -7228,3 +7327,43 @@ void RunPowerDrawMonitor()
 
 #nullable restore warnings
 #pragma warning restore CS8321
+
+/// <summary>
+/// Writes single curve points through the firmware setter directly, bypassing the app's own
+/// 57-229 validation - which is the entire point of the probe: that range is what this test
+/// is trying to establish, so it cannot be assumed while establishing it.
+/// </summary>
+sealed class CurvePointWriter : IDisposable
+{
+    private readonly ManagementClass _setterClass;
+    private readonly ManagementObject _setter;
+
+    public CurvePointWriter()
+    {
+        _setterClass = new ManagementClass(
+            new ManagementScope(AorusDeviceProfile.FirmwareNamespace),
+            new ManagementPath(AorusDeviceProfile.SetterClass),
+            null);
+        using ManagementObjectCollection instances = _setterClass.GetInstances();
+        _setter = instances.Cast<ManagementObject>().FirstOrDefault()
+            ?? throw new InvalidOperationException("Keine Instanz der Gigabyte-Schreibklasse gefunden.");
+    }
+
+    public void Write(byte index, byte temperature, byte value)
+    {
+        using ManagementBaseObject input = _setter.GetMethodParameters("SetFanIndexValue");
+        input["Index"] = index;
+        input["Temperture"] = temperature;
+        input["Value"] = value;
+        using ManagementBaseObject output = _setter.InvokeMethod(
+            "SetFanIndexValue",
+            input,
+            new InvokeMethodOptions { Timeout = TimeSpan.FromSeconds(2) });
+    }
+
+    public void Dispose()
+    {
+        _setter.Dispose();
+        _setterClass.Dispose();
+    }
+}
