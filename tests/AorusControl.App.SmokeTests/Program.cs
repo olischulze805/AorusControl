@@ -38,6 +38,7 @@ StartupManagerTests.Run();
 FanSpeedPercentTests.Run();
 KeyboardEffectFrameTests.Run();
 KeyboardLayoutTests.Run();
+SliderGeometryTests.Run();
 await DebouncerTests.RunAsync();
 await AutoApplyTests.RunAsync();
 await WorkerDiscoveryTests.RunAsync();

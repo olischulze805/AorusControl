@@ -204,15 +204,16 @@
                                                 Minimum="25" Maximum="100"
                                                 Ticks="{Binding Cooling.FixedFanTicks}"
                                                 IsSnapToTickEnabled="True"
-                                                TickPlacement="BottomRight"
                                                 Value="{Binding Cooling.FixedFanPercent, Mode=TwoWay}" />
-                                        <Grid Margin="0,2,0,0">
-                                            <!-- Just the number: the long form collided with the right-hand
-                                                 label on a narrow window, and the paragraph above already says
-                                                 what the lowest step means. -->
-                                            <TextBlock Style="{StaticResource SliderEndLabel}" HorizontalAlignment="Left" Text="25 %" />
-                                            <TextBlock Style="{StaticResource SliderEndLabel}" HorizontalAlignment="Right" Text="100 %" />
-                                        </Grid>
+                                        <!-- Ticks on the tested steps, which really are unevenly spaced;
+                                             only the two ends are labelled, since the paragraph above
+                                             already explains what the lowest step means. -->
+                                        <ctrl:SliderScale Minimum="25" Maximum="100" Margin="0,2,0,0"
+                                                          Ticks="{Binding Cooling.FixedFanTicks}"
+                                                          TickBrush="{StaticResource TickBrush}">
+                                            <TextBlock Style="{StaticResource SliderEndLabel}" Text="25 %" />
+                                            <TextBlock Style="{StaticResource SliderEndLabel}" Text="100 %" />
+                                        </ctrl:SliderScale>
                                     </StackPanel>
                                     <ui:Button Grid.Column="2" Style="{StaticResource SecondaryButton}" Margin="0"
                                                Content="Fixed aktivieren" Command="{Binding Cooling.SetFixedCommand}"
@@ -346,20 +347,15 @@
                                     <StackPanel Grid.Column="1" Margin="22,0,0,0">
                                         <Slider Style="{StaticResource ValueSlider}" MinWidth="170"
                                                 Minimum="0" Maximum="3" TickFrequency="1"
-                                                IsSnapToTickEnabled="True" TickPlacement="BottomRight"
+                                                IsSnapToTickEnabled="True"
                                                 Value="{Binding Keyboard.BrightnessIndex, Mode=TwoWay}" />
-                                        <Grid Margin="0,2,0,0">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Style="{StaticResource SliderEndLabel}" Text="Aus" />
-                                            <TextBlock Grid.Column="1" Style="{StaticResource SliderEndLabel}" Text="Niedrig" HorizontalAlignment="Center" />
-                                            <TextBlock Grid.Column="2" Style="{StaticResource SliderEndLabel}" Text="Mittel" HorizontalAlignment="Center" />
-                                            <TextBlock Grid.Column="3" Style="{StaticResource SliderEndLabel}" Text="Hell" HorizontalAlignment="Right" />
-                                        </Grid>
+                                        <ctrl:SliderScale Minimum="0" Maximum="3" Margin="0,2,0,0"
+                                                          TickBrush="{StaticResource TickBrush}">
+                                            <TextBlock Style="{StaticResource SliderEndLabel}" Text="Aus" />
+                                            <TextBlock Style="{StaticResource SliderEndLabel}" Text="Niedrig" />
+                                            <TextBlock Style="{StaticResource SliderEndLabel}" Text="Mittel" />
+                                            <TextBlock Style="{StaticResource SliderEndLabel}" Text="Hell" />
+                                        </ctrl:SliderScale>
                                     </StackPanel>
                                 </Grid>
                                 <TextBlock Text="{Binding Keyboard.BrightnessEventStatus}" Style="{StaticResource Hint}" Margin="0,14,0,0" />
@@ -436,22 +432,16 @@
                                     <StackPanel Grid.Column="1" Margin="22,0,0,0">
                                         <Slider Style="{StaticResource ValueSlider}" MinWidth="170"
                                                 Minimum="0" Maximum="4" TickFrequency="1"
-                                                IsSnapToTickEnabled="True" TickPlacement="BottomRight"
+                                                IsSnapToTickEnabled="True"
                                                 Value="{Binding Keyboard.SpeedIndex, Mode=TwoWay}" />
-                                        <Grid Margin="0,2,0,0">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Style="{StaticResource SliderEndLabel}" Text="Sehr langsam" />
-                                            <TextBlock Grid.Column="1" Style="{StaticResource SliderEndLabel}" Text="Langsam" HorizontalAlignment="Center" />
-                                            <TextBlock Grid.Column="2" Style="{StaticResource SliderEndLabel}" Text="Normal" HorizontalAlignment="Center" />
-                                            <TextBlock Grid.Column="3" Style="{StaticResource SliderEndLabel}" Text="Schnell" HorizontalAlignment="Center" />
-                                            <TextBlock Grid.Column="4" Style="{StaticResource SliderEndLabel}" Text="Sehr schnell" HorizontalAlignment="Right" />
-                                        </Grid>
+                                        <ctrl:SliderScale Minimum="0" Maximum="4" Margin="0,2,0,0"
+                                                          TickBrush="{StaticResource TickBrush}">
+                                            <TextBlock Style="{StaticResource SliderEndLabel}" Text="Sehr langsam" />
+                                            <TextBlock Style="{StaticResource SliderEndLabel}" Text="Langsam" />
+                                            <TextBlock Style="{StaticResource SliderEndLabel}" Text="Normal" />
+                                            <TextBlock Style="{StaticResource SliderEndLabel}" Text="Schnell" />
+                                            <TextBlock Style="{StaticResource SliderEndLabel}" Text="Sehr schnell" />
+                                        </ctrl:SliderScale>
                                     </StackPanel>
                                 </Grid>
 
@@ -605,12 +595,15 @@
                                     <StackPanel Grid.Column="1" Margin="22,0,0,0">
                                         <Slider Style="{StaticResource ValueSlider}" MinWidth="170"
                                                 Minimum="60" Maximum="100" TickFrequency="10"
-                                                IsSnapToTickEnabled="False" TickPlacement="BottomRight"
+                                                IsSnapToTickEnabled="False"
                                                 Value="{Binding Battery.SelectedLimit, Mode=TwoWay}" />
-                                        <Grid Margin="0,2,0,0">
-                                            <TextBlock Style="{StaticResource SliderEndLabel}" HorizontalAlignment="Left" Text="60 %" />
-                                            <TextBlock Style="{StaticResource SliderEndLabel}" HorizontalAlignment="Right" Text="100 %" />
-                                        </Grid>
+                                        <ctrl:SliderScale Minimum="60" Maximum="100" Margin="0,2,0,0"
+                                                          Ticks="60,70,80,90,100"
+                                                          TickBrush="{StaticResource TickBrush}">
+                                            <TextBlock Style="{StaticResource SliderEndLabel}" Text="60 %" />
+                                            <TextBlock Style="{StaticResource SliderEndLabel}" Text="80 %" />
+                                            <TextBlock Style="{StaticResource SliderEndLabel}" Text="100 %" />
+                                        </ctrl:SliderScale>
                                     </StackPanel>
                                 </Grid>
                                 <WrapPanel Margin="0,20,0,-10">

@@ -103,8 +103,11 @@ static void RenderMainWindow(string output)
         foreach (string section in new[] { "Dashboard", "Cooling", "Lighting", "Power", "About" })
         {
             vm.SelectedSection = section;
-            Layout(content, width, 900);
-            Save(content, output, $"main-{section.ToLowerInvariant()}-{width}.png", width, 900);
+            // Tall enough that a section fits without scrolling: the point is to see the
+            // whole page at each width, and controls further down are exactly the ones a
+            // short render would keep hiding.
+            Layout(content, width, 1500);
+            Save(content, output, $"main-{section.ToLowerInvariant()}-{width}.png", width, 1500);
         }
     }
 }

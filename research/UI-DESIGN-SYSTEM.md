@@ -198,6 +198,40 @@ chart under Kühlung and the read-only one here, so the picture next to the expl
 never drift from the editor. Read-only omits the point markers - fifteen dots on a small
 chart read as a dotted line rather than as points.
 
+## Sliders: WPF-UI's thumb, our track, one scale
+
+Four settings are sliders (fan speed, charge limit, keyboard brightness, effect speed), and
+all four were subtly wrong in the same ways.
+
+The thumb is WPF-UI's now, referenced by key (`UiSliderThumbStyle`) rather than rebuilt. The
+hand-written one had a focus halo drawn larger than the thumb itself, so it was clipped to the
+thumb's bounds and appeared as a small square behind the round handle. A library that is
+already a dependency had a correct one.
+
+The track stays ours, because WPF-UI's is a single flat line: it never shows how far along the
+value is. Ours fills the part the value has passed, which is the decrease button's own region -
+no second value-to-width calculation to keep in sync.
+
+`SliderScale` draws the ticks and their labels. Both of the obvious approaches are wrong:
+WPF's `TickBar` spreads its marks across the full width unless told the thumb width, so they
+drift away from the thumb towards the ends; and labels in equal grid columns sit at the centre
+of each column (12.5%, 37.5%, …) rather than at the values they name (0%, 33%, …). One formula
+for both, in `SliderGeometry`, means they cannot disagree - and it is a pure function, so the
+smoke tests pin it down.
+
+On a narrow window the scale drops the labels that would collide and keeps the ends; the ticks
+stay, and the readout beside the slider names the current step in full anyway.
+
+Two WPF traps cost an hour here and are worth naming, because both look like the style simply
+having no effect:
+
+- A style that is `BasedOn` WPF-UI's slider style cannot replace its template: that style sets
+  `Template` from an `Orientation` trigger, and a trigger setter outranks a plain setter in the
+  derived style.
+- WPF-UI's implicit `RepeatButton` style overrode the templates set directly on the track's
+  repeat buttons, which is why the filled part of the track never appeared. `Style="{x:Null}"`
+  on those buttons is what makes them ours.
+
 ## Debounced apply instead of apply buttons
 
 An "Einstellung übernehmen" button is honest but tiring: the app knows perfectly well when

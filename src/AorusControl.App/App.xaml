@@ -45,6 +45,17 @@
             <SolidColorBrush x:Key="SubtleFillBrush" Color="#0CFFFFFF" />
             <SolidColorBrush x:Key="SubtleFillHoverBrush" Color="#14FFFFFF" />
             <SolidColorBrush x:Key="TrackBrush" Color="#14FFFFFF" />
+
+            <!-- WPF-UI slider theme keys, so its Fluent template wears this app's accent. -->
+            <SolidColorBrush x:Key="SliderTrackFill" Color="#14FFFFFF" />
+            <SolidColorBrush x:Key="SliderTrackFillPointerOver" Color="#1FFFFFFF" />
+            <SolidColorBrush x:Key="SliderTrackValueFill" Color="{StaticResource AccentColor}" />
+            <SolidColorBrush x:Key="SliderTrackValueFillPointerOver" Color="{StaticResource AccentHoverColor}" />
+            <SolidColorBrush x:Key="SliderThumbBackground" Color="{StaticResource AccentColor}" />
+            <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="{StaticResource AccentHoverColor}" />
+            <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="{StaticResource AccentPressedColor}" />
+            <SolidColorBrush x:Key="SliderOuterThumbBackground" Color="{StaticResource CardColor}" />
+            <SolidColorBrush x:Key="SliderTickBarFill" Color="#FF454B55" />
             <SolidColorBrush x:Key="TickBrush" Color="#FF454B55" />
 
             <!-- Semantic status colours: unchanged, these are the values the app has
@@ -397,47 +408,50 @@
                  an unevenly-spaced set of firmware-tested steps looks uneven, which
                  is honest; IsSnapToTickEnabled then makes the invalid values
                  between them unreachable. -->
+            <!-- The thumb comes from WPF-UI's own Fluent slider (referenced by key below);
+                 only the track is ours, because theirs is a single flat line that never shows
+                 how far along the value is. The filled part is the decrease button's own
+                 region, so it needs no second value-to-width calculation.
+
+                 Three traps are dodged here, all of them things that silently produce a
+                 slider that looks almost right:
+
+                 * The style is NOT BasedOn WPF-UI's slider style. That style sets its Template
+                   from an Orientation trigger, and a trigger setter outranks a plain setter in
+                   a derived style, so this template would never be used.
+                 * Both RepeatButtons set Style="{x:Null}". WPF-UI has an implicit RepeatButton
+                   style, and it was overriding the templates below - which is why the track
+                   never showed a filled portion at all.
+                 * Ticks are off. WPF's TickBar spreads its marks across the full width,
+                   ignoring that the thumb cannot reach the last half-thumb at either end;
+                   SliderScale draws them from the same formula that places the thumb. -->
             <Style x:Key="ValueSlider" TargetType="Slider">
-                <Setter Property="Height" Value="38" />
+                <Setter Property="Height" Value="32" />
                 <Setter Property="IsMoveToPointEnabled" Value="True" />
                 <Setter Property="VerticalAlignment" Value="Center" />
-                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                <Setter Property="TickPlacement" Value="None" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Slider">
-                            <Grid VerticalAlignment="Center">
-                                <Border Height="6" CornerRadius="3" VerticalAlignment="Center"
-                                        Margin="11,0"
-                                        Background="{StaticResource TrackBrush}" />
-                                <!-- ReservedSpace = thumb width, otherwise the ticks drift
-                                     away from the thumb towards both ends of the track. -->
-                                <TickBar Height="6" VerticalAlignment="Bottom" Margin="0,0,0,-3"
-                                         Fill="{StaticResource TickBrush}"
-                                         Placement="Bottom"
-                                         ReservedSpace="22"
-                                         Minimum="{Binding Minimum, RelativeSource={RelativeSource TemplatedParent}}"
-                                         Maximum="{Binding Maximum, RelativeSource={RelativeSource TemplatedParent}}"
-                                         Ticks="{Binding Ticks, RelativeSource={RelativeSource TemplatedParent}}"
-                                         TickFrequency="{Binding TickFrequency, RelativeSource={RelativeSource TemplatedParent}}" />
+                            <Grid VerticalAlignment="Center" Background="Transparent">
+                                <Border Height="4" CornerRadius="2" VerticalAlignment="Center" Margin="10,0"
+                                        Background="{DynamicResource SliderTrackFill}" />
                                 <Track x:Name="PART_Track">
                                     <Track.DecreaseRepeatButton>
-                                        <!-- The "already reached" part of the track: the decrease
-                                             button is exactly that region, so filling it needs no
-                                             second value-to-width conversion. -->
-                                        <RepeatButton Command="Slider.DecreaseLarge" Focusable="False">
+                                        <RepeatButton Command="Slider.DecreaseLarge" Focusable="False" Style="{x:Null}">
                                             <RepeatButton.Template>
                                                 <ControlTemplate TargetType="RepeatButton">
                                                     <Border Background="Transparent">
-                                                        <Border Height="6" CornerRadius="3" VerticalAlignment="Center"
-                                                                Margin="11,0,0,0"
-                                                                Background="{StaticResource AccentBrush}" />
+                                                        <Border Height="4" CornerRadius="2" VerticalAlignment="Center"
+                                                                Margin="10,0,0,0"
+                                                                Background="{DynamicResource SliderTrackValueFill}" />
                                                     </Border>
                                                 </ControlTemplate>
                                             </RepeatButton.Template>
                                         </RepeatButton>
                                     </Track.DecreaseRepeatButton>
                                     <Track.IncreaseRepeatButton>
-                                        <RepeatButton Command="Slider.IncreaseLarge" Focusable="False">
+                                        <RepeatButton Command="Slider.IncreaseLarge" Focusable="False" Style="{x:Null}">
                                             <RepeatButton.Template>
                                                 <ControlTemplate TargetType="RepeatButton">
                                                     <Border Background="Transparent" />
@@ -446,29 +460,7 @@
                                         </RepeatButton>
                                     </Track.IncreaseRepeatButton>
                                     <Track.Thumb>
-                                        <Thumb Width="22" Height="22" Cursor="Hand" FocusVisualStyle="{x:Null}">
-                                            <Thumb.Template>
-                                                <ControlTemplate TargetType="Thumb">
-                                                    <Grid>
-                                                        <!-- Round halo instead of a square focus rectangle;
-                                                             it grows when the slider has keyboard focus. -->
-                                                        <Ellipse x:Name="Halo" Width="30" Height="30"
-                                                                 Fill="{StaticResource AccentSoftBrush}" />
-                                                        <Ellipse Width="22" Height="22"
-                                                                 Fill="{StaticResource AccentBrush}"
-                                                                 Stroke="#FF14161A" StrokeThickness="3" />
-                                                    </Grid>
-                                                    <ControlTemplate.Triggers>
-                                                        <DataTrigger Value="True"
-                                                                     Binding="{Binding IsKeyboardFocusWithin, RelativeSource={RelativeSource AncestorType=Slider}}">
-                                                            <Setter TargetName="Halo" Property="Width" Value="38" />
-                                                            <Setter TargetName="Halo" Property="Height" Value="38" />
-                                                            <Setter TargetName="Halo" Property="Fill" Value="{StaticResource AccentSoftStrongBrush}" />
-                                                        </DataTrigger>
-                                                    </ControlTemplate.Triggers>
-                                                </ControlTemplate>
-                                            </Thumb.Template>
-                                        </Thumb>
+                                        <Thumb Style="{StaticResource UiSliderThumbStyle}" />
                                     </Track.Thumb>
                                 </Track>
                             </Grid>
