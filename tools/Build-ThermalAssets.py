@@ -24,6 +24,7 @@ FRAME = 39                          # the brightest frame: both fans fully lit
 CROP = (366, 100, 1584, 522)        # the cooling assembly: chassis edge down to just below the lower pipe loop
 FANS = ((564, 355.5), (1383.5, 366.5))   # hub centres in the full frame
 BLADE, EDGE = 88, 97                # blade radius, and how much of the housing comes along
+HUB = 46                            # the metal cap in the middle, kept as it is
 OUT = os.path.join(os.path.dirname(__file__), "..", "src", "AorusControl.App", "Assets")
 
 
@@ -61,16 +62,54 @@ def body(crop, pipe_mask):
 
 
 def disc(full, centre):
-    """One fan's blades as a circle with a feathered edge, ready to be rotated."""
+    """One fan's blades as a circle with a feathered edge, ready to be rotated.
+
+    The video lights the fans with a stylised swirl of orange and blue, which is fine in a
+    product clip and wrong here: rotating it looks like a ring of fire turning, not like a
+    fan. So the illumination is divided out. Averaging the tile over many small rotations
+    gives the lighting alone - the blades repeat every ~7.7 degrees and average away, while
+    the swirl spans half the disc and survives - and dividing the tile by that average leaves
+    the blades on an even ground. The hub is put back untouched, because it has no blades to
+    recover and the flat-field only adds noise there.
+    """
     x, y = (int(round(value)) for value in centre)
     tile = full.crop((x - EDGE, y - EDGE, x + EDGE, y + EDGE))
+    plain = tile.convert("L")
+    grey = np.asarray(plain).astype(float)
+
+    lighting = np.mean(
+        [np.asarray(plain.rotate(angle, resample=Image.BICUBIC)).astype(float)
+         for angle in np.arange(-26, 27, 2)], axis=0)
+
     side = tile.size[0]
+    yy, xx = np.mgrid[0:side, 0:side]
+    distance = np.hypot(xx - (side - 1) / 2, yy - (side - 1) / 2)
+    blades = (distance > HUB) & (distance < BLADE)
+
+    # The resting level comes from the darker end of the ring, not its median: the median is
+    # dragged up by the very glow being removed, and a fan lit like a studio prop is exactly
+    # what this is meant to stop being.
+    level = np.percentile(grey[blades], 34)
+    # A clamped ratio, because where the swirl was brightest the division still leaves hot
+    # specks - the blades there carry no more information than anywhere else.
+    ratio = np.clip(grey / np.maximum(lighting, 8), 0.78, 1.3)
+    flat = np.clip(level * (1 + (ratio - 1) * 1.15), 0, 255)
+    # Slightly recessed towards the rim, the way a fan sits in its well.
+    flat *= 1 - 0.28 * np.clip((distance - HUB) / (BLADE - HUB), 0, 1) ** 2
+
+    # Only the blades are replaced: the hub has none to recover, and the feathered edge keeps
+    # the original housing so the disc does not sit on a bright halo of its own making.
+    # The hub keeps its own shading but comes down with the blades; at full brightness it
+    # reads as a lamp in the middle of a dark fan.
+    result = np.where((distance > HUB) & (distance < BLADE - 3), flat, grey * 0.82)
+    disc_image = Image.fromarray(np.clip(result, 0, 255).astype(np.uint8)).convert("RGB")
+
     # Drawn at 4x and scaled down: an ellipse mask at final size has visibly stepped edges.
     alpha = Image.new("L", (side * 4, side * 4), 0)
     ImageDraw.Draw(alpha).ellipse(
         (4 * (EDGE - BLADE), 4 * (EDGE - BLADE), 4 * (EDGE + BLADE), 4 * (EDGE + BLADE)), fill=255)
-    tile.putalpha(alpha.resize((side, side), Image.LANCZOS).filter(ImageFilter.GaussianBlur(2.5)))
-    return tile
+    disc_image.putalpha(alpha.resize((side, side), Image.LANCZOS).filter(ImageFilter.GaussianBlur(2.5)))
+    return disc_image
 
 
 def pipe_mask(crop):

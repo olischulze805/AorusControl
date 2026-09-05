@@ -149,6 +149,7 @@ static void RenderCoolingStates(string output)
         foreach (ThermalLayout layout in Descendants<ThermalLayout>(content))
         {
             layout.PulsePhase = 0.42;
+            layout.SpinForCheck(2.0);
             lit++;
         }
         if (lit != 1) throw new Exception($"expected one thermal layout on the cooling page, found {lit}");

@@ -144,7 +144,12 @@ public sealed class FanRotor : FrameworkElement
         double elapsed = _clock.Elapsed.TotalSeconds;
         _clock.Restart();
         if (elapsed <= 0 || elapsed > 0.25) elapsed = 1.0 / 60;
+        Step(elapsed);
+        if (_speed == 0 && TargetDegreesPerSecond == 0) Hook(false);
+    }
 
+    private void Step(double elapsed)
+    {
         // Exponential approach: fast enough to react to a reading, slow enough that the
         // change is visible as spooling up rather than as a jump.
         double target = TargetDegreesPerSecond;
@@ -153,7 +158,14 @@ public sealed class FanRotor : FrameworkElement
 
         _angle = (_angle + _speed * elapsed) % 360;
         InvalidateVisual();
-        if (_speed == 0 && target == 0) Hook(false);
+    }
+
+    /// <summary>Runs the rotor forward without a clock. Only the offscreen render checks use
+    /// it: nothing ticks there, so without this they would photograph a fan that has not yet
+    /// started turning - which is exactly the state the sheen is supposed to stay out of.</summary>
+    internal void SpinForCheck(double seconds)
+    {
+        for (int step = 0; step < 30; step++) Step(seconds / 30);
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -173,6 +185,7 @@ public sealed class FanRotor : FrameworkElement
         context.PushOpacity(IsLive ? 1 : 0.5);
         context.PushTransform(new RotateTransform(_angle, centre.X, centre.Y));
         context.DrawImage(Blades, new Rect(centre.X - side / 2, centre.Y - side / 2, side, side));
+        DrawSheen(context, centre, side / 2);
         context.Pop();
         context.Pop();
 
@@ -182,6 +195,48 @@ public sealed class FanRotor : FrameworkElement
         // at and cheaper than drawing motion trails.
         double share = Math.Clamp(_speed / FastestDegreesPerSecond, 0, 1);
         Effect = share < 0.08 ? null : new BlurEffect { Radius = share * 2.2, KernelType = KernelType.Gaussian };
+    }
+
+    /// <summary>
+    /// Light catching the blades: two faint arcs turning with the fan, no stronger than a
+    /// reflection.
+    ///
+    /// They exist because plain blades are the honest picture of a laptop fan and also a
+    /// low-contrast one - at 1500 RPM a grey disc of grey blades barely reads as moving.
+    /// These give the eye something to follow, and they fade out entirely when the fan stops,
+    /// so they can never suggest motion that is not there.
+    /// </summary>
+    private void DrawSheen(DrawingContext context, Point centre, double radius)
+    {
+        double share = Math.Clamp(_speed / FastestDegreesPerSecond, 0, 1);
+        if (share < 0.02) return;
+
+        // Nearly white, with only a breath of the temperature colour in it: metal catching
+        // light is white, and a strongly tinted arc reads as a drawn-on ring instead.
+        Color tint = Mix(Tint(), Colors.White, 0.55);
+        foreach ((double at, double from, double sweep, double weight) in new[]
+        {
+            (0.86, -0.7, 1.8, 1.0), (0.70, 2.1, 1.4, 0.8), (0.55, 4.1, 1.0, 0.55)
+        })
+        {
+            double r = radius * at;
+            Point On(double angle) => new(centre.X + r * Math.Cos(angle), centre.Y + r * Math.Sin(angle));
+
+            var figure = new PathFigure { StartPoint = On(from) };
+            figure.Segments.Add(new ArcSegment(On(from + sweep), new Size(r, r), 0, false, SweepDirection.Clockwise, true));
+            var geometry = new PathGeometry();
+            geometry.Figures.Add(figure);
+            geometry.Freeze();
+
+            var brush = new SolidColorBrush(Color.FromArgb(
+                (byte)Math.Clamp((0.06 + share * 0.20) * weight * 255, 0, 255), tint.R, tint.G, tint.B));
+            brush.Freeze();
+            context.DrawGeometry(null, new Pen(brush, radius * 0.085)
+            {
+                StartLineCap = PenLineCap.Round,
+                EndLineCap = PenLineCap.Round
+            }, geometry);
+        }
     }
 
     /// <summary>The effort arc: from the top, clockwise, one full turn at 100 %. It sits just
@@ -208,12 +263,17 @@ public sealed class FanRotor : FrameworkElement
         geometry.Freeze();
 
         Color tint = Tint();
-        context.DrawGeometry(null, new Pen(new SolidColorBrush(Color.FromArgb(0xCC, tint.R, tint.G, tint.B)), 2.5)
+        context.DrawGeometry(null, new Pen(new SolidColorBrush(Color.FromArgb(0xB0, tint.R, tint.G, tint.B)), 2)
         {
             StartLineCap = PenLineCap.Round,
             EndLineCap = PenLineCap.Round
         }, geometry);
     }
+
+    private static Color Mix(Color from, Color to, double share) => Color.FromRgb(
+        (byte)(from.R + (to.R - from.R) * share),
+        (byte)(from.G + (to.G - from.G) * share),
+        (byte)(from.B + (to.B - from.B) * share));
 
     /// <summary>
     /// The app's own cyan while the machine is cool, warming towards amber from about 65 °C.

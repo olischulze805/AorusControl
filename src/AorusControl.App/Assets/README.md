@@ -24,7 +24,7 @@ the clean answer.
 | File | What it is |
 | --- | --- |
 | `thermal-body.jpg` | The chassis, cropped to the cooling assembly (1218 × 422: chassis edge down to just below the lower pipe loop, since the battery half of the machine says nothing about cooling), dimmed to sit in a dark card, with the video's red ambient glow desaturated, the outer edge faded, and the pipes themselves rested a little darker so the app's travelling light has somewhere to go |
-| `thermal-fan-left/right.png` | Each fan's blades cut out as a circle with a soft edge, so `FanRotor` can rotate them over the housing they came from |
+| `thermal-fan-left/right.png` | Each fan's blades cut out as a circle with a soft edge, so `FanRotor` can rotate them over the housing they came from - with the video's stylised orange-and-blue swirl divided out, because rotating that looks like a ring of fire turning rather than like a fan. The lighting is found by averaging the tile over many small rotations (the blades repeat every ~7.7° and average away, the swirl spans half the disc and survives) and then divided out; the hub is kept as it is |
 | `thermal-pipes.png` | An alpha mask of the heat pipes and fin stacks, picked out by their brass colour - the warm pulse is drawn through this, so it can only ever light up actual metal |
 
 The coordinates the app draws with (`ThermalLayout`) are this image's own pixel space, so

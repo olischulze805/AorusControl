@@ -209,10 +209,12 @@ public sealed class ThermalLayout : Panel
         };
         // The pipes rest a little darker in the image than the video had them, so this puts
         // some of that back - more of it the hotter the machine is.
-        brush.GradientStops.Add(Stop(0.16 + warmth * 0.30, 0));
-        brush.GradientStops.Add(Stop(0.08 + warmth * 0.18, 1));
+        brush.GradientStops.Add(Stop(0.14 + warmth * 0.24, 0));
+        brush.GradientStops.Add(Stop(0.07 + warmth * 0.14, 1));
 
-        double peak = 0.34 + FlowSpeed * 0.55;
+        // Deliberately restrained: this is heat moving through metal, not sparks flying
+        // along it. It should be noticed on the second look, not the first.
+        double peak = 0.14 + FlowSpeed * 0.26;
         foreach (double wave in Waves)
         {
             // Each wave crosses the picture and is gone before it wraps, so they never pop
@@ -236,6 +238,14 @@ public sealed class ThermalLayout : Panel
 
     private static GradientStop Stop(double strength, double offset) =>
         new(Color.FromArgb((byte)Math.Clamp(strength * 255, 0, 255), GlowColor.R, GlowColor.G, GlowColor.B), offset);
+
+    /// <summary>Spins both fans up, for the same reason and the same audience as
+    /// <see cref="PulsePhase"/>.</summary>
+    internal void SpinForCheck(double seconds)
+    {
+        _left.SpinForCheck(seconds);
+        _right.SpinForCheck(seconds);
+    }
 
     /// <summary>Where the waves currently are. Only the offscreen render checks set this, so
     /// they can photograph a pulse instead of the one frame where nothing is lit.</summary>

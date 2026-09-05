@@ -402,6 +402,14 @@ the machine. The photograph carries the detail - the brushed pipes, the board, t
 that no reasonable amount of drawing code was going to reproduce, and it is a third of the
 code.
 
+The vendor's own light effects are deliberately removed rather than reused. The video lights
+the fans with a stylised orange swirl, and rotating that reads as a ring of fire turning; the
+generator divides the illumination out (see `Assets/README.md`) so what turns is plain blades.
+The light on top is then the app's own and means something: two or three faint, nearly white
+arcs that turn with the blades and fade out completely when a fan stops - plain blades are the
+honest picture of a laptop fan and also a low-contrast one, and these give the eye something
+to follow without ever suggesting motion that is not there.
+
 The live values drive it: the rotors turn at the measured speed with an arc around each for
 that fan's duty, tinted by its temperature; and three waves of warm light travel outwards from the chips at the
 speed the fans are working, so switching a profile is visible and not merely readable. Each
@@ -409,8 +417,9 @@ wave has a bright leading edge and a long tail, the way heat actually moves thro
 a symmetrical blob slides, but does not flow - and the pipes rest slightly darker in the
 image than the video had them, which is what gives the light something to brighten. The
 picture is drawn in the asset's own pixel space scaled to the available width, so the
-coordinates in the control can be read straight off the image; `ThermalLayout.PulsePhase` is
-internal so the render checks can photograph a wave in flight instead of a dark frame.
+coordinates in the control can be read straight off the image; `ThermalLayout.PulsePhase` and `SpinForCheck` are
+internal so the render checks can photograph a wave in flight and a fan already up to speed,
+rather than the one frame in which neither has started.
 
 Three rules keep it honest and smooth:
 
