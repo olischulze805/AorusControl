@@ -5,6 +5,11 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- DPI awareness lives in app.manifest. WFO0003 asks WinForms apps to use
+         ApplicationHighDpiMode instead, but that property only drives WinForms' own
+         startup path and writes nothing into a WPF manifest; this app is WPF and hosts
+         WinForms only for the tray NotifyIcon, which has no scaled content of its own. -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <AssemblyName>AorusControl</AssemblyName>
     <RootNamespace>AorusControl.App</RootNamespace>

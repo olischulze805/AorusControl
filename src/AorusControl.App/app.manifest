@@ -8,6 +8,19 @@
       </requestedPrivileges>
     </security>
   </trustInfo>
+  <!-- Per-monitor v2, declared here rather than in code: the manifest is read before any
+       application code runs, so there is no startup ordering problem. Without it WPF is
+       only system-DPI aware and the window renders bitmap-stretched (blurry text, soft
+       icons) on any monitor whose scaling differs from the primary one - exactly the
+       laptop-plus-external-monitor case this app lives in. longPathAware keeps file
+       access working past MAX_PATH for log and settings paths. -->
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2, PerMonitor</dpiAwareness>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
+    </windowsSettings>
+  </application>
   <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
     <application>
       <supportedOS Id="{4f476546-937d-4f52-9f42-26b2f7e9b6f1}" />
