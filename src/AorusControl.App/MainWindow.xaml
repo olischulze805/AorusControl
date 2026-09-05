@@ -140,10 +140,6 @@
                                 </ui:Button>
                             </Grid>
                         </Border>
-
-                        <TextBlock Style="{StaticResource Hint}" HorizontalAlignment="Center" Margin="0,4,0,0"
-                                   TextWrapping="Wrap" TextAlignment="Center"
-                                   Text="AORUS 5 SE / FB0F Allowlist · Readback und Rollback für jede Hardwareänderung" />
                     </StackPanel>
                 </ScrollViewer>
 
@@ -157,9 +153,11 @@
                              Frage, die diese Karte stellt, und man sieht die Antwort sofort. -->
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
-                                <TextBlock Text="Live" Style="{StaticResource CardTitle}" />
-                                <TextBlock Style="{StaticResource Hint}"
-                                           Text="Das Kühlsystem dieses Geräts von unten: beide Lüfter drehen so schnell, wie sie es wirklich tun, das Licht in den Heatpipes fließt mit ihrer Auslastung, und die Lamellen werden mit der Temperatur wärmer. Beim Verstellen sieht man dadurch direkt, was die Änderung bewirkt - gemessen wird jede Sekunde, solange diese Seite offen ist." />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Live" Style="{StaticResource CardTitle}" />
+                                    <ui:SymbolIcon Style="{StaticResource InfoDot}"
+                                                   ToolTip="Das Kühlsystem dieses Geräts von unten. Die Lüfter drehen so schnell, wie sie wirklich drehen, das Licht in den Heatpipes fließt mit ihrer Auslastung. Gemessen wird jede Sekunde, solange diese Seite offen ist; ohne Messung steht alles still." />
+                                </StackPanel>
                                 <!-- Das Kühlsystem dieses Geräts, nachgezeichnet: zwei Lüfter, die
                                      Heatpipes dazwischen, die Lamellenpakete und die beiden Chips.
                                      Es ist eine Zeichnung, kein Messbild - aber alles darin hängt an
@@ -207,9 +205,11 @@
 
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
-                                <TextBlock Text="Lüfter" Style="{StaticResource CardTitle}" />
-                                <TextBlock Style="{StaticResource Hint}"
-                                           Text="Getestete Herstellerprofile. Normal ist der sichere Rückweg und wird bei Absturz automatisch wiederhergestellt. Hervorgehoben ist, was zurückgelesen wurde - nicht, was zuletzt geklickt wurde." />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Lüfter" Style="{StaticResource CardTitle}" />
+                                    <ui:SymbolIcon Style="{StaticResource InfoDot}"
+                                                   ToolTip="Hervorgehoben ist, was vom Gerät zurückgelesen wurde - nicht, was zuletzt geklickt wurde. Normal ist der sichere Rückweg und wird nach einem Absturz automatisch wiederhergestellt." />
+                                </StackPanel>
                                 <WrapPanel Margin="0,16,0,-10" IsEnabled="{Binding Cooling.ControlsEnabled}">
                                     <RadioButton Style="{StaticResource Chip}" GroupName="FanProfile" Content="Leise"
                                                  Command="{Binding Cooling.SetProfileCommand}" CommandParameter="Quiet"
@@ -237,7 +237,8 @@
                                         <RadioButton.Tag><ui:SymbolIcon Symbol="ArrowSync24" FontSize="16" /></RadioButton.Tag>
                                     </RadioButton>
                                 </WrapPanel>
-                                <TextBlock Text="{Binding Cooling.Status}" Style="{StaticResource StatusText}" />
+                                <TextBlock Text="{Binding Cooling.Status}" Style="{StaticResource StatusText}"
+                                           ToolTip="{Binding Cooling.StatusDetail}" />
 
 
                                 <!-- Ein Diagramm für alle Modi: es zeigt, was der laufende Modus tut,
@@ -271,13 +272,12 @@
                                              Visibility="{Binding Cooling.Live.IsLive, Converter={StaticResource BoolVisible}}" />
                                     <TextBlock Style="{StaticResource Hint}" Margin="6,0,0,0" Text="jetzt gemessen"
                                                Visibility="{Binding Cooling.Live.IsLive, Converter={StaticResource BoolVisible}}" />
+                                    <!-- Die Bedienung der Kurve steht dort, wo man sie bedient, und
+                                         nur dann, wenn sie sich überhaupt bedienen lässt. -->
+                                    <ui:SymbolIcon Style="{StaticResource InfoDot}" Margin="16,0,0,0"
+                                                   Visibility="{Binding Cooling.IsCurveEditable, Converter={StaticResource BoolVisible}}"
+                                                   ToolTip="Punkt ziehen · Klick ins Leere setzt einen neuen · Rechtsklick oder Entf entfernt den gewählten · Pfeiltasten verschieben ihn genau, mit Strg in Fünferschritten · der letzte Punkt gehört der Firmware. Unter 60 °C darf die Kurve bis 0 % gehen, ab 60 °C gilt die niedrigste vermessene Stufe von 25 %." />
                                 </StackPanel>
-                                <!-- Nur sichtbar, solange sich die Kurve überhaupt bearbeiten lässt:
-                                     unter den Firmware-Profilen wäre eine Bedienanleitung für etwas,
-                                     das man nicht anfassen kann, bloß Lärm. -->
-                                <TextBlock Style="{StaticResource Hint}" Margin="0,10,0,0" TextWrapping="Wrap"
-                                           Visibility="{Binding Cooling.IsCurveEditable, Converter={StaticResource BoolVisible}}"
-                                           Text="Punkt ziehen · Klick ins Leere setzt einen neuen · Rechtsklick oder Entf entfernt den gewählten · Pfeiltasten verschieben ihn genau, mit Strg in Fünferschritten · der letzte Punkt gehört der Firmware. Unter 60 °C darf die Kurve bis 0 % gehen, die Lüfter stehen dann wirklich still; ab 60 °C gilt die niedrigste vermessene Stufe von 25 %." />
                                 <TextBlock Text="{Binding Cooling.CurveStatus}" Style="{StaticResource StatusText}" Margin="0,12,0,0" />
                                 <WrapPanel Margin="0,10,0,-10" IsEnabled="{Binding Cooling.IsCurveEditable}">
                                     <ui:Button Style="{StaticResource PrimaryButton}" Content="Kurve übernehmen"
@@ -298,9 +298,11 @@
                                      Antwort auf dieselbe Frage, nämlich wie die Lüfter gerade laufen
                                      sollen - nur eine, die die Kurve außer Kraft setzt. -->
                                 <Border Height="1" Background="{StaticResource CardBorderBrush}" Margin="0,24,0,20" />
-                                <TextBlock Text="Fester Wert" Style="{StaticResource SubLabel}" />
-                                <TextBlock Style="{StaticResource Hint}"
-                                           Text="Hält die Lüfter unabhängig von der Temperatur, ganz links auch komplett aus - stufenlos über den ganzen Bereich, den die Firmware kennt. Läuft über den absturzsicheren Hardware-Worker, der bei 65 °C von sich aus auf Normal zurückstellt; Aktivieren ist bewusst ein Knopfdruck, danach folgt der Regler von selbst." />
+                                <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
+                                    <TextBlock Text="Fester Wert" Style="{StaticResource SubLabel}" Margin="0" />
+                                    <ui:SymbolIcon Style="{StaticResource InfoDot}" FontSize="13"
+                                                   ToolTip="Hält die Lüfter unabhängig von der Temperatur, ganz links auch komplett aus - stufenlos über den ganzen Bereich der Firmware. Läuft über den absturzsicheren Hardware-Worker, der bei 65 °C von sich aus auf Normal zurückstellt. Aktivieren ist ein Knopfdruck, danach folgt der Regler von selbst." />
+                                </StackPanel>
                                 <Grid Margin="0,20,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -348,9 +350,11 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel>
-                                        <TextBlock Text="Tastaturbeleuchtung" Style="{StaticResource CardTitle}" />
-                                        <TextBlock Style="{StaticResource Hint}" MaxWidth="520"
-                                                   Text="Die Vorschau rechnet mit derselben Funktion, deren Ergebnis an die Tastatur geschickt wird - sie zeigt den tatsächlichen Frame, keine Nachbildung." />
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="Tastaturbeleuchtung" Style="{StaticResource CardTitle}" />
+                                            <ui:SymbolIcon Style="{StaticResource InfoDot}"
+                                                           ToolTip="Die Vorschau rechnet mit derselben Funktion, deren Ergebnis an die Tastatur geht - sie zeigt den tatsächlichen Frame, keine Nachbildung." />
+                                        </StackPanel>
                                     </StackPanel>
                                     <ui:Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Margin="16,0,0,0"
                                                Content="{Binding Keyboard.PowerButtonText}"
@@ -452,9 +456,11 @@
                         <!-- Effekt + Tempo -->
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
-                                <TextBlock Text="Effekt" Style="{StaticResource CardTitle}" />
-                                <TextBlock Style="{StaticResource Hint}"
-                                           Text="Neun host-gerenderte Effekte, plus manuelle Zonenfarben als zehnte Kachel. Die laufende Kachel pulsiert, damit auch ohne Blick auf die Tastatur klar ist, was gerade an ist." />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Effekt" Style="{StaticResource CardTitle}" />
+                                    <ui:SymbolIcon Style="{StaticResource InfoDot}"
+                                                   ToolTip="Neun vom Rechner gezeichnete Effekte, dazu manuelle Zonenfarben als zehnte Kachel. Die laufende Kachel pulsiert, damit auch ohne Blick auf die Tastatur klar ist, was gerade an ist." />
+                                </StackPanel>
                                 <WrapPanel Margin="0,14,0,-10" IsEnabled="{Binding Keyboard.ControlsEnabled}">
                                     <RadioButton Style="{StaticResource IconTile}" GroupName="Effect" Content="Atmen"
                                                  Command="{Binding Keyboard.ApplyEffectCommand}" CommandParameter="Breathing"
@@ -609,9 +615,11 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel>
-                                        <TextBlock Text="Windows-Leistungsmodus" Style="{StaticResource CardTitle}" />
-                                        <TextBlock Style="{StaticResource Hint}" MaxWidth="520"
-                                                   Text="Unabhängig vom Lüfterprofil · nur der getestete Netzbetrieb." />
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="Windows-Leistungsmodus" Style="{StaticResource CardTitle}" />
+                                            <ui:SymbolIcon Style="{StaticResource InfoDot}"
+                                                           ToolTip="{Binding Windows.PowerModeScope}" />
+                                        </StackPanel>
                                     </StackPanel>
                                     <ui:Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Margin="16,0,0,0"
                                                Content="Eigene Profile verwalten …" Click="OnProfilesClick" VerticalAlignment="Top">
@@ -667,10 +675,12 @@
 
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
-                                <TextBlock Text="Akku · Ladelimit" Style="{StaticResource CardTitle}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Akku · Ladelimit" Style="{StaticResource CardTitle}" />
+                                    <ui:SymbolIcon Style="{StaticResource InfoDot}"
+                                                   ToolTip="Der Regler übernimmt sich selbst, kurz nachdem er zur Ruhe kommt. Das Ergebnis wird zurückgelesen und darunter bestätigt." />
+                                </StackPanel>
                                 <TextBlock Text="{Binding Battery.ActivePolicy}" Style="{StaticResource Hint}" />
-                                <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
-                                           Text="Der Regler übernimmt sich selbst, kurz nachdem er zur Ruhe kommt - das Ergebnis wird zurückgelesen und darunter bestätigt." />
                                 <Grid Margin="0,20,0,0" IsEnabled="{Binding Battery.CanAdjust}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -716,20 +726,25 @@
                     <StackPanel MaxWidth="880" HorizontalAlignment="Center">
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
-                                <TextBlock Text="AORUS Control" Style="{StaticResource CardTitle}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="AORUS Control" Style="{StaticResource CardTitle}" />
+                                    <ui:SymbolIcon Style="{StaticResource InfoDot}"
+                                                   ToolTip="Lüfter, Tastatur-RGB, Ladelimit und Windows-Leistungsmodus sind auf dieses genaue Gerät gesperrt; jede Änderung wird zurückgelesen und im Fehlerfall zurückgestellt." />
+                                </StackPanel>
                                 <TextBlock Margin="0,6,0,0" FontSize="13">
                                     <Run Text="Version " /><Run Text="{Binding Updates.CurrentVersion, Mode=OneWay}" FontWeight="SemiBold" />
                                 </TextBlock>
-                                <TextBlock Style="{StaticResource Hint}"
-                                           Text="AORUS 5 SE · BIOS FB0F · geprüfte Hardwaregrenzen. Lüfter, Tastatur-RGB, Ladelimit und Windows-Leistungsmodus sind auf dieses genaue Gerät gesperrt; jede Änderung wird zurückgelesen und im Fehlerfall zurückgestellt." />
+                                <TextBlock Style="{StaticResource Hint}" Text="AORUS 5 SE · BIOS FB0F" />
                             </StackPanel>
                         </Border>
 
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
-                                <TextBlock Text="Autostart" Style="{StaticResource CardTitle}" />
-                                <TextBlock Style="{StaticResource Hint}"
-                                           Text="Läuft über eine geplante Aufgabe (nicht den Registry-Autostart), damit bei jedem Login kein neuer Rechte-Dialog erscheint - die Aufgabe ist bereits als erhöht markiert. Beim Anmelden startet die App in den Infobereich, ohne Fenster; über das Symbol dort ist sie jederzeit da." />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Autostart" Style="{StaticResource CardTitle}" />
+                                    <ui:SymbolIcon Style="{StaticResource InfoDot}"
+                                                   ToolTip="Läuft über eine geplante Aufgabe statt über den Registry-Autostart, damit beim Anmelden kein Rechte-Dialog erscheint. Die App startet dann in den Infobereich, ohne Fenster; über das Symbol dort ist sie jederzeit da." />
+                                </StackPanel>
                                 <TextBlock Text="{Binding Windows.StartupStatus}" Style="{StaticResource StatusText}" />
                                 <ui:Button Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left" Margin="0,16,0,0"
                                            Content="{Binding Windows.StartWithWindowsButtonText}"
@@ -741,9 +756,11 @@
 
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
-                                <TextBlock Text="Protokoll" Style="{StaticResource CardTitle}" />
-                                <TextBlock Style="{StaticResource Hint}"
-                                           Text="Jeder Fehler wird mitgeschrieben - auch der des Hardware-Workers, der erhöht und ohne sichtbares Fenster läuft. Eine Datei pro Tag und Prozess, älteres als 14 Tage wird automatisch entfernt." />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Protokoll" Style="{StaticResource CardTitle}" />
+                                    <ui:SymbolIcon Style="{StaticResource InfoDot}"
+                                                   ToolTip="Jeder Fehler wird mitgeschrieben, auch der des Hardware-Workers. Eine Datei pro Tag und Prozess; was älter als 14 Tage ist, wird automatisch entfernt." />
+                                </StackPanel>
                                 <TextBlock Text="{Binding Windows.LogDirectory}" Margin="0,12,0,0" FontSize="12"
                                            FontFamily="Consolas" TextWrapping="Wrap"
                                            Foreground="{StaticResource TextSecondaryBrush}" />
@@ -756,9 +773,11 @@
 
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
-                                <TextBlock Text="Updates" Style="{StaticResource CardTitle}" />
-                                <TextBlock Style="{StaticResource Hint}"
-                                           Text="Beim Start wird einmal still nach einer neueren Version gesucht; gemeldet wird nur, wenn es eine gibt. Eine geladene Version wird beim nächsten Start aktiv - oder sofort: &quot;Übernehmen und neu starten&quot; beendet die App geordnet (Lüfter und Beleuchtung gehen an die Firmware zurück), tauscht sie aus und öffnet sie wieder." />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Updates" Style="{StaticResource CardTitle}" />
+                                    <ui:SymbolIcon Style="{StaticResource InfoDot}"
+                                                   ToolTip="Beim Start wird einmal still gesucht; gemeldet wird nur, wenn es etwas gibt. Eine geladene Version wird beim nächsten Start aktiv - oder sofort: &quot;Übernehmen und neu starten&quot; gibt Lüfter und Beleuchtung geordnet an die Firmware zurück, tauscht die App aus und öffnet sie wieder." />
+                                </StackPanel>
                                 <Grid Margin="0,18,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" MinWidth="120" />

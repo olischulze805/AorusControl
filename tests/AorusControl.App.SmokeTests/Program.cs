@@ -294,7 +294,10 @@ await Run("The power section says what the mode does and what the fans are doing
     Check(vm.Cooling.Summary.Contains("Gaming"), "the summary must follow the profile that was read back");
     await vm.Cooling.SetFixedAsync();
     Check(vm.Cooling.Summary.Contains("%"), "a held fixed value must be summarised with its percentage");
-    Check(vm.Windows.PowerModeEffect.Contains("Netzbetrieb"), "the effect text must name the tested power source");
+    // The caveat sits at the section's info dot now rather than at the end of every mode
+    // sentence, but it still has to be said - and still by the ViewModel, so it stays here.
+    Check(vm.Windows.PowerModeScope.Contains("Netzbetrieb"), "the app must still name the tested power source");
+    Check(vm.Windows.PowerModeEffect.Contains("Lüfterkurve"), "and must keep saying the fan curve is untouched");
 });
 await Run("The Fixed slider moves smoothly across the firmware's whole range", async (vm, reader, fan) =>
 {

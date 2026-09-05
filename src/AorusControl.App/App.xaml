@@ -129,6 +129,56 @@
                 <Setter Property="Margin" Value="0,14,0,0" />
             </Style>
 
+            <!-- ============================ Erklärungen ============================ -->
+            <!-- Erklärender Text steht nicht mehr als Absatz in den Karten, sondern hinter
+                 einem kleinen Punkt neben der Überschrift: wer es einmal gelesen hat, will es
+                 nicht bei jedem Blick wieder lesen, und wer es braucht, findet es an der
+                 Stelle, um die es geht. -->
+            <Style x:Key="InfoDot" TargetType="ui:SymbolIcon">
+                <Setter Property="Symbol" Value="Info24" />
+                <Setter Property="FontSize" Value="15" />
+                <Setter Property="Foreground" Value="{StaticResource TextTertiaryBrush}" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Margin" Value="8,0,0,0" />
+                <Setter Property="Cursor" Value="Help" />
+                <Setter Property="ToolTipService.InitialShowDelay" Value="150" />
+                <Setter Property="ToolTipService.ShowDuration" Value="60000" />
+                <Setter Property="ToolTipService.BetweenShowDelay" Value="0" />
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- Implizit, weil jeder Tooltip dieser App reiner Text ist: so bricht jeder von
+                 ihnen um, statt als eine endlos lange Zeile über den Bildschirm zu laufen. -->
+            <Style TargetType="ToolTip">
+                <Setter Property="MaxWidth" Value="380" />
+                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+                <Setter Property="HasDropShadow" Value="False" />
+                <Setter Property="ContentTemplate">
+                    <Setter.Value>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" TextWrapping="Wrap" FontSize="12.5" LineHeight="18" />
+                        </DataTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ToolTip">
+                            <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource CardBorderBrush}"
+                                    BorderThickness="1" CornerRadius="8" Padding="14,11">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="18" ShadowDepth="3" Opacity="0.45" Color="#000000" />
+                                </Border.Effect>
+                                <ContentPresenter />
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
             <!-- ============================ Card ============================ -->
             <Style x:Key="Card" TargetType="Border">
                 <Setter Property="Background" Value="{StaticResource CardBrush}" />

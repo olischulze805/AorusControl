@@ -220,9 +220,9 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
     public string InactiveZoneNote => ColorUsage switch
     {
         KeyboardEffectColorUsage.BaseColorOnly =>
-            "Die gedimmten Zonen liest dieser Effekt nicht - er baut alles aus der Basisfarbe. Sie bleiben gespeichert und gelten wieder im manuellen Modus.",
+            "Dieser Effekt baut alles aus der Basisfarbe. Die gedimmten Zonen bleiben gespeichert.",
         KeyboardEffectColorUsage.None =>
-            "Dieser Effekt liest keine der gespeicherten Farben. Sie bleiben erhalten und gelten wieder im manuellen Modus.",
+            "Dieser Effekt liest keine der gespeicherten Farben. Sie bleiben erhalten.",
         _ => string.Empty
     };
 
@@ -562,8 +562,8 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
         {
             KeyboardEffectColorUsage.AllZones => "Alle drei gespeicherten Farben werden direkt angezeigt.",
             KeyboardEffectColorUsage.BaseColorOnly =>
-                "Dieser Effekt moduliert die Farbe von Zone 1 über alle drei Zonen. Zone 2 und 3 bleiben gespeichert und gelten wieder im manuellen Modus.",
-            _ => "Dieser Effekt bringt seine eigene Palette mit; keine der gespeicherten Farben wird gelesen. Sie bleiben erhalten und gelten wieder im manuellen Modus."
+                "Zone 1 färbt alle drei Zonen. Zone 2 und 3 bleiben gespeichert.",
+            _ => "Eigene Palette des Effekts; die gespeicherten Farben bleiben erhalten."
         };
         if (EffectRunning && !_closing) _rgbTimer.Start(); else _rgbTimer.Stop();
         foreach (string property in Derived) OnPropertyChanged(property);

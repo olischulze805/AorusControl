@@ -33,6 +33,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     private Guid? _fixedLease;
     private byte _fixedRaw = 114;
     private string _status = "Lüftersteuerung wird geprüft …";
+    private string _statusDetail = "";
     private string _curveStatus = "Kurve wird gelesen …";
     private string _activeProfile = "Normal";
 
@@ -82,6 +83,11 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     public bool IsFixedActive => _fixedActive;
     public bool ControlsEnabled { get => _controlsEnabled; private set => SetProperty(ref _controlsEnabled, value); }
     public string Status { get => _status; private set => SetProperty(ref _status, value); }
+
+    /// <summary>The four EC status flags behind the profile name. They matter exactly when
+    /// something looks wrong, so they hang off the status line's tooltip rather than sitting
+    /// in it: "Fixed 0 · Step 1 · Auto 0 · Thermal 0" is noise to read past every day.</summary>
+    public string StatusDetail { get => _statusDetail; private set => SetProperty(ref _statusDetail, value); }
     public string CurveStatus { get => _curveStatus; private set => SetProperty(ref _curveStatus, value); }
 
     // A note that applies to ActiveProfile as much as to the power-mode and effect chips
@@ -213,13 +219,11 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     /// </summary>
     public string CurveNote => ActiveProfile switch
     {
-        "Dynamic" => "Die eigene Kurve regelt die Lüfter. Änderungen gelten erst nach \"Kurve übernehmen\" - das Schreiben dauert ein paar Sekunden und schaltet den Lüftermodus um, deshalb passiert es nicht bei jedem Handgriff.",
-        "Maximum" => "Maximal hält die Lüfter unabhängig von jeder Kurve auf voller Stufe.",
-        "Fixed" when _fixedRaw == 0 => "Lüfter stehen. Der Hardware-Worker prüft die Temperatur und stellt bei 65 °C von sich aus auf Normal zurück, auch wenn die App abstürzt.",
-        "Fixed" => $"Fester Wert: {FanSpeedPercent.ToPercent(_fixedRaw)} %, unabhängig von der Temperatur - die waagerechte Linie. Die eigene Kurve liegt grau darunter: gespeichert, aber außer Kraft.",
-        _ => $"{ActiveProfile} regelt in der Firmware und gibt seine Kurve nicht preis. Gezeigt ist deshalb grau die " +
-             "eigene, gespeicherte Kurve - sie steht so im Gerät, regelt unter diesem Modus aber nichts. " +
-             "Zum Bearbeiten oben auf \"Dynamic (eigene Kurve)\" wechseln."
+        "Dynamic" => "Die eigene Kurve regelt die Lüfter. Änderungen gelten erst nach \"Kurve übernehmen\".",
+        "Maximum" => "Volle Stufe, unabhängig von jeder Kurve.",
+        "Fixed" when _fixedRaw == 0 => "Lüfter stehen. Bei 65 °C stellt der Worker von sich aus auf Normal zurück.",
+        "Fixed" => $"Fester Wert {FanSpeedPercent.ToPercent(_fixedRaw)} % - die waagerechte Linie. Die eigene Kurve liegt grau darunter, gespeichert, aber außer Kraft.",
+        _ => $"{ActiveProfile} regelt in der Firmware. Grau darunter liegt die eigene Kurve: gespeichert, aber gerade ohne Wirkung."
     };
 
     /// <summary>
@@ -612,7 +616,9 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         FixedFanRaw = state.FixedSpeedRaw is >= 57 and <= 229 ? checked((byte)state.FixedSpeedRaw) : FixedFanRaw;
         ActiveProfile = DescribeFanProfileKey(state);
         foreach (string derived in CurveView) OnPropertyChanged(derived);
-        Status = $"Aktiv: {profile} · Fixed {state.FixedStatusRaw} · Step {state.StepStatusRaw} · Auto {state.AutoStatusRaw} · Thermal {state.NvidiaThermalTargetRaw}";
+        Status = $"Aktiv: {profile}";
+        StatusDetail = $"EC-Statusbits · Fixed {state.FixedStatusRaw} · Step {state.StepStatusRaw} · " +
+            $"Auto {state.AutoStatusRaw} · Thermal {state.NvidiaThermalTargetRaw}";
         OnPropertyChanged(nameof(Summary));
     }
 

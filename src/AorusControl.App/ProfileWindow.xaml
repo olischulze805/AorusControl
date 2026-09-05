@@ -42,10 +42,13 @@
                 <ComboBox ItemsSource="{Binding PowerOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding PowerMode}" Margin="0,4,0,12" />
                 <TextBlock Text="Lüftermodus" />
                 <ComboBox ItemsSource="{Binding CoolingOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding CoolingMode}" Margin="0,4,0,12" />
-                <TextBlock Text="Fester Rohwert (57–229, nur im Fixed-Modus)" />
+                <TextBlock Text="Fester Rohwert (0–229, nur im Fixed-Modus)" />
                 <TextBox Text="{Binding FixedValue, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsFixed}" Margin="0,4,0,12" />
-                <TextBlock Style="{StaticResource Hint}"
-                           Text="Eigene Kurve: 15 aufsteigende Punkte. Rohwerte 57–229; letzter Punkt spätestens bei 90 °C mit Wert 229. Rohwerte sind keine Prozentangaben. Diese Prüfung allein garantiert keine ausreichende Kühlung." />
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Eigene Kurve" />
+                    <ui:SymbolIcon Style="{StaticResource InfoDot}" FontSize="13"
+                                   ToolTip="15 aufsteigende Punkte. Rohwerte 0–229: unter 60 °C ist 0 erlaubt, die Lüfter stehen dann; ab 60 °C mindestens 57. Der letzte Punkt spätestens bei 90 °C mit Wert 229. Rohwerte sind keine Prozentangaben, und diese Prüfung allein garantiert keine ausreichende Kühlung." />
+                </StackPanel>
                 <DataGrid ItemsSource="{Binding CurveRows}" IsEnabled="{Binding IsCurve}"
                           AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
                           CanUserSortColumns="False" CanUserReorderColumns="False" HeadersVisibility="Column"

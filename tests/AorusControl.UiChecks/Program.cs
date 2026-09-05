@@ -60,6 +60,7 @@ var thread = new Thread(() =>
         RenderProfileWindow(output);
         RenderMainWindow(output);
         RenderCoolingStates(output);
+        RenderToolTip(output);
         Console.WriteLine("PASS: profile and main window laid out at every checked width; no native window or hardware started.");
         app.Shutdown();
     }
@@ -169,6 +170,19 @@ static IEnumerable<T> Descendants<T>(DependencyObject root) where T : Dependency
         if (child is T match) yield return match;
         foreach (T deeper in Descendants<T>(child)) yield return deeper;
     }
+}
+
+static void RenderToolTip(string output)
+{
+    // A ToolTip cannot be parented, so it is laid out on its own: this is only here to prove
+    // the style wraps its text and paints its card.
+    var tip = new System.Windows.Controls.ToolTip
+    {
+        Content = "Hält die Lüfter unabhängig von der Temperatur, ganz links auch komplett aus - stufenlos über den ganzen Bereich der Firmware. Läuft über den absturzsicheren Hardware-Worker, der bei 65 °C von sich aus auf Normal zurückstellt.",
+        MaxWidth = 380
+    };
+    Layout(tip, 400, 160);
+    Save(tip, output, "tooltip.png", 400, 160);
 }
 
 static void Layout(FrameworkElement content, int width, int height)

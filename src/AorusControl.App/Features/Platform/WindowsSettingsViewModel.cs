@@ -73,13 +73,25 @@ public sealed class WindowsSettingsViewModel : ObservableObject, IFeatureModule
     public string PowerModeEffect => _activeMode switch
     {
         nameof(WindowsPowerOverlayMode.BestEfficiency) =>
-            "Windows hält Takt und Boost niedrig und schiebt Last bevorzugt auf sparsame Kerne. Weniger Abwärme, dadurch drehen die Lüfter meist niedriger - die Kurve selbst bleibt unverändert.",
+            "Niedrigerer Takt, Last bevorzugt auf sparsamen Kernen. Weniger Abwärme, dadurch drehen die Lüfter meist niedriger.",
         nameof(WindowsPowerOverlayMode.BestPerformance) =>
-            "Windows lässt Boost länger zu und hält die Taktziele hoch. Mehr Abwärme, dadurch erreicht die Kurve ihre höheren Stufen früher - die Kurve selbst bleibt unverändert.",
+            "Boost länger erlaubt, Taktziele hoch. Mehr Abwärme, dadurch erreicht die Kurve ihre höheren Stufen früher.",
         nameof(WindowsPowerOverlayMode.Balanced) =>
-            "Windows regelt Takt und Boost nach Last. Die Lüfterkurve bleibt unverändert; sie reagiert nur auf die Temperatur, die sich dadurch ergibt.",
+            "Takt und Boost nach Last. Die Lüfter folgen nur der Temperatur, die sich daraus ergibt.",
         _ => "Noch kein Modus gelesen."
-    } + " Nur für den Netzbetrieb getestet; GPU-Limits und EC-Einstellungen fasst Windows dabei nicht an.";
+    } + " Die Lüfterkurve bleibt unverändert.";
+
+    /// <summary>
+    /// What this app does NOT claim about the power mode, shown at the section's info dot.
+    ///
+    /// It used to be appended to every one of the sentences above, which meant reading the
+    /// same caveat three times. It is a property rather than a string in the XAML so it stays
+    /// under test: the promise that the app never overstates where a mode was verified is
+    /// exactly the kind of sentence that quietly disappears in a layout change.
+    /// </summary>
+    public string PowerModeScope =>
+        "Unabhängig vom Lüfterprofil und nur für den getesteten Netzbetrieb. " +
+        "GPU-Limits und EC-Einstellungen fasst Windows dabei nicht an.";
 
     public bool StartWithWindows { get => _startWithWindows; private set => SetProperty(ref _startWithWindows, value); }
     public string StartWithWindowsButtonText => StartWithWindows ? "Autostart deaktivieren" : "Autostart aktivieren";

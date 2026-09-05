@@ -233,6 +233,32 @@ the editor. Two of its values cannot be used as stated, and both are adjusted in
 rather than quietly: GCC starts at 0 % below 55 °C where this firmware's lowest verified duty
 is 25 %, and it ends at 99 % at 92 °C where the firmware requires full speed by 90 °C.
 
+## Explanations live behind a dot, not in the card
+
+Every card used to open with a paragraph explaining itself. Written one at a time they each
+looked reasonable; together they turned the app into a manual with controls in it, and after
+the second launch nobody reads them - they are just grey noise above the thing you came for.
+
+The rule now: a card shows its title, its controls, and what is currently true (status lines
+and readbacks stay - they change, so they are worth reading). Everything that explains rather
+than reports moves behind a small ⓘ next to the heading, in a tooltip.
+
+- `InfoDot` in App.xaml is the whole mechanism: a `ui:SymbolIcon` with a hover colour and a
+  short show delay, used as `<ui:SymbolIcon Style="{StaticResource InfoDot}" ToolTip="…" />`.
+- The `ToolTip` style is implicit rather than keyed, because every tooltip in this app is
+  plain text: it gives all of them a card background, a maximum width and wrapping, so no
+  tooltip can come out as one endless line.
+- Where a caveat is a promise the app makes - "only verified on AC power" - the text stays a
+  ViewModel property (`WindowsSettingsViewModel.PowerModeScope`) that the tooltip binds to,
+  and the smoke tests keep asserting on it. A sentence that guards honesty must not become an
+  untested string in a layout file.
+- The dot goes where the thing it explains is: the curve editor's controls hang off the
+  legend under the chart and only while the curve can be edited at all, not on the card title.
+
+The same pass shortened what remained. The four EC status flags moved from the fan status
+line into its tooltip (`Cooling.StatusDetail`), and the power-mode sentences lost the caveat
+that was repeated at the end of each of them.
+
 ## Saying what a setting actually changes
 
 Under the Windows power modes there is a panel naming what the running mode does - and, just
