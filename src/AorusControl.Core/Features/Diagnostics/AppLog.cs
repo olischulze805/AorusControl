@@ -25,8 +25,7 @@ public static class AppLog
     private static bool _prepared;
 
     /// <summary>The folder shown to the user, so "where are the logs" has one answer.</summary>
-    public static string Directory { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AorusControl", "logs");
+    public static string Directory { get; } = Path.Combine(AppData.Directory, "logs");
 
     /// <param name="role">Distinguishes the writers, e.g. "app" or "worker"; each gets its
     /// own file so the two processes never contend for one handle.</param>

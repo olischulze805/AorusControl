@@ -15,6 +15,9 @@ public partial class App : System.Windows.Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        // Before any store is opened: earlier versions kept these files in what is now the
+        // installer's own folder.
+        AppData.MigrateFromInstallFolder();
         AppLog.Initialize("app");
         // Must come before anything else draws: the installer relaunches the app with its
         // own arguments for first run, update and uninstall, and this is what answers them.

@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using AorusControl.App.ViewModels;
+using AorusControl.Core.Features.Diagnostics;
 using AorusControl.Core.Features.Keyboard;
 using AorusControl.Core.Models;
 using Wpf.Ui.Controls;
@@ -14,8 +15,7 @@ public partial class MainWindow : FluentWindow
     /// <summary>For the tray menu, which offers a couple of actions without opening the
     /// window at all - the point of sitting in the tray in the first place.</summary>
     internal MainWindowViewModel ViewModel => _viewModel;
-    private readonly IRecentColorsStore _recentColorsStore = new RecentColorsStore(System.IO.Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AorusControl", "recent-colors-v1.json"));
+    private readonly IRecentColorsStore _recentColorsStore = new RecentColorsStore(AppData.File("recent-colors-v1.json"));
     private bool _closeReady;
     private bool _closePending;
     private bool _exitRequested;

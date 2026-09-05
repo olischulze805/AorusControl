@@ -76,7 +76,8 @@ For a build tree, `tools\Start-AorusControl.cmd` starts the app, and
 `tools\Start-FanNormalRestore.cmd` puts the fans back under firmware control if anything
 ever goes sideways.
 
-Settings and logs live under `%LocalAppData%\AorusControl\`.
+Settings and logs live under `%AppData%\AorusControl\`; the program itself is installed to
+`%LocalAppData%\AorusControl\`, and uninstalling it from Windows' app list leaves the settings.
 
 ## Layout
 

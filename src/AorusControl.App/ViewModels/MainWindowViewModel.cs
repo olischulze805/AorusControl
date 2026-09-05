@@ -42,11 +42,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             new GigabyteHidKeyboardRgbController(),
             new GigabyteWmiFanController(),
             new WindowsPowerOverlayController(),
-            keyboardSettingsStore: new KeyboardSettingsStore(System.IO.Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AorusControl", "keyboard-v1.json")),
+            keyboardSettingsStore: new KeyboardSettingsStore(AppData.File("keyboard-v1.json")),
             brightnessListener: new KeyboardBrightnessNotifications().RunAsync,
-            fanCurveStore: new FanCurveStore(System.IO.Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AorusControl", "fan-curve-v1.json")),
+            fanCurveStore: new FanCurveStore(AppData.File("fan-curve-v1.json")),
             startupManager: new StartupManager(Environment.ProcessPath ?? throw new InvalidOperationException("Prozesspfad unbekannt.")))
     {
     }
@@ -72,8 +70,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             // Defaults to the real out-of-process worker client: only that implementation
             // survives this process crashing, which is the entire point of Fixed-mode safety.
             fixedFanLeaseClient ?? new WorkerFixedFanLeaseClient(),
-            fanCurveStore ?? new FanCurveStore(System.IO.Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AorusControl", "fan-curve-v1.json")),
+            fanCurveStore ?? new FanCurveStore(AppData.File("fan-curve-v1.json")),
             RefreshAsync,
             StartMonitoring,
             debounceWait);

@@ -8,4 +8,10 @@
     <PackageReference Include="System.Management" Version="10.0.11" />
     <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="10.0.11" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- So the smoke tests can exercise the settings migration on temporary folders instead
+         of on the real profile. -->
+    <InternalsVisibleTo Include="AorusControl.App.SmokeTests" />
+  </ItemGroup>
+
 </Project>

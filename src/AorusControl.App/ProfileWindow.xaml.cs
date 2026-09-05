@@ -1,3 +1,4 @@
+using AorusControl.Core.Features.Diagnostics;
 using System.Windows;
 using AorusControl.App.ViewModels;
 using AorusControl.Core.Features.PowerProfiles;
@@ -14,8 +15,7 @@ public partial class ProfileWindow : FluentWindow
         InitializeComponent();
         if (viewModel is null)
         {
-            var store = new ProfileCatalogStore(System.IO.Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AorusControl", "profiles-v1.json"));
+            var store = new ProfileCatalogStore(AppData.File("profiles-v1.json"));
             viewModel = new ProfileEditorViewModel(store.Load, store.Save, ConfirmDiscard);
         }
         DataContext = viewModel;
