@@ -27,8 +27,13 @@ public sealed class StartupManager(string executablePath, string taskName = "Aor
     public static string[] QueryArguments(string taskName) =>
         ["/Query", "/TN", taskName];
 
+    /// <summary>The argument that tells the app it was started by this task, so it goes
+    /// straight to the tray. An autostarting tool that throws its window in your face at
+    /// every login is the reason people disable autostart.</summary>
+    public const string BackgroundStartArgument = "--background";
+
     public static string[] CreateArguments(string taskName, string executablePath) =>
-        ["/Create", "/TN", taskName, "/TR", $"\"{executablePath}\"", "/SC", "ONLOGON", "/RL", "HIGHEST", "/F"];
+        ["/Create", "/TN", taskName, "/TR", $"\"{executablePath}\" {BackgroundStartArgument}", "/SC", "ONLOGON", "/RL", "HIGHEST", "/F"];
 
     public static string[] DeleteArguments(string taskName) =>
         ["/Delete", "/TN", taskName, "/F"];

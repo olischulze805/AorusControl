@@ -10,6 +10,10 @@ namespace AorusControl.App;
 public partial class MainWindow : FluentWindow
 {
     private readonly MainWindowViewModel _viewModel;
+
+    /// <summary>For the tray menu, which offers a couple of actions without opening the
+    /// window at all - the point of sitting in the tray in the first place.</summary>
+    internal MainWindowViewModel ViewModel => _viewModel;
     private readonly IRecentColorsStore _recentColorsStore = new RecentColorsStore(System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AorusControl", "recent-colors-v1.json"));
     private bool _closeReady;

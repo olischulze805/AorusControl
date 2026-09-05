@@ -69,6 +69,8 @@ never a replacement for it.
 | Settings silently lost after sleep | Lighting is reapplied after resume, with a delay for the USB device to re-enumerate. |
 | Fans left pinned after a shutdown | `SessionEnding` hands them back. |
 | A pane that renders light when transparency effects are off | The navigation pane sets its background explicitly instead of relying on Mica. |
+| Autostart that throws its window in your face at every login | The logon task passes `--background`; the app starts into the tray and stays there until asked for. |
+| Having to open the window for one thing | The tray menu can put the fans back on Normal and toggle the lighting without it. |
 | Two copies fighting over the device | A named single-instance gate; the second copy activates the first and exits. |
 | No idea why something failed | Every error goes to `%LocalAppData%\AorusControl\logs`, app and worker alike, one file per day, 14-day retention, and the folder is one button away in the app. |
 

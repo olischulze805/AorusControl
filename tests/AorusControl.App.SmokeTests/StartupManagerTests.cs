@@ -15,6 +15,10 @@ internal static class StartupManagerTests
         Check(create.Contains("/F"), "must overwrite a stale existing task instead of failing");
         Check(create.Any(a => a.Contains(@"C:\Program Files\Aorus Control\AorusControl.exe")),
             "must point the task at the exact configured executable path");
+        Check(create.Any(a => a.Contains(StartupManager.BackgroundStartArgument)),
+            "must start into the tray at logon; a window in your face every login is why people disable autostart");
+        Check(create.Any(a => a.Contains(@"""C:\Program Files\Aorus Control\AorusControl.exe"" --background")),
+            "the quoted path must stay quoted with the argument outside it, or a path with spaces breaks the task");
 
         Check(StartupManager.DeleteArguments("AorusControl").SequenceEqual(["/Delete", "/TN", "AorusControl", "/F"]),
             "delete is unconditional (/F), so disabling never blocks on a confirmation prompt");

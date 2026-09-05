@@ -650,7 +650,7 @@
                             <StackPanel>
                                 <TextBlock Text="Autostart" Style="{StaticResource CardTitle}" />
                                 <TextBlock Style="{StaticResource Hint}"
-                                           Text="Läuft über eine geplante Aufgabe (nicht den Registry-Autostart), damit bei jedem Login kein neuer Rechte-Dialog erscheint - die Aufgabe ist bereits als erhöht markiert." />
+                                           Text="Läuft über eine geplante Aufgabe (nicht den Registry-Autostart), damit bei jedem Login kein neuer Rechte-Dialog erscheint - die Aufgabe ist bereits als erhöht markiert. Beim Anmelden startet die App in den Infobereich, ohne Fenster; über das Symbol dort ist sie jederzeit da." />
                                 <TextBlock Text="{Binding Windows.StartupStatus}" Style="{StaticResource StatusText}" />
                                 <ui:Button Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left" Margin="0,16,0,0"
                                            Content="{Binding Windows.StartWithWindowsButtonText}"

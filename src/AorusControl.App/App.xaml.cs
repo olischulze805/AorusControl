@@ -68,8 +68,17 @@ public partial class App : System.Windows.Application
             var window = new MainWindow();
             MainWindow = window;
             window.Closed += (_, _) => Shutdown();
+            // Two actions worth having without opening anything: put the fans back under
+            // firmware control, and switch the lighting off. Both are things you want at the
+            // moment the window is the last thing you feel like looking for.
             _trayMenu = new System.Windows.Forms.ContextMenuStrip();
             _trayMenu.Items.Add("Öffnen", null, (_, _) => ShowWindow());
+            _trayMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+            _trayMenu.Items.Add("Lüfter auf Normal", null, (_, _) =>
+                _ = window.ViewModel.Cooling.SetProfileCommand.ExecuteAsync("Normal"));
+            _trayMenu.Items.Add("Beleuchtung umschalten", null, (_, _) =>
+                _ = window.ViewModel.Keyboard.TogglePowerCommand.ExecuteAsync());
+            _trayMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
             _trayMenu.Items.Add("Beenden", null, (_, _) => { ShowWindow(); window.RequestExit(); });
             _tray = new System.Windows.Forms.NotifyIcon
             {
@@ -93,7 +102,13 @@ public partial class App : System.Windows.Application
             };
             _activationWait = ThreadPool.RegisterWaitForSingleObject(_instance.Activation,
                 (_, _) => Dispatcher.BeginInvoke(new Action(ShowWindow)), null, Timeout.Infinite, false);
-            ShowWindow();
+            // Started by the logon task: stay in the tray. The app is there to hold the
+            // lighting and the fan settings, which it does without a window - and a tool
+            // that opens itself at every login is a tool people turn off.
+            if (e.Args.Contains(AorusControl.Core.Features.Startup.StartupManager.BackgroundStartArgument))
+                AppLog.Info("start", "Autostart: läuft im Infobereich, ohne Fenster.");
+            else
+                ShowWindow();
         }
         catch (Exception exception)
         {
