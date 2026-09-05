@@ -213,7 +213,7 @@
                                      das man nicht anfassen kann, bloß Lärm. -->
                                 <TextBlock Style="{StaticResource Hint}" Margin="0,10,0,0" TextWrapping="Wrap"
                                            Visibility="{Binding Cooling.IsCurveEditable, Converter={StaticResource BoolVisible}}"
-                                           Text="Punkt ziehen · Klick ins Leere setzt einen neuen · Rechtsklick oder Entf entfernt den gewählten · Pfeiltasten verschieben ihn genau, mit Strg in Fünferschritten · der letzte Punkt gehört der Firmware." />
+                                           Text="Punkt ziehen · Klick ins Leere setzt einen neuen · Rechtsklick oder Entf entfernt den gewählten · Pfeiltasten verschieben ihn genau, mit Strg in Fünferschritten · der letzte Punkt gehört der Firmware. Unter 60 °C darf die Kurve bis 0 % gehen, die Lüfter stehen dann wirklich still; ab 60 °C gilt die niedrigste vermessene Stufe von 25 %." />
                                 <TextBlock Text="{Binding Cooling.CurveStatus}" Style="{StaticResource StatusText}" Margin="0,12,0,0" />
                                 <WrapPanel Margin="0,10,0,-10" IsEnabled="{Binding Cooling.IsCurveEditable}">
                                     <ui:Button Style="{StaticResource PrimaryButton}" Content="Kurve übernehmen"

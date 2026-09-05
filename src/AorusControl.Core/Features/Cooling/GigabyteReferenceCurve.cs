@@ -18,8 +18,8 @@ namespace AorusControl.Core.Features.Cooling;
 ///
 /// Two points cannot be used as GCC states them, and both are noted where they are adjusted
 /// rather than quietly bent:
-/// * GCC starts at 0% below 55 °C. This firmware's lowest verified duty is raw 57, which is
-///   25% - a lower value was never measured as safe, so the curve starts there.
+/// * GCC starts at 0% below 55 °C, and that turned out to be literally true rather than a
+///   drawing convention: the fans really do stop. It is kept as it is.
 /// * GCC's last point is 99% at 92 °C. The firmware requires the last point to reach full
 ///   speed by 90 °C at the latest, so the end is pulled in to (90, 100%).
 /// </summary>
@@ -47,7 +47,9 @@ public static class GigabyteReferenceCurve
         for (int index = 0; index < temperatures.Length; index++)
         {
             byte percent = index == temperatures.Length - 1 ? (byte)100 : PercentAt(temperatures[index]);
-            byte raw = Math.Max(FanSpeedPercent.ToRaw(percent), (byte)57);
+            byte raw = FanSpeedPercent.ToRaw(percent);
+            if (raw > 0 || temperatures[index] >= FanCurveValidation.PassiveBelowCelsius)
+                raw = Math.Max(raw, (byte)57);
             // Non-decreasing is a firmware rule, and interpolation plus rounding can otherwise
             // produce a step backwards of one raw unit.
             if (raw < previous) raw = previous;
@@ -58,12 +60,12 @@ public static class GigabyteReferenceCurve
         return points;
     }
 
-    /// <summary>Linear between GCC's points, flat outside them, and never below the 25% floor
-    /// this firmware was verified at.</summary>
+    /// <summary>Linear between GCC's points, flat outside them, and never below what this
+    /// firmware was verified at for that temperature - which is zero while it is cool.</summary>
     private static byte PercentAt(byte temperature)
     {
         IReadOnlyList<(byte Temperature, byte Percent)> curve = AsGigabyteDrawsIt;
-        if (temperature <= curve[0].Temperature) return 25;
+        if (temperature <= curve[0].Temperature) return curve[0].Percent;
         if (temperature >= curve[^1].Temperature) return curve[^1].Percent;
 
         for (int index = 1; index < curve.Count; index++)
@@ -72,7 +74,8 @@ public static class GigabyteReferenceCurve
             (byte fromTemperature, byte fromPercent) = curve[index - 1];
             (byte toTemperature, byte toPercent) = curve[index];
             double share = (double)(temperature - fromTemperature) / (toTemperature - fromTemperature);
-            return (byte)Math.Max(25, Math.Round(fromPercent + share * (toPercent - fromPercent)));
+            double interpolated = Math.Round(fromPercent + share * (toPercent - fromPercent));
+            return (byte)Math.Max(FanCurveShape.MinimumPercentAt(temperature), interpolated);
         }
 
         return curve[^1].Percent;

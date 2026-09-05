@@ -13,14 +13,18 @@ internal static class GigabyteCurveTests
         IReadOnlyList<(byte TemperatureCelsius, byte Percent)> gcc = GigabyteReferenceCurve.AsGigabyteDrawsIt;
         Check(gcc.Count == 10, "the reference is quoted as GCC has it, ten points");
         Check(gcc[0] == ((byte)55, (byte)0) && gcc[^1] == ((byte)92, (byte)99),
-            "including the two values this firmware cannot use: 0 % at the bottom and 92 °C at the top");
+            "including its silent low end and the 92 °C top this firmware will not take");
 
         // Adapted for the device, it has to pass the same rules a hand-drawn curve does -
         // otherwise "load Gigabyte's curve" would be a button that writes a rejected curve.
         IReadOnlyList<FanCurvePoint> adapted = GigabyteReferenceCurve.ForThisFirmware();
         FanCurveValidation.Validate(adapted);
         Check(adapted.Count == 15, "the firmware takes exactly fifteen points");
-        Check(adapted[0].Value >= 57, "nothing below the lowest duty this hardware was verified at");
+        // GCC's 0 % below 55 °C turned out to be literal - the fans really stop - so it is kept
+        // rather than lifted, and the floor applies only from 60 °C upwards.
+        Check(adapted[0].Value == 0, "Gigabyte's own silent low end is kept, now that it is known to be real");
+        foreach (FanCurvePoint point in adapted.Where(point => point.Temperature >= FanCurveValidation.PassiveBelowCelsius))
+            Check(point.Value >= 57, $"from {FanCurveValidation.PassiveBelowCelsius} C upwards nothing may be below the verified floor");
         Check(adapted[^1].Temperature <= 90 && adapted[^1].Value == 229,
             "and full speed by 90 C at the latest, which the firmware insists on");
 

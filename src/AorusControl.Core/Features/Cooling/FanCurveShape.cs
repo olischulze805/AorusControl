@@ -23,7 +23,14 @@ public static class FanCurveShape
     public const int FirmwarePoints = 15;
     public const int MinimumHandles = 2;
     public const double MaximumTemperature = 90;
+    /// <summary>The floor above <see cref="FanCurveValidation.PassiveBelowCelsius"/>, where the
+    /// lowest duty this hardware was ever measured at applies.</summary>
     public const int MinimumPercent = 25;
+
+    /// <summary>What a handle at this temperature may be lowered to. Zero while the machine is
+    /// cool enough for the fans to stand still, the verified floor above that.</summary>
+    public static int MinimumPercentAt(double temperatureCelsius) =>
+        temperatureCelsius >= FanCurveValidation.PassiveBelowCelsius ? MinimumPercent : 0;
 
     /// <summary>
     /// Expands handles into the fifteen points the firmware demands: the handles themselves,
@@ -43,7 +50,11 @@ public static class FanCurveShape
         for (int index = 0; index < FirmwarePoints; index++)
         {
             byte temperature = (byte)Math.Round(shape[index].TemperatureCelsius);
-            byte raw = Math.Max(FanSpeedPercent.ToRaw(shape[index].Percent), (byte)57);
+            byte raw = FanSpeedPercent.ToRaw(shape[index].Percent);
+            // Zero means the fans stop, which is only allowed while it is cool; anything else
+            // is lifted to the lowest duty this hardware was measured at.
+            if (raw > 0 || temperature >= FanCurveValidation.PassiveBelowCelsius)
+                raw = Math.Max(raw, (byte)57);
             // Rounding two independent values can otherwise produce a step backwards, which the
             // firmware rejects outright.
             if (index > 0)
@@ -108,7 +119,7 @@ public static class FanCurveShape
         var shape = handles
             .Select(handle => new FanCurveHandle(
                 Math.Clamp(Math.Round(handle.TemperatureCelsius), 0, MaximumTemperature),
-                Math.Clamp(handle.Percent, MinimumPercent, 100)))
+                Math.Clamp(handle.Percent, MinimumPercentAt(handle.TemperatureCelsius), 100)))
             .OrderBy(handle => handle.TemperatureCelsius)
             .ToList();
 

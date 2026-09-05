@@ -65,6 +65,26 @@ Dynamic mit unveränderter Originalkurve wurde ebenfalls bestätigt: `step=1`, �
 
 Der konservative Kurvenschreibtest hob ausschließlich Punkt 1 von `(50,68)` auf `(50,80)` an. Der Getter bestätigte die Änderung und alle 14 unveränderten Punkte; Dynamic verwendete sofort Rohwert 80 mit ungefähr 2240/2350 RPM. Danach wurden alle 15 Originalpunkte und der vollständige Normalzustand exakt wiederhergestellt. Setter, Readback und Kurvenrollback sind damit praktisch bewiesen. Bericht: `research/runs/fan-curve-write-test-20260903-140517.md`.
 
+Am 2026-09-05 wurde die Untergrenze systematisch nachgemessen, weil die 57 bis dahin nur der
+niedrigste je *getestete* Wert war und nicht als Firmwaregrenze belegt.
+
+**Speichert die EC weniger als 57?** Ja, ohne zu klemmen. Nacheinander wurden 50, 40, 30, 20,
+10 und 0 in die beiden untersten Kurvenpunkte geschrieben und alle 15 Punkte zurückgelesen;
+jeder Wert kam unverändert zurück, die übrigen 13 Punkte blieben gleich, und die Originalkurve
+wurde verifiziert wiederhergestellt. Dynamic war dabei nie aktiv, die Probekurve regelte also
+nichts. Bericht: `research/runs/fan-curve-write-test-20260905-134756.md`.
+
+**Fährt sie die Werte auch?** Ja, bis zum Stillstand. Mit allen Punkten unter 60 °C auf Rohwert
+0 und aktivem Dynamic meldeten beide Lüfter über sechs Messungen hinweg 0 U/min bei Duty 0; die
+CPU stieg dabei im Leerlauf von 45 auf 48 °C. Zum Vergleich: Rohwert 57 lieferte unmittelbar
+davor 1745 U/min. Anschließend wurden Originalkurve und Normal verifiziert wiederhergestellt.
+Bericht: `research/runs/fan-floor-rpm-test-20260905-135015.md`.
+
+Daraus folgt die Regel in `FanCurveValidation`: **unter 60 °C ist alles bis 0 erlaubt, ab 60 °C
+gilt weiter der bestätigte Bereich 57–229.** Die Grenze ist nicht gegriffen, sondern belegt -
+das Herstellerprofil Quiet stellt die Lüfter bei etwa 51 °C selbst ab, und Gigabytes eigene
+Kurve für dieses Modell liegt unter 55 °C bei 0 % und steigt ab 59 °C.
+
 Die unabhängige Abschlussinspektion nach sämtlichen Tests bestätigte den sauberen Endzustand: `fixed=0`, `step=0`, `auto=0`, `thermal=0`, Festwert und FanAdjust 57, Duty 66, ungefähr 1890/2000 RPM und alle 15 Originalpunkte exakt von `(0,57)` bis `(89,229)`. Bericht: `research/runs/thermal-power-inspection-20260903-140823.md`.
 
 ### Was Gigabyte anbietet

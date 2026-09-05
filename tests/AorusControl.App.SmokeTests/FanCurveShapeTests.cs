@@ -35,7 +35,21 @@ internal static class FanCurveShapeTests
         IReadOnlyList<FanCurvePoint> messy = FanCurveShape.ToFirmwareCurve([new(80, 90), new(40, 5), new(60, 70), new(70, 30)]);
         FanCurveValidation.Validate(messy);
         Check(messy[0].Temperature <= messy[1].Temperature, "handles are sorted, not rejected");
-        Check(FanSpeedPercent.ToPercent(messy[0].Value) >= 25, "nothing below the lowest verified duty");
+        Check(FanSpeedPercent.ToPercent(messy[0].Value) >= 0, "a cool point may be anything, fans included");
+
+        // The floor is not a single number any more: below 60 °C the fans may stand still,
+        // which was measured on this device; above it the lowest verified duty applies, so a
+        // curve can never be silent into the temperatures where silence stops being harmless.
+        IReadOnlyList<FanCurvePoint> silent = FanCurveShape.ToFirmwareCurve([new(30, 0), new(50, 0), new(85, 100)]);
+        FanCurveValidation.Validate(silent);
+        Check(silent[0].Value == 0, "a curve may switch the fans off while the machine is cool");
+        foreach (FanCurvePoint point in silent.Where(point => point.Temperature >= FanCurveValidation.PassiveBelowCelsius))
+            Check(point.Value >= 57, $"but never above {FanCurveValidation.PassiveBelowCelsius} C");
+
+        IReadOnlyList<FanCurvePoint> silentHot = FanCurveShape.ToFirmwareCurve([new(30, 0), new(75, 0), new(85, 100)]);
+        FanCurveValidation.Validate(silentHot);
+        Check(FanSpeedPercent.ToPercent(silentHot.First(point => point.Temperature >= 75).Value) >= 25,
+            "a handle drawn silent at 75 C is lifted to the floor rather than accepted");
         for (int index = 1; index < messy.Count; index++)
             Check(messy[index].Value >= messy[index - 1].Value, $"a curve never falls, checked at {index}");
 

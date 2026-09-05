@@ -8,9 +8,17 @@ internal static class LaptopProfileTests
     {
         FanCurvePoint[] points = Enumerable.Range(0, 15).Select(i => new FanCurvePoint((byte)i, (byte)(30 + i * 4), (byte)(i == 14 ? 229 : 57 + i * 10))).ToArray();
         var profile = Make(ProfileCoolingMode.CustomCurve, curve: points);
+        // Mutating the caller's array afterwards must not reach the stored profile.
         points[0] = new(0, 30, 1);
         if (profile.Curve![0].Value != 57) throw new Exception("Profile curve aliases input");
-        Reject(() => Make(ProfileCoolingMode.CustomCurve, curve: points));
+
+        // Below 60 °C the fans may stand still - measured on this device, and what the vendor's
+        // own Quiet profile does - so a low value there is no longer invalid. Above it the
+        // verified floor still applies, and that is what a profile must refuse.
+        FanCurvePoint[] silentWhileHot = points.ToArray();
+        silentWhileHot[8] = new(8, 62, 1);
+        Reject(() => Make(ProfileCoolingMode.CustomCurve, curve: silentWhileHot));
+        _ = Make(ProfileCoolingMode.CustomCurve, curve: points);
         Reject(() => Make(ProfileCoolingMode.CustomCurve));
         Reject(() => Make(ProfileCoolingMode.Normal, curve: profile.Curve));
         Reject(() => Make(ProfileCoolingMode.Fixed));
