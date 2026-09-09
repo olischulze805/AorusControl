@@ -24,7 +24,7 @@ Die Karte schlägt Programme vor, statt sie selbst zu übernehmen. Quelle sind a
 
 Warum nicht alles Installierte durchsuchen: Dieser Rechner hat 234 Startmenü-Verknüpfungen und 303 Deinstallationseinträge - das ist keine Vorschlagsliste, das sind Hausaufgaben. Die interessante Menge ist winzig und braucht kein Raten. Am 2026-09-09 ergab die Regel hier genau zwei Treffer: theHunter und Netflix. Zehn Programme stehen bereits auf Energiesparen und tun im Akkubetrieb ohnehin das Richtige, eines hat einen festen Adapter, fünf Einträge sind Leichen deinstallierter Programme - letztere werden gezählt und einmal erwähnt, nicht vorgeschlagen.
 
-Der Nebeneffekt ist der wichtigere: Netflix ist eine Store-App ohne erreichbare EXE (`C:\Program Files\WindowsAppsDF9E0F8.Netflix_...`, adressiert über die App-ID `4DF9E0F8.Netflix_mcm4njqhnhss8!Netflix.App`). Über den Dateidialog ist sie nicht hinzuzufügen - von 272 Startmenü-Einträgen dieses Rechners sind 169 solche Apps. Die Vorschlagsliste kommt aus der Registry und kennt diese Namen deshalb von selbst.
+Der Nebeneffekt ist der wichtigere: Netflix ist eine Store-App ohne erreichbare EXE (`C:\Program Files\WindowsApps\4DF9E0F8.Netflix_...`, adressiert über die App-ID `4DF9E0F8.Netflix_mcm4njqhnhss8!Netflix.App`). Über den Dateidialog ist sie nicht hinzuzufügen - von 272 Startmenü-Einträgen dieses Rechners sind 169 solche Apps. Die Vorschlagsliste kommt aus der Registry und kennt diese Namen deshalb von selbst.
 
 Weiterhin offen: eine Programmauswahl für Store-Apps, die noch gar keinen Eintrag haben (`shell:AppsFolder` liefert Name und AppUserModelId).
 
