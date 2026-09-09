@@ -61,13 +61,18 @@ bei Wochen. Rückgängig mit `1` statt `0`.
 ## Messung im nächsten Ausfall
 
 `tools/Start-KeyboardHangDiagnose.cmd` - rein lesend, ohne Adminrechte, **vor** dem
-Ausschalten ausführen. Danach ist der Zustand weg.
+Ausschalten per Doppelklick ausführen. Danach ist der Zustand weg.
+
+Es ist bewusst nichts einzutippen und nichts zu bestätigen: Ein Skript, das bei defekter
+Tastatur auf die Eingabetaste wartet, ist genau dann nutzlos, wenn man es braucht. Stattdessen
+misst es selbst zweimal - einmal wie vorgefunden, dann nach zehn Sekunden, in denen auf der
+internen Tastatur getippt werden soll. Auch das Fenster schließt sich von allein.
 
 Referenzwerte einer funktionierenden Tastatur, beide am 2026-09-09 direkt nach einem
 Tastendruck gemessen (`research/runs/keyboard-hang-20260909-2001*.md`, einmal Netz, einmal
 Akku - kein Unterschied):
 
-| Schnittstelle | Leerlauf | nach Tastendruck |
+| Schnittstelle | Leerlauf | nach Tippen |
 | --- | --- | --- |
 | `HID\…&MI_00` (Tasten) | D2 | **D0** |
 | `HID\…&MI_03` (RGB) | D2 | D2 |

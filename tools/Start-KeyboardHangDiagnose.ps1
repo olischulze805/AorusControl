@@ -4,26 +4,25 @@
     mehr reagiert.
 
 .DESCRIPTION
-    Vor dem harten Ausschalten ausführen. Danach ist der Zustand verloren: Der EC wird beim
-    Stromabschalten zurückgesetzt, und Windows protokolliert bei diesem Fehlerbild von sich
-    aus gar nichts - das Gerät bleibt angemeldet und verstummt nur.
+    Vor dem harten Ausschalten ausführen, per Doppelklick auf die .cmd. Danach ist der Zustand
+    verloren: Das Stromabschalten setzt den EC zurück, und Windows protokolliert bei diesem
+    Fehlerbild von sich aus gar nichts - das Gerät bleibt angemeldet und verstummt nur.
 
-    Drücke vor dem Ausführen ein paar Tasten der internen Tastatur - auch wenn nichts
-    passiert. Genau das ist der Test: Eine gesunde Tastatur meldet danach für die
-    Tastenschnittstelle MI_00 den Energiezustand D0, weil der Tastendruck sie aufweckt.
-    Bleibt sie trotz Tastendruck auf D2 oder D3, wacht das Gerät nicht mehr auf und das
-    selektive Energiesparen ist der Verdächtige; steht sie auf D0 und reagiert trotzdem
-    nichts, hängt der ITE-Controller im wachen Zustand.
+    Es wird nichts eingetippt und nichts bestätigt. Das Skript misst den Energiezustand
+    zweimal: einmal so, wie es ihn vorfindet, und einmal nach einem Fenster von zehn Sekunden,
+    in dem du auf der internen Tastatur herumtippen sollst - auch wenn nichts passiert.
 
-    Im Leerlauf liegen alle Schnittstellen ohnehin in D2 oder D3 - das allein ist also kein
-    Befund. Zum Vergleich liegt ein Bericht einer funktionierenden Tastatur daneben:
-    research/runs/keyboard-hang-*.md, der erste vom 2026-09-09.
+    Genau dieser Unterschied ist die Messung. Im Leerlauf liegen alle Schnittstellen in D2
+    oder D3; ein Tastendruck weckt eine gesunde Tastatur, und die Tastenschnittstelle MI_00
+    steht danach auf D0 (am 2026-09-09 an dieser Maschine so nachgemessen, im Netz- wie im
+    Akkubetrieb). Bleibt sie unter Tastendruck auf D2/D3, wacht das Gerät nicht mehr auf;
+    steht sie auf D0 und reagiert trotzdem nichts, hängt der ITE-Controller im wachen Zustand.
 
     Nur lesend: keine Treiberänderung, kein Reset, kein Schreibzugriff auf Gerät oder EC.
     Braucht keine Administratorrechte.
 #>
 [CmdletBinding()]
-param([string] $OutputDirectory)
+param([int] $TypingSeconds = 10, [string] $OutputDirectory)
 
 $ErrorActionPreference = 'Continue'
 $root = Split-Path -Parent $PSScriptRoot
@@ -34,19 +33,6 @@ $report = Join-Path $OutputDirectory ("keyboard-hang-{0:yyyyMMdd-HHmmss}.md" -f 
 $lines = [System.Collections.Generic.List[string]]::new()
 function Say([string] $text) { Write-Host $text; $lines.Add($text) }
 
-Write-Host "Bitte jetzt ein paar Tasten der internen Tastatur drücken (auch wenn nichts" -ForegroundColor Cyan
-Write-Host "passiert), dann weiter mit der Eingabetaste einer beliebigen Tastatur." -ForegroundColor Cyan
-Read-Host | Out-Null
-
-Say "# Tastatur-Diagnose"
-Say ""
-Say ("- Erstellt: {0:yyyy-MM-dd HH:mm:ss zzz}" -f (Get-Date))
-Say ("- Letzter Systemstart: {0}" -f (Get-CimInstance Win32_OperatingSystem).LastBootUpTime)
-$battery = Get-CimInstance Win32_Battery
-Say ("- Stromquelle: {0}" -f $(if ($battery.BatteryStatus -eq 2) { 'Netz' } elseif ($battery) { 'Akku' } else { 'unbekannt' }))
-Say ("- Tastatur reagiert nach deinem Eindruck: (hier von Hand ergänzen)")
-Say ""
-
 # ---------------------------------------------------------------- Energiezustand ---------
 # Dieselbe Windows-Struktur, aus der das Dashboard den NVIDIA-Zustand liest: CM_POWER_DATA,
 # Feld PD_MostRecentPowerState. Einsbasiert, 1 = D0 wach, 4 = D3 schlafend.
@@ -55,24 +41,68 @@ function Get-PowerState([string] $instanceId) {
         $data = (Get-PnpDeviceProperty -InstanceId $instanceId -KeyName 'DEVPKEY_Device_PowerData' -ErrorAction Stop).Data
         if (-not $data -or $data.Length -lt 8) { return 'unbekannt' }
         switch ([BitConverter]::ToUInt32($data, 4)) {
-            1 { 'D0 (wach)' } 2 { 'D1' } 3 { 'D2' } 4 { 'D3 (schlafend)' } default { 'unbekannt' }
+            1 { 'D0 wach' } 2 { 'D1' } 3 { 'D2' } 4 { 'D3 schläft' } default { 'unbekannt' }
         }
     } catch { 'unbekannt' }
 }
 
+function Measure-Keyboard {
+    $result = [ordered]@{}
+    foreach ($device in (Get-PnpDevice | Where-Object InstanceId -match '1044.*7A41' | Sort-Object InstanceId)) {
+        $result[$device.InstanceId] = Get-PowerState $device.InstanceId
+    }
+    return $result
+}
+
+$before = Measure-Keyboard
+Write-Host ""
+Write-Host "Jetzt bitte auf der internen Tastatur tippen - egal welche Tasten, auch wenn" -ForegroundColor Cyan
+Write-Host "nichts passiert. Es ist nichts zu bestätigen, das Fenster wartet von selbst." -ForegroundColor Cyan
+for ($second = $TypingSeconds; $second -gt 0; $second--) {
+    Write-Host ("`r  noch {0,2} Sekunden " -f $second) -NoNewline -ForegroundColor Cyan
+    Start-Sleep -Seconds 1
+}
+Write-Host "`r  fertig gemessen.        " -ForegroundColor Cyan
+Write-Host ""
+$after = Measure-Keyboard
+
+# ---------------------------------------------------------------- Bericht ---------------
+Say "# Tastatur-Diagnose"
+Say ""
+Say ("- Erstellt: {0:yyyy-MM-dd HH:mm:ss zzz}" -f (Get-Date))
+Say ("- Letzter Systemstart: {0}" -f (Get-CimInstance Win32_OperatingSystem).LastBootUpTime)
+$battery = Get-CimInstance Win32_Battery
+Say ("- Stromquelle: {0}" -f $(if ($battery.BatteryStatus -eq 2) { 'Netz' } elseif ($battery) { 'Akku' } else { 'unbekannt' }))
+Say ("- Tippfenster: {0} Sekunden" -f $TypingSeconds)
+Say "- Tastatur reagiert nach deinem Eindruck: (hier von Hand ergänzen)"
+Say ""
+
+$keyInterface = $after.Keys | Where-Object { $_ -match '^HID\\VID_1044&PID_7A41&MI_00' } | Select-Object -First 1
+if ($keyInterface) {
+    $verdict = if ($after[$keyInterface] -eq 'D0 wach') {
+        '**Die Tastatur ist aufgewacht.** Reagiert sie trotzdem nicht, hängt der Controller im wachen Zustand - dann liegt es nicht am Energiesparen.'
+    } else {
+        ('**Die Tastatur wacht nicht auf** (MI_00 steht auf {0}). Das passt zum selektiven Energiesparen als Ursache.' -f $after[$keyInterface])
+    }
+    Say "## Befund"
+    Say ""
+    Say $verdict
+    Say ""
+    Say "Gilt nur, wenn im Tippfenster wirklich getippt wurde; sonst ist D2 auch bei gesunder Tastatur richtig."
+    Say ""
+}
+
 Say "## Interne Tastatur 1044:7A41"
 Say ""
-Say "Zuletzt gemeldeter Energiezustand. Im Leerlauf ist D2/D3 normal; nach einem Tastendruck"
-Say "muss MI_00 auf D0 stehen. Tut es das nicht, wacht die Tastatur nicht mehr auf."
-Say ""
-Say '| Gerät | Status | Problemcode | Energiezustand |'
-Say '| --- | --- | --- | --- |'
+Say '| Gerät | Status | Problemcode | vorher | nach Tippen |'
+Say '| --- | --- | --- | --- | --- |'
 $devices = Get-PnpDevice | Where-Object InstanceId -match '1044.*7A41' | Sort-Object InstanceId
 foreach ($device in $devices) {
     $problem = try { (Get-PnpDeviceProperty -InstanceId $device.InstanceId -KeyName 'DEVPKEY_Device_ProblemCode' -ErrorAction Stop).Data } catch { '?' }
-    Say ('| {0} | {1} | {2} | {3} |' -f $device.InstanceId, $device.Status, $problem, (Get-PowerState $device.InstanceId))
+    Say ('| {0} | {1} | {2} | {3} | {4} |' -f $device.InstanceId, $device.Status, $problem,
+        $before[$device.InstanceId], $after[$device.InstanceId])
 }
-if (-not $devices) { Say '| - | Kein Gerät 1044:7A41 gefunden - das wäre neu und wichtig | - | - |' }
+if (-not $devices) { Say '| - | Kein Gerät 1044:7A41 gefunden - das wäre neu und wichtig | - | - | - |' }
 Say ""
 
 $composite = 'USB\VID_1044&PID_7A41\AP0000000003'
@@ -116,3 +146,4 @@ if ($log) {
 Set-Content -Path $report -Value $lines -Encoding utf8
 Write-Host ""
 Write-Host "Bericht: $report"
+Write-Host "Dieses Fenster schließt sich von selbst; es ist keine Taste nötig."
