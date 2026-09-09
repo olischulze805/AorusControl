@@ -696,6 +696,39 @@
                                 </Grid>
                                 <TextBlock Text="{Binding Graphics.SourceText}" Style="{StaticResource Hint}" />
 
+                                <TextBlock Style="{StaticResource SubLabel}" Margin="0,16,0,0" Text="Vorgeschlagen"
+                                           Visibility="{Binding Graphics.HasSuggestions, Converter={StaticResource BoolVisible}}" />
+                                <ItemsControl ItemsSource="{Binding Graphics.Suggestions}" Margin="0,14,0,0"
+                                              Visibility="{Binding Graphics.HasSuggestions, Converter={StaticResource BoolVisible}}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Style="{StaticResource InnerPanel}" Margin="0,0,0,8" Padding="14,10">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding DisplayName}" FontSize="13.5" FontWeight="SemiBold"
+                                                                   ToolTip="{Binding Path}" />
+                                                        <TextBlock Text="{Binding State}" Style="{StaticResource Hint}" Margin="0,3,0,0" />
+                                                    </StackPanel>
+                                                    <ui:Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Content="Übernehmen"
+                                                               VerticalAlignment="Center" Margin="14,0,0,0"
+                                                               Command="{Binding DataContext.Graphics.AddSuggestionCommand,
+                                                                                 RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                               CommandParameter="{Binding}">
+                                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                                                    </ui:Button>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="{Binding Graphics.LeftoverNote}" Style="{StaticResource Hint}" />
+
+                                <TextBlock Style="{StaticResource SubLabel}" Margin="0,10,0,0" Text="Wird umgeschaltet"
+                                           Visibility="{Binding Graphics.HasPrograms, Converter={StaticResource BoolVisible}}" />
                                 <ItemsControl ItemsSource="{Binding Graphics.Programs}" Margin="0,14,0,0"
                                               Visibility="{Binding Graphics.HasPrograms, Converter={StaticResource BoolVisible}}">
                                     <ItemsControl.ItemTemplate>

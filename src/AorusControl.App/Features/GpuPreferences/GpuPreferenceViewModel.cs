@@ -39,6 +39,7 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
     private readonly Dictionary<string, GpuPreference> _lastWritten = [];
     private readonly List<ManagedProgram> _managed = [];
     private bool _busy, _disposed, _automatic = true;
+    private int _missing;
     private string _status = "Noch nicht geprüft";
     private LaptopPowerSource _source = LaptopPowerSource.Unknown;
 
@@ -51,16 +52,31 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
         _settings = settings;
         _readPowerSource = readPowerSource;
         RemoveCommand = new AsyncRelayCommand<GpuProgramViewModel>(RemoveAsync);
+        AddSuggestionCommand = new AsyncRelayCommand<GpuProgramViewModel>(
+            suggestion => suggestion is null ? Task.CompletedTask : AddAsync(suggestion.Name));
         ApplyNowCommand = new AsyncRelayCommand(() => ApplyAsync("Von Hand angewendet"));
     }
 
     public ObservableCollection<GpuProgramViewModel> Programs { get; } = [];
+
+    /// <summary>Programs Windows already sets to the RTX, offered rather than taken over: a
+    /// switch changes how a program starts, and that stays the user's decision.</summary>
+    public ObservableCollection<GpuProgramViewModel> Suggestions { get; } = [];
+
     public AsyncRelayCommand<GpuProgramViewModel> RemoveCommand { get; }
+    public AsyncRelayCommand<GpuProgramViewModel> AddSuggestionCommand { get; }
     public AsyncRelayCommand ApplyNowCommand { get; }
 
     public bool IsBusy => _busy;
     public string Status { get => _status; private set => SetProperty(ref _status, value); }
     public bool HasPrograms => Programs.Count > 0;
+    public bool HasSuggestions => Suggestions.Count > 0;
+
+    /// <summary>Entries Windows still keeps for programs that are no longer installed. Not
+    /// worth a cleanup button on its own, worth saying once.</summary>
+    public string LeftoverNote => _missing == 0
+        ? string.Empty
+        : $"Windows hat außerdem {_missing} Einträge für Programme, die es nicht mehr gibt.";
 
     /// <summary>Off leaves every preference exactly where it is; the list stays, so it can be
     /// switched back on without adding everything again.</summary>
@@ -197,6 +213,13 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
     /// intended - a preference somebody changed elsewhere has to be visible as such.</summary>
     private void Show()
     {
+        IReadOnlyList<GpuPreferenceProgram> all = SafeList();
+        Suggestions.Clear();
+        GpuSuggestionResult found = GpuSuggestions.From(all, _managed, GpuSuggestions.StillInstalled);
+        _missing = found.MissingPrograms;
+        foreach (GpuSuggestion suggestion in found.Suggestions)
+            Suggestions.Add(new GpuProgramViewModel(suggestion.Name, suggestion.Reason));
+
         Programs.Clear();
         GpuPreference target = GpuSwitchPlan.For(_source);
         foreach (ManagedProgram program in _managed.OrderBy(entry => entry.DisplayName, StringComparer.CurrentCultureIgnoreCase))
@@ -215,6 +238,20 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
             Programs.Add(new GpuProgramViewModel(program.Name, state));
         }
         OnPropertyChanged(nameof(HasPrograms));
+        OnPropertyChanged(nameof(HasSuggestions));
+        OnPropertyChanged(nameof(LeftoverNote));
+    }
+
+    /// <summary>The registry, or an empty list: a display refresh must never be the thing that
+    /// takes the page down.</summary>
+    private IReadOnlyList<GpuPreferenceProgram> SafeList()
+    {
+        try { return _registry.List(); }
+        catch (Exception exception)
+        {
+            AppLog.Error("gpu", "Grafikeinstellungen nicht lesbar.", exception);
+            return [];
+        }
     }
 
     private void Persist()

@@ -10,8 +10,9 @@ internal static class GpuPreferenceTests
         Text();
         Store();
         Plan();
+        Suggest();
         await Module();
-        Console.WriteLine("PASS: GPU preference parsing, foreign settings kept, registry round trip, AC/battery plan and the module");
+        Console.WriteLine("PASS: GPU preference parsing, foreign settings kept, registry round trip, AC/battery plan, suggestions and the module");
     }
 
     private static async Task Module()
@@ -61,6 +62,39 @@ internal static class GpuPreferenceTests
         Check(module.Programs.Count == 0, "removing takes it off the list");
         Check(registry.Find(game)!.Preference == GpuPreference.Nvidia,
             "and leaves the manual choice alone rather than resetting over it");
+    }
+
+    private static void Suggest()
+    {
+        // The real entries of this machine, including the Store app that has no path at all
+        // and so could never be picked from a file dialog.
+        GpuPreferenceProgram[] registry =
+        [
+            new(@"C:\Games\theHunterCotW_F.exe", "GpuPreference=2;"),
+            new("4DF9E0F8.Netflix_mcm4njqhnhss8!Netflix.App", "GpuPreference=2;"),
+            new(@"C:\Program Files\VideoLAN\VLC\vlc.exe", "SpecificAdapter=10DE&249D;GpuPreference=1073741824;"),
+            new(@"C:\Windows\System32\ShellHost.exe", "GpuPreference=1;"),
+            new(@"C:\Program Files\Google\Chrome\chrome.exe", "GpuPreference=0;"),
+            new(@"C:\Gone\removed.exe", "GpuPreference=2;")
+        ];
+        bool Exists(string name) => !name.Contains(@"\Gone\", StringComparison.Ordinal);
+
+        GpuSuggestionResult result = GpuSuggestions.From(registry, [], Exists);
+        Check(result.Suggestions.Count == 2, $"only the two high-performance programs are offered, got {result.Suggestions.Count}");
+        Check(result.Suggestions.Any(suggestion => suggestion.Name.Contains("Netflix", StringComparison.Ordinal)),
+            "a Store app is offered by its id - nothing else can add it");
+        Check(result.Suggestions.All(suggestion => !suggestion.Name.Contains("vlc", StringComparison.OrdinalIgnoreCase)),
+            "a pinned adapter is not a candidate");
+        Check(result.Suggestions.All(suggestion => !suggestion.Name.Contains("ShellHost", StringComparison.Ordinal)),
+            "programs already on the Intel chip are left alone");
+        Check(result.MissingPrograms == 1, "an uninstalled program is counted, not offered");
+
+        ManagedProgram[] managed = [new(@"C:\Games\theHunterCotW_F.exe", GpuPreference.Nvidia)];
+        Check(GpuSuggestions.From(registry, managed, Exists).Suggestions.Count == 1,
+            "what is already managed is not suggested again");
+
+        Check(GpuSuggestions.StillInstalled("4DF9E0F8.Netflix_mcm4njqhnhss8!Netflix.App"),
+            "a Store app id is not a path and cannot be checked on disk");
     }
 
     private static void Text()

@@ -18,6 +18,16 @@ Karte „Grafikkarte je nach Stromquelle" unter Leistung & Akku. Ausgewählte Pr
 - Die App läuft erhöht; HKCU zeigt dabei auf dasselbe Benutzerprofil, solange die Erhöhung mit demselben Konto erfolgt. Würde sie mit einem anderen Administratorkonto erhöht, landeten die Einträge in dessen Profil.
 - Tests: Tokenbehandlung inklusive der echten VLC-Zeile dieses Rechners, Registry-Rundlauf in einem eigenen Testschlüssel, Netz-/Akku-Plan, manuelle Änderung, unbekannte Quelle, Automatik aus, Entfernen. Die Smoke-Tests fassen die echten Zuordnungen des Benutzers nicht an - dafür gibt es Attrappen.
 
+### Vorschläge statt automatischer Übernahme
+
+Die Karte schlägt Programme vor, statt sie selbst zu übernehmen. Quelle sind ausschließlich die Einträge, die Windows schon führt: vorgeschlagen wird, was auf Höchstleistung steht, noch nicht verwaltet wird, keinen fest gewählten Adapter hat und dessen Datei es noch gibt.
+
+Warum nicht alles Installierte durchsuchen: Dieser Rechner hat 234 Startmenü-Verknüpfungen und 303 Deinstallationseinträge - das ist keine Vorschlagsliste, das sind Hausaufgaben. Die interessante Menge ist winzig und braucht kein Raten. Am 2026-09-09 ergab die Regel hier genau zwei Treffer: theHunter und Netflix. Zehn Programme stehen bereits auf Energiesparen und tun im Akkubetrieb ohnehin das Richtige, eines hat einen festen Adapter, fünf Einträge sind Leichen deinstallierter Programme - letztere werden gezählt und einmal erwähnt, nicht vorgeschlagen.
+
+Der Nebeneffekt ist der wichtigere: Netflix ist eine Store-App ohne erreichbare EXE (`C:\Program Files\WindowsAppsDF9E0F8.Netflix_...`, adressiert über die App-ID `4DF9E0F8.Netflix_mcm4njqhnhss8!Netflix.App`). Über den Dateidialog ist sie nicht hinzuzufügen - von 272 Startmenü-Einträgen dieses Rechners sind 169 solche Apps. Die Vorschlagsliste kommt aus der Registry und kennt diese Namen deshalb von selbst.
+
+Weiterhin offen: eine Programmauswahl für Store-Apps, die noch gar keinen Eintrag haben (`shell:AppsFolder` liefert Name und AppUserModelId).
+
 Noch offen: der End-to-End-Nachweis, dass ein umgeschaltetes Programm tatsächlich auf dem anderen Chip startet. Der unten vorgeschlagene DXGI-Test steht weiterhin aus.
 
 ## Lokale Belege
