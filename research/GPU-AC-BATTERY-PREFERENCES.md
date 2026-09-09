@@ -26,7 +26,19 @@ Warum nicht alles Installierte durchsuchen: Dieser Rechner hat 234 Startmenü-Ve
 
 Der Nebeneffekt ist der wichtigere: Netflix ist eine Store-App ohne erreichbare EXE (`C:\Program Files\WindowsApps\4DF9E0F8.Netflix_...`, adressiert über die App-ID `4DF9E0F8.Netflix_mcm4njqhnhss8!Netflix.App`). Über den Dateidialog ist sie nicht hinzuzufügen - von 272 Startmenü-Einträgen dieses Rechners sind 169 solche Apps. Die Vorschlagsliste kommt aus der Registry und kennt diese Namen deshalb von selbst.
 
-Weiterhin offen: eine Programmauswahl für Store-Apps, die noch gar keinen Eintrag haben (`shell:AppsFolder` liefert Name und AppUserModelId).
+### Programmsuche
+
+Statt des Dateidialogs gibt es einen Suchdialog: tippen, auswählen, hinzufügen. Er führt zwei Quellen zusammen, weil Windows die beiden Programmarten getrennt verwaltet:
+
+- Store-Apps aus dem AppsFolder (`shell:::{4234d49b-0245-4df3-b780-3893943456e1}`), erkannt am `!` in der Kennung - 42 auf diesem Rechner. Die Kennung ist genau die, die auch in der Registry steht.
+- Klassische Programme über die Startmenü-Verknüpfungen, aufgelöst auf ihre EXE.
+
+Beim Auflösen gab es zwei Fallstricke, beide erst im Lauf am echten System aufgefallen:
+
+1. `Directory.EnumerateFiles(..., AllDirectories)` wirft *während* des Durchlaufens, nicht beim Aufruf. Ein Startmenü-Ordner dieses Rechners verweigert den Zugriff und riss damit die ganze Liste ab; jetzt mit `EnumerationOptions.IgnoreInaccessible`.
+2. `Folder.GetLink.Path` ist bei 157 der 234 Verknüpfungen leer - darunter Google Chrome und der Epic-Launcher. Was funktioniert, ist die erweiterte Eigenschaft `System.Link.TargetParsingPath`.
+
+Ergebnis: 199 Programme, davon 42 aus dem Store, Dauer rund 2 Sekunden - deshalb im Hintergrund mit Ladehinweis. Gesucht wird über Name und Pfad, jedes Wort muss vorkommen, Namenstreffer stehen vor reinen Pfadtreffern. Der Dateidialog bleibt als Knopf daneben, für Programme ohne Startmenü-Eintrag wie Spiele aus einer Launcher-Bibliothek (theHunter etwa steht nur deshalb schon im Vorschlag, weil Windows für ihn bereits eine Präferenz führt).
 
 Noch offen: der End-to-End-Nachweis, dass ein umgeschaltetes Programm tatsächlich auf dem anderen Chip startet. Der unten vorgeschlagene DXGI-Test steht weiterhin aus.
 

@@ -90,13 +90,9 @@ public partial class MainWindow : FluentWindow
 
     private async void OnAddGpuProgramClick(object sender, RoutedEventArgs e)
     {
-        var dialog = new Microsoft.Win32.OpenFileDialog
-        {
-            Title = "Programm auswählen",
-            Filter = "Programme (*.exe)|*.exe",
-            CheckFileExists = true
-        };
-        if (dialog.ShowDialog(this) == true) await _viewModel.Graphics.AddAsync(dialog.FileName);
+        var picker = new ProgramPickerWindow { Owner = this };
+        if (picker.ShowDialog() == true && picker.Result is { } program)
+            await _viewModel.Graphics.AddAsync(program);
     }
 
     private void OnOpenLogFolderClick(object sender, RoutedEventArgs eventArgs)

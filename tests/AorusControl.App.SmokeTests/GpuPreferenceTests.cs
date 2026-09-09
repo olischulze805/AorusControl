@@ -11,8 +11,9 @@ internal static class GpuPreferenceTests
         Store();
         Plan();
         Suggest();
+        Picker();
         await Module();
-        Console.WriteLine("PASS: GPU preference parsing, foreign settings kept, registry round trip, AC/battery plan, suggestions and the module");
+        Console.WriteLine("PASS: GPU preference parsing, foreign settings kept, registry round trip, AC/battery plan, suggestions, program search and the module");
     }
 
     private static async Task Module()
@@ -62,6 +63,44 @@ internal static class GpuPreferenceTests
         Check(module.Programs.Count == 0, "removing takes it off the list");
         Check(registry.Find(game)!.Preference == GpuPreference.Nvidia,
             "and leaves the manual choice alone rather than resetting over it");
+    }
+
+    private static void Picker()
+    {
+        // Both kinds side by side, as the picker really gets them: a path for a normal
+        // program, an id for a Store app that has no path at all.
+        InstalledProgram[] store = [new("Netflix", "4DF9E0F8.Netflix_mcm4njqhnhss8!Netflix.App")];
+        InstalledProgram[] classic =
+        [
+            new("Google Chrome", @"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+            new("Chrome Remote Desktop", @"C:\Program Files\Google\Chrome\Application\chrome_proxy.exe"),
+            new("VLC media player", @"C:\Program Files\VideoLAN\VLC\vlc.exe"),
+            // The same program twice, as two start-menu folders really do list it.
+            new("Google Chrome (Kopie)", @"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+            new("", @"C:\Program Files\Nameless\x.exe"),
+            new("Windows-Einstellung", "DirectXUserGlobalSettings")
+        ];
+
+        IReadOnlyList<InstalledProgram> all = InstalledPrograms.Merge(store, classic);
+        Check(all.Count == 4, $"duplicates and non-programs are dropped, got {all.Count}");
+        Check(all.Any(program => program.Identity.EndsWith("!Netflix.App", StringComparison.Ordinal)), "the Store app is in");
+        Check(all.Single(program => program.Identity.EndsWith(@"\chrome.exe", StringComparison.Ordinal)).Name == "Google Chrome",
+            "the first name for an identity wins");
+        Check(all.First().Name == "Chrome Remote Desktop", "sorted by name");
+        Check(all.Single(program => program.Identity.Contains("Netflix", StringComparison.Ordinal)).IsStoreApp,
+            "an id without a path is a Store app");
+        Check(!all.First().IsStoreApp, "a path is not");
+
+        Check(InstalledPrograms.Search(all, null).Count == 4, "no query shows everything");
+        Check(InstalledPrograms.Search(all, "net").Single().Name == "Netflix", "a Store app is findable by name");
+        Check(InstalledPrograms.Search(all, "chrome").Count == 2, "two programs match chrome, both by name");
+        // "google" is in one name and in both paths, which is the case the ranking is for.
+        Check(InstalledPrograms.Search(all, "google").First().Name == "Google Chrome",
+            "a hit in the name comes before one that only matches the path");
+        Check(InstalledPrograms.Search(all, "videolan").Single().Name == "VLC media player", "the path is searched too");
+        Check(InstalledPrograms.Search(all, "chrome remote").Single().Name == "Chrome Remote Desktop",
+            "several words all have to match");
+        Check(InstalledPrograms.Search(all, "gibtesnicht").Count == 0, "and no match is no match");
     }
 
     private static void Suggest()
