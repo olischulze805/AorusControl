@@ -19,6 +19,16 @@ public sealed class WindowsPowerOverlayController
 
     private const string RegistryPath = @"SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes";
 
+    /// <summary>
+    /// The power source as Windows reports it, with "unknown" kept as an answer rather than
+    /// turned into an exception - the GPU switching needs to be able to do nothing when
+    /// Windows is unsure, and doing nothing is not an error there.
+    /// </summary>
+    public LaptopPowerSource ReadPowerSource() =>
+        GetSystemPowerStatus(out SystemPowerStatus status)
+            ? LaptopPowerSources.FromWindowsStatus(status.AcLineStatus)
+            : LaptopPowerSource.Unknown;
+
     public bool IsOnAcPower()
     {
         if (!GetSystemPowerStatus(out SystemPowerStatus status))

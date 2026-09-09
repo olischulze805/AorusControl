@@ -64,7 +64,40 @@ public partial class MainWindow : FluentWindow
         Close();
     }
 
-    private void OnProfilesClick(object sender, RoutedEventArgs e) => new ProfileWindow { Owner = this }.ShowDialog();
+    private async void OnSaveFanCurveClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Lüfterkurve speichern", Filter = "AORUS-Lüfterkurve (*.json)|*.json",
+            DefaultExt = ".json", FileName = "Meine Lüfterkurve.json", AddExtension = true, OverwritePrompt = true
+        };
+        if (dialog.ShowDialog(this) == true)
+            await _viewModel.Cooling.SaveCurveFileAsync(new AorusControl.Core.Features.Cooling.FanCurveStore(dialog.FileName));
+    }
+
+    private async void OnLoadFanCurveClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Lüfterkurve laden", Filter = "AORUS-Lüfterkurve (*.json)|*.json", CheckFileExists = true
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        if (_viewModel.Cooling.HasUnsavedCurve && System.Windows.MessageBox.Show(this,
+            "Die Änderungen im Kurveneditor durch die gespeicherte Kurve ersetzen?", "Kurve laden",
+            System.Windows.MessageBoxButton.YesNo, MessageBoxImage.Question, System.Windows.MessageBoxResult.No) != System.Windows.MessageBoxResult.Yes) return;
+        await _viewModel.Cooling.LoadCurveFileAsync(new AorusControl.Core.Features.Cooling.FanCurveStore(dialog.FileName));
+    }
+
+    private async void OnAddGpuProgramClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Programm auswählen",
+            Filter = "Programme (*.exe)|*.exe",
+            CheckFileExists = true
+        };
+        if (dialog.ShowDialog(this) == true) await _viewModel.Graphics.AddAsync(dialog.FileName);
+    }
 
     private void OnOpenLogFolderClick(object sender, RoutedEventArgs eventArgs)
     {

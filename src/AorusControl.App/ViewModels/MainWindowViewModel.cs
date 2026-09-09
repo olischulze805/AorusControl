@@ -14,6 +14,10 @@ using AorusControl.Core.Features.Diagnostics;
 using AorusControl.Core.Features.Keyboard;
 using AorusControl.Core.Features.Startup;
 using AorusControl.Core.Features.Worker;
+using AorusControl.App.Features.GpuPreferences;
+using AorusControl.Core.Features.GpuPreferences;
+using AorusControl.Core.Features.PowerMonitoring;
+using AorusControl.Core.Features.PowerProfiles;
 
 namespace AorusControl.App.ViewModels;
 
@@ -35,6 +39,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private string _toggleButtonText = "Überwachung starten";
     private bool _closing;
     private bool _starting;
+    private readonly Func<DashboardPowerReading>? _readPower;
+    private string _cpuPower = "CPU-Paket: -- W";
+    private string _gpuPowerStatus = "Status unbekannt";
+    public string CpuPower { get => _cpuPower; private set => SetProperty(ref _cpuPower, value); }
+    public string GpuPowerStatus { get => _gpuPowerStatus; private set => SetProperty(ref _gpuPowerStatus, value); }
 
     public MainWindowViewModel()
         : this(
@@ -45,7 +54,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             keyboardSettingsStore: new KeyboardSettingsStore(AppData.File("keyboard-v1.json")),
             brightnessListener: new KeyboardBrightnessNotifications().RunAsync,
             fanCurveStore: new FanCurveStore(AppData.File("fan-curve-v1.json")),
-            startupManager: new StartupManager(Environment.ProcessPath ?? throw new InvalidOperationException("Prozesspfad unbekannt.")))
+            startupManager: new StartupManager(Environment.ProcessPath ?? throw new InvalidOperationException("Prozesspfad unbekannt.")),
+            readPower: new DashboardPowerReader().Read)
     {
     }
 
@@ -61,9 +71,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         IFanCurveStore? fanCurveStore = null,
         IStartupManager? startupManager = null,
         Func<TimeSpan, Task>? resumeReapplyDelay = null,
-        Func<TimeSpan, CancellationToken, Task>? debounceWait = null)
+        Func<TimeSpan, CancellationToken, Task>? debounceWait = null,
+        Func<DashboardPowerReading>? readPower = null,
+        IGpuPreferenceStore? gpuPreferenceStore = null,
+        IGpuPreferenceSettingsStore? gpuPreferenceSettings = null,
+        Func<LaptopPowerSource>? readPowerSource = null)
     {
         _reader = reader;
+        _readPower = readPower;
         Keyboard = new KeyboardViewModel(keyboardRgb, keyboardSettingsStore, brightnessListener, resumeReapplyDelay);
         Cooling = new CoolingViewModel(
             fanController,
@@ -78,6 +93,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             powerOverlay,
             startupManager ?? new StartupManager(Environment.ProcessPath ?? "AorusControl.exe"));
         Battery = new BatteryViewModel(batteryController ?? new GigabyteWmiBatteryChargeController(), debounceWait);
+        Graphics = new GpuPreferenceViewModel(
+            gpuPreferenceStore ?? new WindowsGpuPreferenceStore(),
+            gpuPreferenceSettings ?? new GpuPreferenceSettingsStore(AppData.File("gpu-preferences-v1.json")),
+            readPowerSource ?? powerOverlay.ReadPowerSource);
         Updates = new UpdateViewModel();
         _timer = new DispatcherTimer(DispatcherPriority.Background)
         {
@@ -105,11 +124,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     /// <summary>The attached feature modules. Everything the shell does to all of them -
     /// start them, wait for them, release them - goes through this list, so a new feature
     /// is a class plus one entry rather than another branch in three methods.</summary>
-    private IReadOnlyList<IFeatureModule> Modules => [Keyboard, Cooling, Windows, Battery];
+    private IReadOnlyList<IFeatureModule> Modules => [Keyboard, Cooling, Windows, Battery, Graphics];
 
     public KeyboardViewModel Keyboard { get; }
     public CoolingViewModel Cooling { get; }
     public BatteryViewModel Battery { get; }
+
+    /// <summary>Which chip chosen programs start on, following the power source.</summary>
+    public GpuPreferenceViewModel Graphics { get; }
 
     /// <summary>The Windows-side settings. Named for what it controls, not for the OS.</summary>
     public WindowsSettingsViewModel Windows { get; }
@@ -241,6 +263,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             _timer.Stop();
             _isRunning = false;
             Cooling.Live.MarkStale();
+            ClearPowerDisplay();
             ToggleButtonText = "Überwachung starten";
             Status = "Überwachung angehalten";
             return;
@@ -279,6 +302,19 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             // own independent telemetry read; a failure there already means it has
             // restored Normal by itself before this call returns.
             await Cooling.RenewFixedLeaseAsync();
+            if (_readPower is not null && _dashboardVisible && SelectedSection == "Dashboard")
+            {
+                try
+                {
+                    DashboardPowerReading power = await Task.Run(_readPower);
+                    if (!_closing && _dashboardVisible && SelectedSection == "Dashboard")
+                    {
+                        CpuPower = power.CpuPackageWatts is { } watts ? $"CPU-Paket: {watts:F1} W" : "CPU-Paket: -- W";
+                        GpuPowerStatus = power.GpuStatus;
+                    }
+                }
+                catch { ClearPowerDisplay(); }
+            }
         }
         catch (Exception exception)
         {
@@ -286,6 +322,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             // fails - a fan drawn turning on stale data would be the one lie this page cannot
             // afford.
             Cooling.Live.MarkStale();
+            ClearPowerDisplay();
             if (Cooling.IsFixedActive) await Cooling.AbandonFixedAsync("Temperaturmessung ausgefallen");
             // Keep retrying the safety restoration if WMI temporarily fails.
             if (!Cooling.IsFixedActive) _timer.Stop();
@@ -314,8 +351,15 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     /// two seconds between readings is visibly coarse.</summary>
     private void UpdateModuleVisibility()
     {
+        ClearPowerDisplay();
         Keyboard.IsVisible = _dashboardVisible && SelectedSection == "Lighting";
         _timer.Interval = TimeSpan.FromSeconds(_dashboardVisible && SelectedSection == "Cooling" ? 1 : 2);
+    }
+
+    private void ClearPowerDisplay()
+    {
+        CpuPower = "CPU-Paket: -- W";
+        GpuPowerStatus = "Status unbekannt";
     }
 
 

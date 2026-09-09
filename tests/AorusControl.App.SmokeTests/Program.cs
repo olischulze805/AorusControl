@@ -1,3 +1,5 @@
+using AorusControl.Core.Features.PowerProfiles;
+using AorusControl.Core.Features.GpuPreferences;
 using System.IO;
 using System.Reflection;
 using AorusControl.App.ViewModels;
@@ -26,10 +28,7 @@ await KeyboardReconnectTests.RunAsync();
 KeyboardStorageTests.Run();
 KeyboardFrameTests.Run();
 await WorkerProtocolTests.RunAsync();
-PowerProfileSelectionTests.Run();
-LaptopProfileTests.Run();
-ProfileCatalogTests.Run();
-await ProfileEditorTests.RunAsync();
+await GpuPreferenceTests.RunAsync();
 await BatteryTests.RunAsync();
 await FanSupervisorTests.RunAsync();
 FanCurveStoreTests.Run();
@@ -58,6 +57,47 @@ Check(PowerSampleMath.DischargeWatts(true, false, 21503) is null, "AC does not p
 Check(PowerSampleMath.DischargeWatts(false, true, uint.MaxValue) is null, "unknown rate sentinel");
 Check(PowerSampleMath.DischargeWatts(false, true, 0) is null, "missing rate is not measured zero");
 Console.WriteLine("PASS: 8 power sample calculation checks");
+
+byte[] powerData = new byte[56];
+BitConverter.GetBytes(56u).CopyTo(powerData, 0);
+BitConverter.GetBytes(4u).CopyTo(powerData, 4);
+Check(DashboardPowerReader.DescribePowerData(powerData).Contains("D3"), "Windows enum 4 maps to D3, not D4");
+BitConverter.GetBytes(1u).CopyTo(powerData, 4);
+Check(DashboardPowerReader.DescribePowerData(powerData).Contains("D0"), "Windows enum 1 maps to D0");
+BitConverter.GetBytes(0u).CopyTo(powerData, 4);
+Check(DashboardPowerReader.DescribePowerData(powerData).Contains("unbekannt"), "unspecified is not off");
+Check(DashboardPowerReader.DescribePowerData(new byte[8]).Contains("unbekannt"), "truncated power data rejected");
+Check(DashboardPowerReader.CalculateWatts(default, default) is null, "uninitialised counter not zero watts");
+var energyBefore = new System.Diagnostics.CounterSample(100000, 100, 1, 1, 1, 1, System.Diagnostics.PerformanceCounterType.AverageCount64);
+var energyReset = new System.Diagnostics.CounterSample(10, 200, 1, 1, 2, 2, System.Diagnostics.PerformanceCounterType.AverageCount64);
+var energyStuckTime = new System.Diagnostics.CounterSample(200000, 100, 1, 1, 2, 2, System.Diagnostics.PerformanceCounterType.AverageCount64);
+Check(DashboardPowerReader.CalculateWatts(energyBefore, energyReset) is null, "energy reset rejected");
+Check(DashboardPowerReader.CalculateWatts(energyBefore, energyStuckTime) is null, "non-advancing sample time rejected");
+
+int powerReads = 0;
+var powerReaderFake = new FakeReader();
+using (var powerVm = new MainWindowViewModel(powerReaderFake, new FakeKeyboard(), new FakeFan(), new WindowsPowerOverlayController(),
+    readPower: () => { powerReads++; return new(25.5, "Ruhezustand · Windows D3"); },
+    gpuPreferenceStore: new FakeGpuPreferenceStore(),
+    gpuPreferenceSettings: new FakeGpuPreferenceSettings(),
+    readPowerSource: () => LaptopPowerSource.Ac))
+{
+    await Invoke(powerVm, "RefreshAsync");
+    Check(powerVm.CpuPower.Contains("25") && powerVm.GpuPowerStatus.Contains("D3"), "dashboard publishes power and PnP status");
+    powerVm.SelectedSection = "Cooling";
+    await Invoke(powerVm, "RefreshAsync");
+    Check(powerReads == 1 && powerVm.CpuPower.Contains("--"), "other sections skip and clear dashboard sensors");
+    powerVm.SelectedSection = "Dashboard";
+    powerVm.SetDashboardVisible(false);
+    await Invoke(powerVm, "RefreshAsync");
+    Check(powerReads == 1, "hidden window skips dashboard power");
+    powerVm.SetDashboardVisible(true);
+    await Invoke(powerVm, "RefreshAsync");
+    powerReaderFake.Fail = true;
+    await Invoke(powerVm, "RefreshAsync");
+    Check(powerVm.CpuPower.Contains("--") && powerVm.GpuPowerStatus.Contains("unbekannt"), "failed telemetry clears stale power/status");
+}
+Console.WriteLine("PASS: dashboard power visibility, stale clearing, and Windows power-state parsing");
 
 // No vendor hardware writes: both hardware dependencies are test doubles.
 await Run("Hidden dashboard skips telemetry but preserves fixed-fan safety", async (vm, reader, fan) =>
@@ -184,6 +224,30 @@ await Run("A curve too small to be a curve is refused before any hardware write"
     await vm.Cooling.ApplyCurveAsync();
     Check(fan.CurveWrites == 0, "a single point is not a curve and must never reach the device");
     Check(vm.Cooling.CurveStatus.Contains("Ungültige Kurve"), "and the refusal must be visible");
+});
+await Run("Curve files save/load drafts without hardware writes; invalid loads preserve edits", async (vm, reader, fan) =>
+{
+    await vm.Cooling.SetProfileAsync("Dynamic");
+    var directory = Path.Combine(Path.GetTempPath(), "aorus-curve-check-" + Guid.NewGuid().ToString("N"));
+    var file = new FanCurveStore(Path.Combine(directory, "Leise.json"));
+    try
+    {
+        vm.Cooling.CurveRows[0].Percent += 5;
+        vm.Cooling.NoteCurveEdited();
+        int modes = fan.DynamicWrites;
+        await vm.Cooling.SaveCurveFileAsync(file);
+        Check(file.Load() is { Count: 15 }, "file contains a validated curve");
+        Check(vm.Cooling.HasUnsavedCurve, "saving does not claim applied");
+        vm.Cooling.CurveRows[0].Percent += 10;
+        await vm.Cooling.LoadCurveFileAsync(file);
+        Check(vm.Cooling.HasUnsavedCurve && vm.Cooling.CurveStatus.Contains("geladen"), "loaded file is an unapplied draft");
+        Check(fan.CurveWrites == 0 && fan.DynamicWrites == modes, "file actions never change hardware");
+        var draft = vm.Cooling.CurveRows.Select(row => (row.TemperatureNumber, row.Percent)).ToArray();
+        await vm.Cooling.LoadCurveFileAsync(new FanCurveStore(Path.Combine(directory, "missing.json")));
+        Check(vm.Cooling.CurveStatus.Contains("fehlgeschlagen"), "missing file is visible");
+        Check(draft.SequenceEqual(vm.Cooling.CurveRows.Select(row => (row.TemperatureNumber, row.Percent))), "failed load preserves current draft");
+    }
+    finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
 });
 await Run("A shape the firmware would reject is corrected on the way out, not sent and refused", async (vm, reader, fan) =>
 {
@@ -375,7 +439,10 @@ static async Task RunWithStartup(string name, Func<MainWindowViewModel, FakeRead
     using var vm = new MainWindowViewModel(reader, new FakeKeyboard(), fan, new WindowsPowerOverlayController(),
         fixedFanLeaseClient: new InProcessFixedFanLeaseClient(supervisor),
         fanCurveStore: new FakeFanCurveStore(),
-        startupManager: startupManager);
+        startupManager: startupManager,
+        gpuPreferenceStore: new FakeGpuPreferenceStore(),
+        gpuPreferenceSettings: new FakeGpuPreferenceSettings(),
+        readPowerSource: () => LaptopPowerSource.Ac);
     await vm.Cooling.StartAsync();
     await test(vm, reader, fan, startupManager);
     Console.WriteLine($"PASS: {name}");

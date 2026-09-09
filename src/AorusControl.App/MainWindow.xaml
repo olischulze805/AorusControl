@@ -72,6 +72,7 @@
                                 <StackPanel>
                                     <TextBlock Text="CPU" Style="{StaticResource TileLabel}" />
                                     <TextBlock Text="{Binding CpuTemperature}" Style="{StaticResource TileValue}" />
+                                    <TextBlock Text="{Binding CpuPower}" Style="{StaticResource TileLine}" ToolTip="Mittlere Leistung des gesamten CPU-Pakets inklusive integrierter Grafik. Windows-Energiezähler; kein zusätzlicher Sensortreiber." />
                                     <TextBlock Text="{Binding CpuFan}" Style="{StaticResource TileLine}" />
                                     <TextBlock Text="{Binding CpuDuty}" Style="{StaticResource TileSubLine}" />
                                 </StackPanel>
@@ -80,6 +81,7 @@
                                 <StackPanel>
                                     <TextBlock Text="GPU" Style="{StaticResource TileLabel}" />
                                     <TextBlock Text="{Binding GpuTemperature}" Style="{StaticResource TileValue}" />
+                                    <TextBlock Text="{Binding GpuPowerStatus}" Style="{StaticResource TileSubLine}" TextWrapping="Wrap" ToolTip="Zuletzt von Windows gemeldeter NVIDIA-Gerätezustand. D3 unterscheidet nicht zwischen D3hot und D3cold und bedeutet nicht gemessene 0 Watt. Keine NVIDIA-Sensorabfrage." />
                                     <TextBlock Text="{Binding GpuFan}" Style="{StaticResource TileLine}" />
                                     <TextBlock Text="{Binding GpuDuty}" Style="{StaticResource TileSubLine}" />
                                 </StackPanel>
@@ -289,6 +291,10 @@
                                                Command="{Binding Cooling.LoadGigabyteCurveCommand}" Margin="0,0,10,10">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowImport24" /></ui:Button.Icon>
                                     </ui:Button>
+                                    <ui:Button Style="{StaticResource SecondaryButton}" Content="Kurve speichern …"
+                                               Click="OnSaveFanCurveClick" Margin="0,0,10,10" />
+                                    <ui:Button Style="{StaticResource SecondaryButton}" Content="Kurve laden …"
+                                               Click="OnLoadFanCurveClick" Margin="0,0,10,10" />
                                     <ui:Button Style="{StaticResource SecondaryButton}" Content="Verwerfen und neu lesen"
                                                Command="{Binding Cooling.ReloadCurveCommand}" Margin="0,0,10,10">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowClockwise24" /></ui:Button.Icon>
@@ -621,10 +627,6 @@
                                                            ToolTip="{Binding Windows.PowerModeScope}" />
                                         </StackPanel>
                                     </StackPanel>
-                                    <ui:Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Margin="16,0,0,0"
-                                               Content="Eigene Profile verwalten …" Click="OnProfilesClick" VerticalAlignment="Top">
-                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Edit24" /></ui:Button.Icon>
-                                    </ui:Button>
                                 </Grid>
                                 <WrapPanel Margin="0,16,0,-10" IsEnabled="{Binding Windows.PowerControlsEnabled}">
                                     <RadioButton Style="{StaticResource Chip}" GroupName="PowerMode" Content="Energieeffizienz"
@@ -670,6 +672,67 @@
                                         </StackPanel>
                                     </Grid>
                                 </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Grafikumschaltung: gehört auf diese Seite, weil sie an derselben
+                             Frage hängt wie alles andere hier - was passiert, wenn das Netzteil
+                             ab ist. -->
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Grafikkarte je nach Stromquelle" Style="{StaticResource CardTitle}" />
+                                        <ui:SymbolIcon Style="{StaticResource InfoDot}"
+                                                       ToolTip="Setzt für die ausgewählten Programme dieselbe Windows-Einstellung wie Einstellungen › Bildschirm › Grafik: am Netz die RTX, im Akkubetrieb die Intel-Grafik, damit die RTX schlafen bleibt. Wirkt erst beim nächsten Start des Programms und bewegt kein laufendes. Programme, die ihre Grafikkarte selbst fest wählen, bleiben unangetastet." />
+                                    </StackPanel>
+                                    <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                     IsChecked="{Binding Graphics.IsAutomatic, Mode=TwoWay}"
+                                                     Content="Automatik" />
+                                </Grid>
+                                <TextBlock Text="{Binding Graphics.SourceText}" Style="{StaticResource Hint}" />
+
+                                <ItemsControl ItemsSource="{Binding Graphics.Programs}" Margin="0,14,0,0"
+                                              Visibility="{Binding Graphics.HasPrograms, Converter={StaticResource BoolVisible}}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Style="{StaticResource InnerPanel}" Margin="0,0,0,8" Padding="14,10">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding DisplayName}" FontSize="13.5" FontWeight="SemiBold"
+                                                                   ToolTip="{Binding Path}" />
+                                                        <TextBlock Text="{Binding State}" Style="{StaticResource Hint}" Margin="0,3,0,0" />
+                                                    </StackPanel>
+                                                    <ui:Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Content="Entfernen"
+                                                               VerticalAlignment="Center" Margin="14,0,0,0"
+                                                               Command="{Binding DataContext.Graphics.RemoveCommand,
+                                                                                 RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                               CommandParameter="{Binding}" />
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <WrapPanel Margin="0,10,0,-10">
+                                    <ui:Button Style="{StaticResource SecondaryButton}" Content="Programm hinzufügen …"
+                                               Click="OnAddGpuProgramClick" Margin="0,0,10,10">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                    <ui:Button Style="{StaticResource SecondaryButton}" Content="Jetzt anwenden"
+                                               Command="{Binding Graphics.ApplyNowCommand}" Margin="0,0,10,10">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowSync24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                </WrapPanel>
+                                <TextBlock Text="{Binding Graphics.Status}" Style="{StaticResource StatusText}" />
                             </StackPanel>
                         </Border>
 
