@@ -113,7 +113,18 @@ Am selben Abend ging es weiter, und der Verlauf beantwortet zwei Fragen auf einm
 
 Sechs Startvorgänge zwischen 17:56 und 19:42, dazwischen mehrere harte Abschaltungen. Aus der Ferne sah das aus, als könne der Rechner nicht mehr starten. Die Protokolle sagen etwas anderes:
 
-- **Windows ist jedes Mal sauber hochgekommen.** Keine Startreparatur, kein Wiederherstellungsversuch, kein fehlgeschlagener Boot-Treiber, kein Bugcheck, keine BitLocker-Abfrage. Der einzige regelmäßige Treiberfehler ist `aehd dam` (Android-Emulator, seit jeher, harmlos).
+- **Windows ist jedes Mal sauber hochgekommen.** Kein fehlgeschlagener Boot-Treiber, kein Bugcheck, keine BitLocker-Abfrage. Der einzige regelmäßige Treiberfehler ist `aehd dam` (Android-Emulator, seit jeher, harmlos).
+- **Die Startreparatur lief doch** - was zunächst übersehen wurde, weil sie nicht ins Systemprotokoll schreibt, sondern nach `C:\Windows\System32\LogFiles\Srt`. Der Hinweis kam vom Nutzer. Sie lief laut ihren eigenen Zeitstempeln am 10.09. um **18:25:07 bis 18:25:52**, also genau zwischen den Startversuchen 18:22 und 18:26. Die Dateizeiten des Ordners zeigen 14:25, weil die Uhr der Wiederherstellungsumgebung abweicht.
+
+  Ihr Ergebnis ist die zweite, unabhängige Bestätigung:
+
+  ```
+  Hora del último arranque correcto: 10/09/2026 21:22:03 (GMT)   = 18:22:03 Ortszeit
+  Número de intentos de reparación: 1
+  Número de causas principales = 0
+  ```
+
+  Alle Prüfungen bestanden - Systemdatenträger, Datenträgerinhalt, interner Zustand, Installationszustand, Bootsektor, Startprotokoll, Fehlerprüfung. Reparieren konnte sie nichts, weil nichts kaputt war. Der einzige Fehlschlag war der optionale Schritt „Netzwerk für die Cloud-Korrektur starten" (0x4c6); `setuperr.log` zeigt dazu nur fehlende WLAN-Zugangsdaten in der Wiederherstellungsumgebung.
 - **Was fehlte, war die Tastatur.** Zweiter Abriss des Tages um **18:21:08** - acht Sekunden nach dem Start um 18:21:00. Das Gerät hatte sich angemeldet und war sofort wieder weg. Ohne Tastatur kommt man am Anmeldebildschirm nicht weiter; von außen sieht das aus wie „startet nicht".
 - Die harten Abschaltungen sind damit **Folge, nicht Ursache**. Keine davon hat dem Start geschadet.
 
