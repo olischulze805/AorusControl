@@ -127,6 +127,39 @@ Damit ist der Verlauf innerhalb eines Tages: mal läuft sie, mal fällt sie nach
 
 Von außen lässt sich das nicht trennen: Beides sitzt hinter derselben USB-Verbindung, und beides erzeugt dieselben Protokolleinträge. Was die Daten hergeben, ist die Ebene - **physisch, nicht Software** - und die Richtung: Ein Gerät, das sich anmeldet und acht Sekunden später verschwindet, dann gar nicht mehr erscheint, deutet eher auf die Verbindung oder die Stromversorgung des Controllers als auf dessen Programm.
 
+## Die Eingrenzung: Controller lebt, Datenleitung nicht
+
+Zwei Beobachtungen vom 2026-09-10 abends schließen die Diagnose ab.
+
+**Code 43 am selben Anschluss.** Im Gerätemanager steht ein „Unbekanntes USB-Gerät (Fehler beim Anfordern einer Gerätebeschreibung)":
+
+```
+USB\VID_0000&PID_0002&7230AE1&0&7     Problem = CM_PROB_FAILED_POST_START (Code 43)
+Interne Tastatur, Ort:  Port_#0007.Hub_#0001
+```
+
+Beide sitzen auf **Port 7 desselben Hubs**. Der Hub erkennt also, dass am Anschluss etwas hängt - dafür genügt der Abschlusswiderstand auf einer Datenleitung -, aber das Gerät beantwortet nicht einmal die erste Anfrage. Deshalb legt Windows den Platzhalter `VID_0000&PID_0002` an; genau der wurde am 10.09. um 18:11:20 drei Sekunden nach der Tastatur „als fehlerhaft" wieder entfernt.
+
+**Fn+Space regelt die Beleuchtung weiterhin.** Das ist der entscheidende Gegenbeweis zum Controller-Defekt: Fn-Kombinationen verarbeitet der Tastaturcontroller selbst, sie erreichen den Rechner nie. Wenn Helligkeit sich damit noch ändern lässt, dann
+
+- läuft der Controller,
+- hat er Strom,
+- funktioniert die Tastenmatrix,
+- und die LED-Ansteuerung ebenso.
+
+Tot ist allein die **USB-Datenverbindung zum Rechner**.
+
+### Was das bedeutet
+
+| Teil | Zustand |
+| --- | --- |
+| Tastaturcontroller (ITE) | läuft |
+| Stromversorgung der Tastatureinheit | vorhanden |
+| Tastenmatrix, Beleuchtung, Fn-Logik | funktionieren |
+| USB-Datenleitungen zum Mainboard | defekt |
+
+Damit ist der Fehler auf zwei Leitungen und deren Kontakte eingegrenzt: das Datenpaar im Flachbandkabel, die Kontakte im ZIF-Stecker, oder eine gerissene Leiterbahn im Kabel. Ein Steckverbinder, der neu gesetzt und gereinigt wird, hat hier eine echte Chance - und wenn eine Leiterbahn gebrochen ist, ist es das Kabel beziehungsweise die Tastatureinheit, nicht der Controller.
+
 ## Was ausgeschlossen ist
 
 - Keine Herstellersoftware, die um dasselbe Gerät konkurriert: GCC ist deinstalliert, kein
