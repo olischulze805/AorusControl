@@ -122,6 +122,21 @@ Say ("- USB-Selektiv-Suspend im Schema: {0}" -f (($usb | Select-String 'aktuelle
 Say ""
 
 # ---------------------------------------------------------------- Umfeld ----------------
+# ---------------------------------------------------------------- Abrisse ---------------
+# Das aussagekräftigste Protokoll und das einzige, das jede einzelne Trennung festhält -
+# samt Formulierung, ob der Hub das Gerät als fehlend meldet. Es reicht weit zurück und
+# liefert damit die ganze Vorfallsgeschichte, nicht nur den letzten Zeitpunkt.
+Say "## Überraschende Entfernungen dieser Tastatur (Kernel-PnP/Device Management)"
+Say ""
+$removals = Get-WinEvent -FilterHashtable @{ LogName = 'Microsoft-Windows-Kernel-PnP/Device Management'; Id = 1010, 1011 } -ErrorAction SilentlyContinue |
+    Where-Object { $_.Message -match '1044.*7A41' } | Sort-Object TimeCreated
+foreach ($removal in $removals) {
+    $text = ($removal.Message -replace "`r`n", ' ' -replace '\s+', ' ')
+    Say ('- {0:yyyy-MM-dd HH:mm:ss} Id{1} {2}' -f $removal.TimeCreated, $removal.Id, $text.Substring(0, [Math]::Min(150, $text.Length)))
+}
+if (-not $removals) { Say '- Keine. Dann ist das Gerät nie vom Bus verschwunden, und der Fehler liegt woanders.' }
+Say ""
+
 Say "## Systemprotokoll der letzten zwei Stunden (USB, HID, PnP, Energie)"
 Say ""
 $since = (Get-Date).AddHours(-2)
