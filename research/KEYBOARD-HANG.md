@@ -107,6 +107,26 @@ Das Muster - schleichender Beginn mit verlorenen Meldungen, dann Verschwinden vo
 
 Damit ist es kein Softwarefehler dieser App und mit Software auch nicht zu beheben.
 
+## 2026-09-10 abends: der Fehler wird dauerhaft
+
+Am selben Abend ging es weiter, und der Verlauf beantwortet zwei Fragen auf einmal.
+
+Sechs Startvorgänge zwischen 17:56 und 19:42, dazwischen mehrere harte Abschaltungen. Aus der Ferne sah das aus, als könne der Rechner nicht mehr starten. Die Protokolle sagen etwas anderes:
+
+- **Windows ist jedes Mal sauber hochgekommen.** Keine Startreparatur, kein Wiederherstellungsversuch, kein fehlgeschlagener Boot-Treiber, kein Bugcheck, keine BitLocker-Abfrage. Der einzige regelmäßige Treiberfehler ist `aehd dam` (Android-Emulator, seit jeher, harmlos).
+- **Was fehlte, war die Tastatur.** Zweiter Abriss des Tages um **18:21:08** - acht Sekunden nach dem Start um 18:21:00. Das Gerät hatte sich angemeldet und war sofort wieder weg. Ohne Tastatur kommt man am Anmeldebildschirm nicht weiter; von außen sieht das aus wie „startet nicht".
+- Die harten Abschaltungen sind damit **Folge, nicht Ursache**. Keine davon hat dem Start geschadet.
+
+### Und seit 19:42 ist sie ganz weg
+
+In der Sitzung ab 19:42 taucht die Tastatur **überhaupt nicht mehr auf**: keine Anmeldung im PnP-Protokoll, letzte Anmeldung war 18:26:33, Status „nicht vorhanden", kein Entfernungszeitpunkt - weil sie nie da war, um entfernt zu werden.
+
+Damit ist der Verlauf innerhalb eines Tages: mal läuft sie, mal fällt sie nach Minuten aus, mal nach acht Sekunden, jetzt gar nicht mehr. Über die drei Kaltstarts hinweg ist das kein Firmwarezustand - ein hängender Controller wird durch eine vollständige Stromtrennung zurückgesetzt und muss danach erst einmal funktionieren. Eine Verbindung, die mechanisch oder thermisch nicht mehr trägt, verhält sich genau so.
+
+### Zur Frage Steckverbinder oder Controller
+
+Von außen lässt sich das nicht trennen: Beides sitzt hinter derselben USB-Verbindung, und beides erzeugt dieselben Protokolleinträge. Was die Daten hergeben, ist die Ebene - **physisch, nicht Software** - und die Richtung: Ein Gerät, das sich anmeldet und acht Sekunden später verschwindet, dann gar nicht mehr erscheint, deutet eher auf die Verbindung oder die Stromversorgung des Controllers als auf dessen Programm.
+
 ## Was ausgeschlossen ist
 
 - Keine Herstellersoftware, die um dasselbe Gerät konkurriert: GCC ist deinstalliert, kein
