@@ -58,6 +58,55 @@ Beim Start liest die App den Zustand und schreibt die gespeicherte Beleuchtung z
 
 Offen und nur vom Nutzer zu beantworten: ob die Wechsel um 21:02 von Hand kamen - an dem Abend wurde die Netz-/Akku-Umschaltung getestet - oder von selbst.
 
+## Dritter Vorfall am 2026-09-10, 18:11 - und der eigentliche Fund
+
+Diesmal war die Tastatur noch tot, als gemessen wurde. Zwei Dinge fielen sofort weg:
+
+- **Kein Netzteilwechsel.** Die einzigen beiden des Tages lagen um 17:56 und 17:57, vor dem Systemstart (17:57:52) und vierzehn Minuten vor dem Ausfall. Die Vermutung vom Vortag, der Wechsel sei der Auslöser, hält damit nicht.
+- **Unsere App lief nicht.** Kein Prozess, keine Logdatei für diesen Tag. Sie kann den Ausfall nicht verursacht haben.
+
+Entscheidend war ein Protokoll, das vorher niemand angesehen hatte:
+`Microsoft-Windows-Kernel-PnP/Device Management`.
+
+```
+18:11:17  Id1010  Gerät USB\VID_1044&PID_7A41\AP0000000003 wurde überraschend entfernt,
+                  da es als fehlend auf dem Bus gemeldet wird.
+18:11:20  Id1011  Gerät USB\VID_0000&PID_0002 wurde überraschend entfernt,
+                  da es als fehlerhaft gemeldet wurde.
+```
+
+„Als fehlend auf dem Bus gemeldet" heißt: Der USB-Hub selbst meldet, am Port hängt nichts mehr. Das ist eine Trennung auf elektrischer Ebene, kein Treiberproblem und kein von Software ausgelöstes Entfernen. Der zweite Eintrag ist der Platzhalter, den Windows für ein nicht mehr identifizierbares Gerät anlegt.
+
+### Die vollständige Vorfallsgeschichte
+
+Dasselbe Protokoll reicht bis August 2025 zurück und enthält jede solche Entfernung:
+
+| Datum | Uhrzeit |
+| --- | --- |
+| 2026-05-03 | 19:27:26 |
+| 2026-05-04 | 18:49:33 |
+| 2026-05-09 | 19:15:25 |
+| 2026-08-25 | 17:57:10 |
+| 2026-09-09 | 19:29:00 |
+| 2026-09-09 | 21:03:26 |
+| 2026-09-10 | 18:11:17 |
+
+Sieben in sechzehn Monaten - **vier davon in den letzten siebzehn Tagen**. Es kommt in Schüben und die Abstände werden kürzer.
+
+### Was unsere App damit zu tun hat: nichts
+
+Am 09.09. schlug jeweils zwei Sekunden vor der Entfernung ein HID-Zugriff der App fehl (19:28:58 lesend, 21:03:24 schreibend). Das sah nach Mitschuld aus. Am 10.09. lief die App nicht, und es passierte trotzdem - mit demselben Protokolleintrag. Die App war also nur der erste Zeuge: Wer gerade mit dem Gerät spricht, merkt den Abriss sofort, während der Hub ihn erst beim nächsten Port-Status bemerkt. Zwei Sekunden später.
+
+### Der Verlauf, den der Nutzer beschreibt
+
+Vor dem Totalausfall blieben Tasten hängen - die Tastatur meldete eine Taste länger gedrückt, als sie es war. Genau so sieht ein Übertragungsabriss aus: Das Loslass-Ereignis geht verloren, Windows hält die Taste weiter für gedrückt. Erst gehen einzelne Meldungen verloren, dann die Verbindung ganz.
+
+### Bewertung
+
+Das Muster - schleichender Beginn mit verlorenen Meldungen, dann Verschwinden vom Bus, kein Treiberfehler, Rückkehr erst nach vollständiger Stromtrennung, und häufiger werdend - spricht für **Hardware**: die Flachbandleitung zur Tastatur oder ihr Steckverbinder, alternativ der Controller selbst. Eine reine Firmware-Hängung erklärt weder die hängenden Tasten davor noch die Zunahme.
+
+Damit ist es kein Softwarefehler dieser App und mit Software auch nicht zu beheben.
+
 ## Was ausgeschlossen ist
 
 - Keine Herstellersoftware, die um dasselbe Gerät konkurriert: GCC ist deinstalliert, kein
