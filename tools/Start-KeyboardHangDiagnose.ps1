@@ -79,16 +79,21 @@ Say ""
 
 $keyInterface = $after.Keys | Where-Object { $_ -match '^HID\\VID_1044&PID_7A41&MI_00' } | Select-Object -First 1
 if ($keyInterface) {
-    $verdict = if ($after[$keyInterface] -eq 'D0 wach') {
-        '**Die Tastatur ist aufgewacht.** Reagiert sie trotzdem nicht, hängt der Controller im wachen Zustand - dann liegt es nicht am Energiesparen.'
+    # Drei Ausgänge, nicht zwei: Am 2026-09-09 war das Gerät schlicht vom Bus verschwunden,
+    # und der Bericht sprach trotzdem vom Energiesparen. Ein fehlendes Gerät schläft nicht.
+    $present = (Get-PnpDevice -InstanceId $keyInterface).Status -eq 'OK'
+    $verdict = if (-not $present) {
+        '**Die Tastatur ist vom USB-Bus verschwunden**, nicht eingeschlafen: Windows führt das Gerät als nicht vorhanden. Der Zeitpunkt steht unten bei LastRemovalDate. Energiesparen scheidet damit als Erklärung aus.'
+    } elseif ($after[$keyInterface] -eq 'D0 wach') {
+        '**Die Tastatur ist da und aufgewacht.** Reagiert sie trotzdem nicht, hängt der Controller im wachen Zustand - dann liegt es nicht am Energiesparen.'
     } else {
-        ('**Die Tastatur wacht nicht auf** (MI_00 steht auf {0}). Das passt zum selektiven Energiesparen als Ursache.' -f $after[$keyInterface])
+        ('**Die Tastatur ist da, wacht aber nicht auf** (MI_00 steht auf {0}). Das passt zum selektiven Energiesparen als Ursache.' -f $after[$keyInterface])
     }
     Say "## Befund"
     Say ""
     Say $verdict
     Say ""
-    Say "Gilt nur, wenn im Tippfenster wirklich getippt wurde; sonst ist D2 auch bei gesunder Tastatur richtig."
+    Say "Die letzten beiden Fälle gelten nur, wenn im Tippfenster wirklich getippt wurde; sonst ist D2 auch bei gesunder Tastatur richtig."
     Say ""
 }
 

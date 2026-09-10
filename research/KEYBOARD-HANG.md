@@ -31,6 +31,33 @@ derselbe Chip ist.
 Am 2026-08-27 stehen zwei Bugchecks im Protokoll (`0xCA PNP_DETECTED_FATAL_ERROR`, `0xD1`).
 Ob sie zum selben Fehler gehören, ist offen; die Minidumps sind ohne Adminrechte nicht lesbar.
 
+## Zweiter Vorfall am 2026-09-09, 21:03 - anderes Fehlerbild
+
+Diesmal mit Messung (`research/runs/keyboard-hang-20260909-210417.md`), und sie widerlegt die Suspend-Theorie für diesen Fall:
+
+- Alle 16 Geräteknoten stehen auf **Status Unknown**, `LastRemovalDate = 21:03:26`. Das Gerät war also **vom USB-Bus verschwunden**, nicht eingeschlafen - ein anderes Bild als um 19:28, wo es angemeldet blieb und nur nicht antwortete.
+- Selektives Energiesparen war zu diesem Zeitpunkt bereits für Netz **und** Akku abgeschaltet (im Bericht bestätigt, beide `0x00000000`). Als Erklärung fällt es damit aus.
+- 21:02:30 Wechsel auf Akku, 21:02:44 zurück ans Netz - **42 Sekunden vor dem Verschwinden**. Das ist der dritte Vorfall, der auf einen Wechsel der Stromquelle folgt.
+- Windows protokollierte das Entfernen in keinem Ereignis; einzig die Geräteeigenschaft hält es fest. Ohne diese Messung wäre der Unterschied zum ersten Vorfall unbemerkt geblieben.
+
+### Unsere App zwei Sekunden davor
+
+Das App-Protokoll dieser Minute:
+
+```
+21:03:22  start      AORUS Control (app) gestartet.
+21:03:24  [ERROR] keyboard  Tastatur nicht verfügbar. | IOException: SetFeature failed.
+21:03:26  (LastRemovalDate des Geräts)
+```
+
+Beim Start liest die App den Zustand und schreibt die gespeicherte Beleuchtung zurück. Das Lesen gelang, das Schreiben scheiterte, zwei Sekunden später war das Gerät weg. Die Reihenfolge spricht dagegen, dass der Schreibversuch der Auslöser war - der Controller nahm ihn bereits nicht mehr an, war also vorher schon gestört. Ausschließen lässt sich aber nicht, dass er einem angeschlagenen Controller den Rest gegeben hat.
+
+### Stromquellen-Wechsel als Muster
+
+97 Wechsel in 30 Tagen. Auffällig sind die schnellen Paare, allen voran am 18.08.: 16 Wechsel innerhalb von zwei Minuten, überwiegend im Abstand von 7 Sekunden. So steckt niemand ein Netzteil um; das sieht nach einem wackeligen Kontakt aus. Auch am 09.09. gab es zwei enge Paare (20:56:45/49 und 21:02:30/44).
+
+Offen und nur vom Nutzer zu beantworten: ob die Wechsel um 21:02 von Hand kamen - an dem Abend wurde die Netz-/Akku-Umschaltung getestet - oder von selbst.
+
 ## Was ausgeschlossen ist
 
 - Keine Herstellersoftware, die um dasselbe Gerät konkurriert: GCC ist deinstalliert, kein
@@ -80,8 +107,10 @@ Akku - kein Unterschied):
 
 Daraus die Entscheidungsregel für den Ausfall:
 
-- **MI_00 bleibt trotz Tastendruck auf D2/D3** → das Gerät wacht nicht mehr auf, das
-  selektive Energiesparen bleibt Hauptverdächtiger.
+- **Das Gerät ist gar nicht vorhanden** (Status Unknown) → es ist vom Bus verschwunden, siehe
+  LastRemovalDate. Energiesparen scheidet aus. So lag der Fall am 2026-09-09 um 21:03.
+- **MI_00 bleibt trotz Tastendruck auf D2/D3** → das Gerät ist da, wacht aber nicht auf; dann
+  bleibt das selektive Energiesparen Hauptverdächtiger.
 - **MI_00 steht auf D0 und trotzdem passiert nichts** → der Controller hängt im wachen
   Zustand; dann liegt es nicht am Energiesparen und die Suche geht bei Firmware und EC weiter.
 
