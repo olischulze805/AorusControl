@@ -1,5 +1,7 @@
 # Bestätigte Produktentscheidungen
 
+Aktualisierung 2026-09-09: Der Nutzer ersetzt die kombinierte Profilverwaltung und Netz-/Akku-Profilzuordnung durch einfaches manuelles Speichern/Laden von Lüfterkurven unter Kühlung. Details: FAN-CURVE-FILES.md. Frühere Aussagen zur kombinierten Profilverwaltung weiter unten sind damit historisch.
+
 Vom Nutzer bestätigt, 2026-09-03. Diese Entscheidungen ersetzen frühere offene Empfehlungen.
 
 1. Fenster schließen minimiert in den Infobereich neben der Windows-Uhr. Explizites Beenden ist getrennt und stellt manuell gesteuerte Lüfter auf Firmware/Normal zurück.

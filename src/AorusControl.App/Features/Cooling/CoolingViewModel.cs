@@ -390,6 +390,39 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     /// floor instead of GCC's 0%, and full speed by 90 °C instead of 99% at 92 °C). Nothing is
     /// written yet - it lands in the editor like a drag would, and the debounce applies it.
     /// </summary>
+    public async Task SaveCurveFileAsync(IFanCurveStore file)
+    {
+        if (_closing || _disposed || _busy || !IsCurveEditable) return;
+        _busy = true;
+        ControlsEnabled = false;
+        try
+        {
+            var points = FanCurveShape.ToFirmwareCurve(ReadHandles());
+            await Task.Run(() => file.Save(points));
+            CurveStatus = "Kurvendatei gespeichert. Zum Aktivieren „Kurve übernehmen“ verwenden.";
+            // Saving a file must not mark the draft as applied to the EC.
+        }
+        catch (Exception exception) { CurveStatus = $"Speichern fehlgeschlagen: {exception.Message}"; }
+        finally { _busy = false; ControlsEnabled = true; OnPropertyChanged(nameof(CanApplyCurve)); }
+    }
+
+    public async Task LoadCurveFileAsync(IFanCurveStore file)
+    {
+        if (_closing || _disposed || _busy || !IsCurveEditable) return;
+        _busy = true;
+        ControlsEnabled = false;
+        try
+        {
+            var points = await Task.Run(file.Load) ?? throw new InvalidOperationException("Kurvendatei nicht gefunden.");
+            FanCurveValidation.Validate(points);
+            PopulateCurveRows(points);
+            HasUnsavedCurve = true;
+            CurveStatus = "Kurve geladen · noch nicht aktiv. Mit „Kurve übernehmen“ aktivieren.";
+        }
+        catch (Exception exception) { CurveStatus = $"Laden fehlgeschlagen: {exception.Message}"; }
+        finally { _busy = false; ControlsEnabled = true; OnPropertyChanged(nameof(CanApplyCurve)); }
+    }
+
     private void LoadGigabyteCurve()
     {
         if (_closing || _disposed || !IsCurveEditable) return;

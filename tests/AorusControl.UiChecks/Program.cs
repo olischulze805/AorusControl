@@ -57,11 +57,10 @@ var thread = new Thread(() =>
         string output = Path.GetFullPath("research/runs/ui");
         Directory.CreateDirectory(output);
 
-        RenderProfileWindow(output);
         RenderMainWindow(output);
         RenderCoolingStates(output);
         RenderToolTip(output);
-        Console.WriteLine("PASS: profile and main window laid out at every checked width; no native window or hardware started.");
+        Console.WriteLine("PASS: main window laid out at every checked width; no native window or hardware started.");
         app.Shutdown();
     }
     catch (Exception error) { failure = error; }
@@ -69,25 +68,6 @@ var thread = new Thread(() =>
 thread.SetApartmentState(ApartmentState.STA);
 thread.Start(); thread.Join();
 if (failure is not null) throw failure;
-
-static void RenderProfileWindow(string output)
-{
-    var points = Enumerable.Range(0, 15).Select(i => new FanCurvePoint((byte)i, (byte)(30 + i * 4), (byte)(i == 14 ? 229 : 57 + i * 10))).ToArray();
-    var profile = new LaptopProfile(Guid.NewGuid(), "Testprofil – Eigene Lüfterkurve", WindowsPowerOverlayMode.Balanced, ProfileCoolingMode.CustomCurve, curve: points);
-    var vm = new ProfileEditorViewModel(() => new([profile], new(profile.Id, null)), _ => throw new Exception("No writes permitted in render test"));
-    vm.Initialization.GetAwaiter().GetResult();
-    vm.Selected = vm.Profiles.Single();
-    vm.LoadSelectedCommand.Execute(null);
-    var window = new ProfileWindow(vm);
-    var content = (FrameworkElement)window.Content;
-    // Explicit inheritance for offscreen content layout, without opening an OS window.
-    content.DataContext = vm;
-    foreach (int width in new[] { 760, 600 })
-    {
-        Layout(content, width, 750);
-        Save(content, output, $"profile-{width}.png", width, 750);
-    }
-}
 
 static void RenderMainWindow(string output)
 {

@@ -1,6 +1,30 @@
 using System.Diagnostics;
 using System.Text;
 using AorusControl.Core.Features.Keyboard;
+using AorusControl.Core.Features.PowerMonitoring;
+
+if (args.SequenceEqual(new[] { "--dashboard-power-read-only" }))
+{
+    var reader = new DashboardPowerReader();
+    var lines = new StringBuilder("# Dashboard power live check\n\nWindows Energy Meter + PnP only. No NVAPI/NVML, no device setters.\n\n");
+    bool sawCpu = false;
+    for (int i = 0; i < 8; i++)
+    {
+        var watch = Stopwatch.StartNew();
+        DashboardPowerReading reading = reader.Read();
+        sawCpu |= reading.CpuPackageWatts is > 0;
+        string line = $"{DateTimeOffset.Now:O}: CPU {reading.CpuPackageWatts:F3} W; {reading.GpuStatus}; query {watch.Elapsed.TotalMilliseconds:F2} ms";
+        Console.WriteLine(line);
+        lines.AppendLine(line);
+        if (i < 7) await Task.Delay(2000);
+    }
+    lines.AppendLine("Repeated D3 is evidence that these queries did not leave the GPU in D0; it cannot exclude unobserved brief transitions. Not a battery power comparison.");
+    Directory.CreateDirectory("research/runs");
+    string output = $"research/runs/dashboard-power-{DateTime.Now:yyyyMMdd-HHmmss}.md";
+    await File.WriteAllTextAsync(output, lines.ToString());
+    Console.WriteLine(output);
+    return sawCpu ? 0 : 1;
+}
 
 // Explicit opt-in, read-only hardware check. No controller setters are instantiated.
 if (args.Length != 1 || args[0] != "--brightness-read-only")
