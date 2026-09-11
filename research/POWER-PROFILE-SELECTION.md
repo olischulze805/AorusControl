@@ -1,3 +1,5 @@
+> **Historisch, Stand 2026-09-09.** Die hier beschriebene Netz-/Akku-Profilauswahl wurde entfernt und durch das Speichern und Laden einzelner Lüfterkurven ersetzt; siehe FAN-CURVE-FILES.md. Der Text bleibt als Aufzeichnung dessen, was einmal gebaut wurde.
+
 # Netz-/Akkuprofile: Auswahlgrundlage
 
 Aktueller UI-Nachtrag: einfacher Editor mit Persistenz und Zuordnungen eingebunden, Details in PROFILE-EDITOR.md. Die älteren Abschnitte unten beschreiben vorherige Zwischenschritte. Automatische Hardwareanwendung weiterhin offen.

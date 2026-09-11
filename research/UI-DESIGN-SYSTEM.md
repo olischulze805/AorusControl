@@ -48,7 +48,7 @@ the profile editor and the colour picker cannot drift apart.
 
 ## Window shell
 
-Both windows (`MainWindow`, `ProfileWindow`) are `ui:FluentWindow` with
+Every window (`MainWindow`, `ColorPickerWindow`, `ProgramPickerWindow`) is a `ui:FluentWindow` with
 `ExtendsContentIntoTitleBar="True"` and a `ui:TitleBar`, giving a native-feeling title bar
 that still matches the Mica/dark theme instead of the default white Win32 chrome.
 

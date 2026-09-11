@@ -1,3 +1,5 @@
+> **Historisch, Stand 2026-09-09.** Die hier beschriebene Profileditor wurde entfernt und durch das Speichern und Laden einzelner Lüfterkurven ersetzt; siehe FAN-CURVE-FILES.md. Der Text bleibt als Aufzeichnung dessen, was einmal gebaut wurde.
+
 # Profil-Editor: einfache WPF-Anbindung
 
 ## Nachtrag: asynchrone Dateioperationen
