@@ -66,7 +66,10 @@
                     <!-- Tiles in WrapPanels rather than a fixed two-column Grid: they reflow from
                          four across to one as the window narrows, instead of being squeezed. The
                          wider cap lets a maximised window actually use its width. -->
-                    <StackPanel MaxWidth="1180" HorizontalAlignment="Center">
+                    <!-- Kein HorizontalAlignment="Center": das gibt der Spalte nur ihre
+                         Wunschbreite, und Seiten mit kurzem Inhalt schrumpfen dann auf halbe
+                         Breite zusammen. Mit Stretch plus MaxWidth zentriert WPF von selbst. -->
+                    <StackPanel MaxWidth="1180">
                         <ctrl:TilePanel MinTileWidth="252" Margin="0,0,0,20">
                             <Border Style="{StaticResource Tile}">
                                 <StackPanel>
@@ -148,7 +151,7 @@
                 <!-- ===================== Kühlung ===================== -->
                 <ScrollViewer Style="{StaticResource SectionPage}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28"
                               Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisible}, ConverterParameter=Cooling}">
-                    <StackPanel MaxWidth="880" HorizontalAlignment="Center">
+                    <StackPanel MaxWidth="880">
 
                         <!-- Live: was die Lüfter gerade wirklich tun. Steht bewusst über allem
                              anderen auf dieser Seite - jede Einstellung darunter beantwortet die
@@ -345,7 +348,7 @@
                 <!-- ===================== Tastatur ===================== -->
                 <ScrollViewer Style="{StaticResource SectionPage}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28"
                               Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisible}, ConverterParameter=Lighting}">
-                    <StackPanel MaxWidth="880" HorizontalAlignment="Center">
+                    <StackPanel MaxWidth="880">
 
                         <!-- Zustand, Live-Vorschau, Helligkeit -->
                         <Border Style="{StaticResource Card}">
@@ -611,7 +614,7 @@
                 <!-- ===================== Leistung & Akku ===================== -->
                 <ScrollViewer Style="{StaticResource SectionPage}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28"
                               Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisible}, ConverterParameter=Power}">
-                    <StackPanel MaxWidth="880" HorizontalAlignment="Center">
+                    <StackPanel MaxWidth="880">
 
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
@@ -819,7 +822,7 @@
                 <!-- ===================== Info & Updates ===================== -->
                 <ScrollViewer Style="{StaticResource SectionPage}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28"
                               Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisible}, ConverterParameter=About}">
-                    <StackPanel MaxWidth="880" HorizontalAlignment="Center">
+                    <StackPanel MaxWidth="880">
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal">
