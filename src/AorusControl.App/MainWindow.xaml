@@ -84,7 +84,7 @@
                                 <StackPanel>
                                     <TextBlock Text="GPU" Style="{StaticResource TileLabel}" />
                                     <TextBlock Text="{Binding GpuTemperature}" Style="{StaticResource TileValue}" />
-                                    <TextBlock Text="{Binding GpuPowerStatus}" Style="{StaticResource TileSubLine}" TextWrapping="Wrap" ToolTip="Zuletzt von Windows gemeldeter NVIDIA-Gerätezustand. D3 unterscheidet nicht zwischen D3hot und D3cold und bedeutet nicht gemessene 0 Watt. Keine NVIDIA-Sensorabfrage." />
+                                    <TextBlock Text="{Binding GpuPowerStatus}" Style="{StaticResource TileSubLine}" TextWrapping="Wrap" ToolTip="Am Netz und nur solange Windows die Karte ohnehin wach meldet, steht hier ihre Leistungsaufnahme aus dem NVIDIA-Treiber. Sonst der von Windows gemeldete Gerätezustand: D3 unterscheidet nicht zwischen D3hot und D3cold und bedeutet nicht gemessene 0 Watt. Im Akkubetrieb wird die Karte dafür nie angesprochen." />
                                     <TextBlock Text="{Binding GpuFan}" Style="{StaticResource TileLine}" />
                                     <TextBlock Text="{Binding GpuDuty}" Style="{StaticResource TileSubLine}" />
                                 </StackPanel>

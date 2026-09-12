@@ -74,6 +74,20 @@ var energyStuckTime = new System.Diagnostics.CounterSample(200000, 100, 1, 1, 2,
 Check(DashboardPowerReader.CalculateWatts(energyBefore, energyReset) is null, "energy reset rejected");
 Check(DashboardPowerReader.CalculateWatts(energyBefore, energyStuckTime) is null, "non-advancing sample time rejected");
 
+// The two conditions that decide whether the NVIDIA card is asked for watts at all. The
+// battery rows are the ones that matter: reading there would spend the very power the GPU
+// switching exists to save.
+Check(DashboardPowerReader.MayReadGpuWatts(LaptopPowerSource.Ac, 1), "awake card on AC may be asked for watts");
+Check(!DashboardPowerReader.MayReadGpuWatts(LaptopPowerSource.Battery, 1), "an awake card on battery is still left alone");
+Check(!DashboardPowerReader.MayReadGpuWatts(LaptopPowerSource.Unknown, 1), "unknown power source is not treated as AC");
+Check(!DashboardPowerReader.MayReadGpuWatts(LaptopPowerSource.Ac, 4), "a sleeping card is never woken for a reading");
+Check(!DashboardPowerReader.MayReadGpuWatts(LaptopPowerSource.Ac, 0), "an unreadable device state blocks the reading");
+BitConverter.GetBytes(1u).CopyTo(powerData, 4);
+Check(DashboardPowerReader.DecodePowerData(powerData).State == 1, "D0 decodes to the raw state the gate needs");
+BitConverter.GetBytes(9u).CopyTo(powerData, 4);
+Check(DashboardPowerReader.DecodePowerData(powerData).State == 0, "an out-of-range state decodes as unknown, not as D0");
+Check(DashboardPowerReader.DecodePowerData(new byte[8]).State == 0, "truncated power data decodes as unknown");
+
 int powerReads = 0;
 var powerReaderFake = new FakeReader();
 using (var powerVm = new MainWindowViewModel(powerReaderFake, new FakeKeyboard(), new FakeFan(), new WindowsPowerOverlayController(),
@@ -98,6 +112,31 @@ using (var powerVm = new MainWindowViewModel(powerReaderFake, new FakeKeyboard()
     Check(powerVm.CpuPower.Contains("--") && powerVm.GpuPowerStatus.Contains("unbekannt"), "failed telemetry clears stale power/status");
 }
 Console.WriteLine("PASS: dashboard power visibility, stale clearing, and Windows power-state parsing");
+
+int gpuReleases = 0;
+using (var gpuWattVm = new MainWindowViewModel(new FakeReader(), new FakeKeyboard(), new FakeFan(), new WindowsPowerOverlayController(),
+    readPower: () => new(25.5, "Aktiv \u00b7 Windows D0", 20.7),
+    releasePower: () => gpuReleases++,
+    gpuPreferenceStore: new FakeGpuPreferenceStore(),
+    gpuPreferenceSettings: new FakeGpuPreferenceSettings(),
+    readPowerSource: () => LaptopPowerSource.Ac))
+{
+    await Invoke(gpuWattVm, "RefreshAsync");
+    Check(gpuWattVm.GpuPowerStatus.Contains("20,7 W") || gpuWattVm.GpuPowerStatus.Contains("20.7 W"),
+        "measured GPU watts reach the tile");
+    Check(!gpuWattVm.GpuPowerStatus.Contains("D0"), "watts replace the device state instead of repeating it");
+    // Leaving the page has to give the driver library back: the app then sits in the tray
+    // for hours, and a handle held through that is the opposite of letting the card sleep.
+    gpuReleases = 0;
+    gpuWattVm.SelectedSection = "Cooling";
+    Check(gpuReleases > 0, "leaving the dashboard releases the NVIDIA library");
+    gpuReleases = 0;
+    gpuWattVm.SetDashboardVisible(false);
+    Check(gpuReleases > 0, "hiding the window releases the NVIDIA library");
+    gpuReleases = 0;
+}
+Check(gpuReleases > 0, "disposing the view model releases the NVIDIA library");
+Console.WriteLine("PASS: GPU watts are gated on AC plus an already-awake card");
 
 // No vendor hardware writes: both hardware dependencies are test doubles.
 await Run("Hidden dashboard skips telemetry but preserves fixed-fan safety", async (vm, reader, fan) =>

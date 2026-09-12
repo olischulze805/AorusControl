@@ -40,6 +40,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private bool _closing;
     private bool _starting;
     private readonly Func<DashboardPowerReading>? _readPower;
+    private readonly Action? _releasePower;
+    // One dashboard, one reader. It is held statically only so that the parameterless
+    // constructor can hand the same instance to both parameters below; tests never reach
+    // this path, since building it would go to the real hardware.
+    private static readonly DashboardPowerReader SharedPowerReader = new();
     private string _cpuPower = "CPU-Paket: -- W";
     private string _gpuPowerStatus = "Status unbekannt";
     public string CpuPower { get => _cpuPower; private set => SetProperty(ref _cpuPower, value); }
@@ -55,7 +60,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             brightnessListener: new KeyboardBrightnessNotifications().RunAsync,
             fanCurveStore: new FanCurveStore(AppData.File("fan-curve-v1.json")),
             startupManager: new StartupManager(Environment.ProcessPath ?? throw new InvalidOperationException("Prozesspfad unbekannt.")),
-            readPower: new DashboardPowerReader().Read)
+            readPower: SharedPowerReader.Read,
+            releasePower: SharedPowerReader.ReleaseGpu)
     {
     }
 
@@ -73,12 +79,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         Func<TimeSpan, Task>? resumeReapplyDelay = null,
         Func<TimeSpan, CancellationToken, Task>? debounceWait = null,
         Func<DashboardPowerReading>? readPower = null,
+        Action? releasePower = null,
         IGpuPreferenceStore? gpuPreferenceStore = null,
         IGpuPreferenceSettingsStore? gpuPreferenceSettings = null,
         Func<LaptopPowerSource>? readPowerSource = null)
     {
         _reader = reader;
         _readPower = readPower;
+        _releasePower = releasePower;
         Keyboard = new KeyboardViewModel(keyboardRgb, keyboardSettingsStore, brightnessListener, resumeReapplyDelay);
         Cooling = new CoolingViewModel(
             fanController,
@@ -233,6 +241,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _timer.Stop();
         _timer.Tick -= OnTimerTick;
         _reader.Dispose();
+        _releasePower?.Invoke();
         foreach (IFeatureModule module in Modules) module.Dispose();
     }
 
@@ -310,7 +319,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                     if (!_closing && _dashboardVisible && SelectedSection == "Dashboard")
                     {
                         CpuPower = power.CpuPackageWatts is { } watts ? $"CPU-Paket: {watts:F1} W" : "CPU-Paket: -- W";
-                        GpuPowerStatus = power.GpuStatus;
+                        // Watts replace the device state rather than joining it: a card
+                        // reporting watts is by definition in D0, and "Aktiv · Windows D0
+                        // · 20,7 W" would say that twice on a line this narrow.
+                        GpuPowerStatus = power.GpuWatts is { } gpuWatts
+                            ? $"Aktiv · {gpuWatts:F1} W"
+                            : power.GpuStatus;
                     }
                 }
                 catch { ClearPowerDisplay(); }
@@ -356,10 +370,17 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _timer.Interval = TimeSpan.FromSeconds(_dashboardVisible && SelectedSection == "Cooling" ? 1 : 2);
     }
 
+    /// <summary>
+    /// Blanks the two dashboard power lines - and gives the NVIDIA library back while doing
+    /// it. Every path that lands here means no one is looking at the dashboard any more, and
+    /// the app then sits in the tray for hours; holding a driver handle through that would
+    /// undo the point of letting the card sleep.
+    /// </summary>
     private void ClearPowerDisplay()
     {
         CpuPower = "CPU-Paket: -- W";
         GpuPowerStatus = "Status unbekannt";
+        _releasePower?.Invoke();
     }
 
 

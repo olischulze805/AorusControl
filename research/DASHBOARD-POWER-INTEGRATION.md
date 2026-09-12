@@ -1,6 +1,6 @@
 # Dashboard: CPU-Watt und Windows-GPU-Status
 
-Stand: 2026-09-09.
+Stand: 2026-09-11 (GPU-Watt am Netz ergänzt; ursprünglich 2026-09-09).
 
 ## Starter-Korrektur
 
@@ -10,18 +10,38 @@ Start-AorusControl.ps1 verwendete eine vorhandene Release-EXE vom 5. September u
 
 - CPU-Kachel: CPU-Paketleistung aus Windows Energy Meter (RAPL_Package0_PKG), auf eine Nachkommastelle gerundet. Enthält die integrierte Grafik; keine Summe über überlappende RAPL-Domänen.
 - NVIDIA-Kachel: zuletzt von Windows gemeldeter Gerätezustand D0, D1, D2 oder D3. Fehlende/ungültige Daten werden ausdrücklich als unbekannt angezeigt. Mehrere NVIDIA-Adapter ergeben keine geratenen Einzelwerte.
-- Der neue DashboardPowerReader nutzt ausschließlich Windows PerformanceCounter und SetupAPI. Kein NVML, NVAPI, nvidia-smi oder GPU-Gerätehandle.
+- Der DashboardPowerReader nutzte anfangs ausschließlich Windows PerformanceCounter und SetupAPI. Seit 2026-09-11 kommt genau eine NVIDIA-Quelle dazu: NVML, und nur unter den beiden Bedingungen im nächsten Abschnitt.
 - ReadCategory liest CPU-Energie. SetupDiGetClassDevs mit DIGCF_PRESENT und Display-Klassenguid enumeriert vorhandene Grafikgeräte; Hardware-ID VEN_10DE identifiziert NVIDIA. SPDRP_DEVICE_POWER_DATA enthält die CM_POWER_DATA-Struktur.
 - Strukturgröße und Datentyp werden geprüft. DEVICE_POWER_STATE ist einsbasiert: 1=D0, 4=D3. D3 unterscheidet hier nicht D3hot/D3cold und belegt keine physikalischen 0 W.
 - Nur bei sichtbarem Dashboard werden die Zusatzwerte abgefragt; Threadpool statt UI-Thread, vorhandenes Intervall zwei Sekunden. Vor Veröffentlichung wird Sichtbarkeit erneut geprüft. Alte Werte werden bei Seitenwechsel, Verstecken, Stoppen oder Telemetriefehler gelöscht.
 - Erste CPU-Probe, Abstand über fünf Sekunden, zurückgesetzte Energie, nicht fortschreitende Basiszeit und ungültige Wattwerte werden verworfen. Ein Fehler dieser Zusatzanzeige löst keinen Lüftermoduswechsel aus.
 - Vorhandene Gigabyte-Temperatur-/Lüftertelemetrie bleibt unverändert. Der isolierte neue Sensorpfad wurde live geprüft; diese Prüfung ist kein Nachweis des Energieverhaltens sämtlicher bereits bestehender App-Abfragen.
 
-## Warum keine bedingt abgefragten GPU-Watt?
+## GPU-Watt: erst abgelehnt, am 2026-09-11 am Netz eingebaut
 
-Ein D0-Check unmittelbar vor NVML ist keine Garantie: Die Karte kann zwischen Check und Sensorzugriff einschlafen; außerdem kann Polling ihr Einschlafen verhindern. Die neue Funktion verzichtet daher auch bei D0 auf GPU-Watt. Ein belastbarer Ansatz dafür benötigt weitere treiberspezifische Untersuchungen und einen Akkuvergleich. Der Nutzerwunsch, die Karte durch diese Anzeige nicht aufzuwecken, hat Vorrang.
+Am 2026-09-09 wurde gegen GPU-Watt entschieden. Die Begründung galt einem D0-Check als alleiniger Bedingung und bleibt richtig: Die Karte kann zwischen Prüfung und NVML-Aufruf einschlafen, und wiederholtes Abfragen kann ihr Einschlafen verhindern. Ein D0-Check allein ist keine Garantie.
+
+Auf Nutzerwunsch kam am 2026-09-11 eine zweite Bedingung dazu, und die trägt das Gewicht: **Netzbetrieb**. Damit bleibt das eigentliche Schutzziel unberührt. Im Akkubetrieb wird NVML nicht einmal geladen, die schlafende Karte bleibt schlafen, und die Kachel zeigt weiter den Gerätezustand. Am Netz darf die Karte wach gehalten werden – dort kostet das Laufzeit, die niemand zählt.
+
+Die Regel steht als `DashboardPowerReader.MayReadGpuWatts(Stromquelle, D-Zustand)` an einer Stelle und ist einzeln getestet: Netz + D0 erlaubt, alles andere verweigert – auch eine wache Karte im Akkubetrieb und eine unbekannte Stromquelle.
+
+- Gelesen wird `nvmlDeviceGetPowerUsage` aus nvml.dll, der Bibliothek des Treibers in System32. Kein NVAPI, kein nvidia-smi-Prozess, kein Fremdcode.
+- Die Bibliothek wird erst beim ersten erlaubten Lesen geladen und wieder freigegeben, sobald die Karte D0 verlässt, die Dashboardseite verlassen wird, das Fenster verschwindet oder die App endet. Die App wartet stundenlang im Infobereich; ein dort gehaltener Treiber-Handle wäre das Gegenteil des Ziels.
+- Die Kachel zeigt entweder Watt oder den Gerätezustand, nie beides: Wer Watt meldet, ist per Definition in D0.
+- Ein zweiter NVIDIA-Adapter bricht vor jeder Wattabfrage ab, weil NVMLs Index 0 dann nicht mehr eindeutig ist.
+
+**Ungeprüft bleibt**, ob ein reiner NVML-Lesezugriff eine ohnehin wache Karte länger wach hält. Am Messtag lag die Karte durchgehend in D0, weil ein externer Monitor an ihrem Ausgang hängt (siehe unten); ein D0→D3-Übergang war nicht provozierbar. Die Freigabe beim Verlassen der Seite ist die Antwort darauf, nicht ein Messergebnis.
 
 G-Helper wurde als Referenz gelesen: dort wird GetCurrentPerformanceState mit NVAPI_GPU_NOT_POWERED ausgewertet, bevor GPU-Watt abgefragt werden. Das beweist die Nicht-Aufweckwirkung auf unserem AORUS mit Treiber 616.64 nicht. Kein Fremdcode übernommen.
+
+## Warum die RTX hier ständig wach ist
+
+Am 2026-09-09 meldete die Karte in allen acht Proben D3. Am 2026-09-11 in allen acht Proben D0, bei rund 20,8 W im Leerlauf. Der Unterschied ist kein Softwarefehler:
+
+- `Win32_VideoController` zeigt die RTX 3070 mit 3440 Pixeln Breite bei 144 Hz, die Intel Iris Xe mit 1920. Der externe Ultrawide hängt also am Ausgang der NVIDIA-Karte, der interne Bildschirm an der Intel-Grafik.
+- `nvidia-smi` führt entsprechend explorer.exe, SearchHost, StartMenu, Chrome, WhatsApp, Windows Terminal und die Claude-App als Grafikclients der RTX.
+
+Solange dieser Monitor angeschlossen ist, schläft die Karte nie, und die Programmzuordnung unter Leistung & Akku kann daran nichts ändern: Ein Bildschirm an ihrem Ausgang ist ein Verbraucher, den keine Windows-Präferenz wegschalten kann. Das erklärt zugleich, warum die Wattanzeige an diesem Gerät am Netz praktisch immer etwas zeigt.
 
 ## Tests und Live-Ergebnis
 
@@ -34,7 +54,7 @@ G-Helper wurde als Referenz gelesen: dort wird GetCurrentPerformanceState mit NV
 dotnet run --project tests/AorusControl.HardwareChecks -- --dashboard-power-read-only
 ```
 
-Bericht: runs/dashboard-power-20260909-183153.md. Acht Proben über rund 14 Sekunden: NVIDIA in allen Proben D3, CPU nach Basisprobe 26,224–48,640 W. Parallel liefen Builds/Tests; kein CPU-Leerlauf-Benchmark. Erste Initialisierung 599,50 ms; Folgeabfragen 0,54–2,69 ms.
+Bericht: runs/dashboard-power-20260909-183153.md, GPU-Watt ergänzt in runs/dashboard-power-20260911-212415.md (acht Proben, GPU 20,80–20,84 W, alle D0, erste Abfrage 4,9 s im Hintergrundthread, danach 0,57–1,2 ms). Acht Proben über rund 14 Sekunden: NVIDIA in allen Proben D3, CPU nach Basisprobe 26,224–48,640 W. Parallel liefen Builds/Tests; kein CPU-Leerlauf-Benchmark. Erste Initialisierung 599,50 ms; Folgeabfragen 0,54–2,69 ms.
 
 Dies spricht dagegen, dass die neue Abfrage die RTX dauerhaft nach D0 versetzt. Sehr kurze unbeobachtete Übergänge werden damit nicht ausgeschlossen. Kein aktueller Akkuvergleich, kein gezielter D0→D3-Übergang provoziert, keine NVIDIA-Sensorabfrage in diesem Umsetzungsschritt. Keine Neuinstallation der zuvor entfernten App.
 
