@@ -28,12 +28,6 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private bool _isReading;
     private bool _isRunning;
     private bool _dashboardVisible = true;
-    private string _cpuTemperature = "-- °C";
-    private string _gpuTemperature = "-- °C";
-    private string _cpuFan = "-- U/min";
-    private string _gpuFan = "-- U/min";
-    private string _cpuDuty = "Rohwert --";
-    private string _gpuDuty = "Rohwert --";
     private string _status = "Bereit";
     private string _lastUpdated = "Noch keine Messung";
     private string _toggleButtonText = "Überwachung starten";
@@ -45,9 +39,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     // constructor can hand the same instance to both parameters below; tests never reach
     // this path, since building it would go to the real hardware.
     private static readonly DashboardPowerReader SharedPowerReader = new();
-    private string _cpuPower = "CPU-Paket: -- W";
+    private string _cpuPower = "– W";
+    private string _gpuPower = "– W";
     private string _gpuPowerStatus = "Status unbekannt";
     public string CpuPower { get => _cpuPower; private set => SetProperty(ref _cpuPower, value); }
+    public string GpuPower { get => _gpuPower; private set => SetProperty(ref _gpuPower, value); }
     public string GpuPowerStatus { get => _gpuPowerStatus; private set => SetProperty(ref _gpuPowerStatus, value); }
 
     public MainWindowViewModel()
@@ -145,12 +141,6 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public WindowsSettingsViewModel Windows { get; }
     public UpdateViewModel Updates { get; }
 
-    public string CpuTemperature { get => _cpuTemperature; private set => SetProperty(ref _cpuTemperature, value); }
-    public string GpuTemperature { get => _gpuTemperature; private set => SetProperty(ref _gpuTemperature, value); }
-    public string CpuFan { get => _cpuFan; private set => SetProperty(ref _cpuFan, value); }
-    public string GpuFan { get => _gpuFan; private set => SetProperty(ref _gpuFan, value); }
-    public string CpuDuty { get => _cpuDuty; private set => SetProperty(ref _cpuDuty, value); }
-    public string GpuDuty { get => _gpuDuty; private set => SetProperty(ref _gpuDuty, value); }
     public string Status { get => _status; private set => SetProperty(ref _status, value); }
 
     public string LastUpdated { get => _lastUpdated; private set => SetProperty(ref _lastUpdated, value); }
@@ -281,11 +271,6 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         await StartAsync();
     }
 
-    /// <summary>Duty as a share of the firmware's own maximum, with the raw byte kept as
-    /// the smaller half - the percentage is what answers "how hard is it working".</summary>
-    private static string DescribeDuty(ushort raw) =>
-        $"{FanSpeedPercent.ToPercent((byte)Math.Min(raw, (ushort)255))} % Leistung · Rohwert {raw}";
-
     private async Task RefreshAsync()
     {
         if (_closing || _isReading || (!_dashboardVisible && !Cooling.IsFixedActive))
@@ -297,12 +282,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         try
         {
             TelemetrySnapshot snapshot = await _reader.ReadAsync();
-            CpuTemperature = $"{snapshot.CpuTemperatureCelsius} °C";
-            GpuTemperature = $"{snapshot.GpuTemperatureCelsius} °C";
-            CpuFan = $"{snapshot.CpuFanRpm:N0} U/min";
-            GpuFan = $"{snapshot.GpuFanRpm:N0} U/min";
-            CpuDuty = DescribeDuty(snapshot.CpuFanDutyPercent);
-            GpuDuty = DescribeDuty(snapshot.GpuFanDutyPercent);
+            // The dashboard and the cooling page both read these numbers from Cooling.Live,
+            // which is also the only thing that knows whether they are still current.
             Cooling.Live.Update(snapshot);
             Windows.RefreshPowerSource();
             LastUpdated = $"Letzte Messung: {snapshot.CapturedAt.ToLocalTime():HH:mm:ss}";
@@ -318,13 +299,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                     DashboardPowerReading power = await Task.Run(_readPower);
                     if (!_closing && _dashboardVisible && SelectedSection == "Dashboard")
                     {
-                        CpuPower = power.CpuPackageWatts is { } watts ? $"CPU-Paket: {watts:F1} W" : "CPU-Paket: -- W";
-                        // Watts replace the device state rather than joining it: a card
-                        // reporting watts is by definition in D0, and "Aktiv · Windows D0
-                        // · 20,7 W" would say that twice on a line this narrow.
-                        GpuPowerStatus = power.GpuWatts is { } gpuWatts
-                            ? $"Aktiv · {gpuWatts:F1} W"
-                            : power.GpuStatus;
+                        CpuPower = power.CpuPackageWatts is { } watts ? $"{watts:F1} W" : "– W";
+                        GpuPower = power.GpuWatts is { } gpuWatts ? $"{gpuWatts:F1} W" : "– W";
+                        GpuPowerStatus = power.GpuStatus;
                     }
                 }
                 catch { ClearPowerDisplay(); }
@@ -378,7 +355,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     /// </summary>
     private void ClearPowerDisplay()
     {
-        CpuPower = "CPU-Paket: -- W";
+        CpuPower = "– W";
+        GpuPower = "– W";
         GpuPowerStatus = "Status unbekannt";
         _releasePower?.Invoke();
     }

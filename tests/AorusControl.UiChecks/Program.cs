@@ -58,6 +58,7 @@ var thread = new Thread(() =>
         Directory.CreateDirectory(output);
 
         RenderMainWindow(output);
+        RenderDashboardLive(output);
         RenderCoolingStates(output);
         RenderToolTip(output);
         Console.WriteLine("PASS: main window laid out at every checked width; no native window or hardware started.");
@@ -94,6 +95,52 @@ static void RenderMainWindow(string output)
         }
     }
 }
+
+/// <summary>
+/// The dashboard with numbers on it. The plain render above shows the page before anything
+/// has been measured - every value dashed, every trend line empty - which is the state that
+/// says least about the design. This one feeds three minutes of readings through the live
+/// model first, so the degrees, the watts, the fan bars and the trend lines all carry real
+/// shapes.
+/// </summary>
+static void RenderDashboardLive(string output)
+{
+    var vm = new MainWindowViewModel(new StubReader(), new StubKeyboard(), new StubFan(), new WindowsPowerOverlayController(),
+        batteryController: new StubBattery(), fanCurveStore: new StubCurveStore(), startupManager: new StubStartup());
+    vm.Cooling.StartAsync().GetAwaiter().GetResult();
+
+    // A load arriving: cool, then a climb, then the fans catching up and holding it. Ninety
+    // samples is exactly the history the live model keeps.
+    for (int index = 0; index < 90; index++)
+    {
+        double share = index / 89.0;
+        double cpu = 46 + 38 * Math.Min(1, share * 1.9) - 6 * Math.Sin(share * 9);
+        double gpu = 41 + 26 * Math.Min(1, share * 1.6) - 4 * Math.Sin(share * 7);
+        vm.Cooling.Live.Update(new TelemetrySnapshot(DateTimeOffset.Now, (ushort)cpu, (ushort)gpu,
+            (ushort)(2200 + share * 2600), (ushort)(2000 + share * 2300),
+            (ushort)(70 + share * 140), (ushort)(64 + share * 120)));
+    }
+
+    // The watt figures come from the dashboard's own reader, which a render must not run:
+    // it would query the real CPU counter and the real graphics card. Writing the two
+    // published strings is the whole of what that reader contributes to this picture.
+    Publish(vm, "CpuPower", "32,4 W");
+    Publish(vm, "GpuPower", "78,5 W");
+    Publish(vm, "GpuPowerStatus", "Aktiv \u00b7 Windows D0");
+
+    vm.SelectedSection = "Dashboard";
+    var window = new MainWindow(vm);
+    var content = (FrameworkElement)window.Content;
+    content.DataContext = vm;
+    foreach (int width in new[] { 720, 1000, 1600 })
+    {
+        Layout(content, width, 900);
+        Save(content, output, $"dashboard-live-{width}.png", width, 900);
+    }
+}
+
+static void Publish(MainWindowViewModel vm, string property, string value) =>
+    typeof(MainWindowViewModel).GetProperty(property)!.GetSetMethod(nonPublic: true)!.Invoke(vm, [value]);
 
 /// <summary>
 /// The cooling section under each fan profile. The chart is meant to show what the running

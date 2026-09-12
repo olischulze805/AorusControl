@@ -21,6 +21,7 @@
         <infra:BoolVisibilityConverter x:Key="BoolVisible" />
         <infra:BoolVisibilityConverter x:Key="InverseBoolVisible" Inverted="True" />
         <infra:ActiveOpacityConverter x:Key="ActiveOpacity" />
+        <infra:TemperatureBrushConverter x:Key="TemperatureBrush" />
     </ui:FluentWindow.Resources>
 
     <Grid>
@@ -63,32 +64,104 @@
                 <!-- ===================== Dashboard ===================== -->
                 <ScrollViewer Style="{StaticResource SectionPage}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28"
                               Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisible}, ConverterParameter=Dashboard}">
-                    <!-- Tiles in WrapPanels rather than a fixed two-column Grid: they reflow from
-                         four across to one as the window narrows, instead of being squeezed. The
-                         wider cap lets a maximised window actually use its width. -->
                     <!-- Kein HorizontalAlignment="Center": das gibt der Spalte nur ihre
                          Wunschbreite, und Seiten mit kurzem Inhalt schrumpfen dann auf halbe
                          Breite zusammen. Mit Stretch plus MaxWidth zentriert WPF von selbst. -->
                     <StackPanel MaxWidth="1180">
-                        <ctrl:TilePanel MinTileWidth="252" Margin="0,0,0,20">
-                            <Border Style="{StaticResource Tile}">
+                        <!-- CPU und GPU stehen vorn und gross: Temperatur und Watt sind das,
+                             wofür diese Seite geöffnet wird. Alles andere ist Zustand, der
+                             sich selten ändert, und sitzt darunter in kleineren Kacheln.
+                             Die Zahlen kommen aus Cooling.Live - dem einzigen Modell, das
+                             auch weiss, ob sie noch aktuell sind. -->
+                        <ctrl:TilePanel MinTileWidth="430" Gap="16" Margin="0,0,0,16">
+                            <Border Style="{StaticResource Tile}" Padding="20,18,20,18">
                                 <StackPanel>
                                     <TextBlock Text="CPU" Style="{StaticResource TileLabel}" />
-                                    <TextBlock Text="{Binding CpuTemperature}" Style="{StaticResource TileValue}" />
-                                    <TextBlock Text="{Binding CpuPower}" Style="{StaticResource TileLine}" ToolTip="Mittlere Leistung des gesamten CPU-Pakets inklusive integrierter Grafik. Windows-Energiezähler; kein zusätzlicher Sensortreiber." />
-                                    <TextBlock Text="{Binding CpuFan}" Style="{StaticResource TileLine}" />
-                                    <TextBlock Text="{Binding CpuDuty}" Style="{StaticResource TileSubLine}" />
+                                    <Grid Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" MinWidth="60" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource HeroValue}"
+                                                   Text="{Binding Cooling.Live.CpuTemperatureText}">
+                                            <TextBlock.Foreground>
+                                                <MultiBinding Converter="{StaticResource TemperatureBrush}">
+                                                    <Binding Path="Cooling.Live.CpuTemperature" />
+                                                    <Binding Path="Cooling.Live.IsLive" />
+                                                </MultiBinding>
+                                            </TextBlock.Foreground>
+                                        </TextBlock>
+                                        <StackPanel Grid.Column="1" Margin="22,0,0,0" VerticalAlignment="Bottom">
+                                            <TextBlock Text="{Binding CpuPower}" Style="{StaticResource HeroSecondValue}" />
+                                            <TextBlock Text="Paket inkl. iGPU" Style="{StaticResource TileSubLine}"
+                                                       ToolTip="Mittlere Leistung des gesamten CPU-Pakets inklusive integrierter Grafik. Windows-Energiezähler; kein zusätzlicher Sensortreiber." />
+                                        </StackPanel>
+                                        <ctrl:Sparkline Grid.Column="2" Height="44" Margin="24,4,0,4" MinWidth="60"
+                                                        Values="{Binding Cooling.Live.CpuTemperatureHistory}"
+                                                        Temperature="{Binding Cooling.Live.CpuTemperature}"
+                                                        IsLive="{Binding Cooling.Live.IsLive}"
+                                                        ToolTip="Die letzten drei Minuten, Skala 30 bis 100 °C." />
+                                    </Grid>
+                                    <Grid Margin="0,16,0,0">
+                                        <TextBlock Style="{StaticResource TileLine}">
+                                            <Run Text="Lüfter" Foreground="{StaticResource TextTertiaryBrush}" /><Run Text=" " /><Run Text="{Binding Cooling.Live.CpuRpmText, Mode=OneWay}" />
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding Cooling.Live.CpuDutyText}" Style="{StaticResource TileLine}"
+                                                   HorizontalAlignment="Right" />
+                                    </Grid>
+                                    <ctrl:LevelBar Height="4" Margin="0,8,0,0"
+                                                   Value="{Binding Cooling.Live.CpuDuty}"
+                                                   Temperature="{Binding Cooling.Live.CpuTemperature}"
+                                                   IsLive="{Binding Cooling.Live.IsLive}" />
                                 </StackPanel>
                             </Border>
-                            <Border Style="{StaticResource Tile}">
+                            <Border Style="{StaticResource Tile}" Padding="20,18,20,18">
                                 <StackPanel>
                                     <TextBlock Text="GPU" Style="{StaticResource TileLabel}" />
-                                    <TextBlock Text="{Binding GpuTemperature}" Style="{StaticResource TileValue}" />
-                                    <TextBlock Text="{Binding GpuPowerStatus}" Style="{StaticResource TileSubLine}" TextWrapping="Wrap" ToolTip="Am Netz und nur solange Windows die Karte ohnehin wach meldet, steht hier ihre Leistungsaufnahme aus dem NVIDIA-Treiber. Sonst der von Windows gemeldete Gerätezustand: D3 unterscheidet nicht zwischen D3hot und D3cold und bedeutet nicht gemessene 0 Watt. Im Akkubetrieb wird die Karte dafür nie angesprochen." />
-                                    <TextBlock Text="{Binding GpuFan}" Style="{StaticResource TileLine}" />
-                                    <TextBlock Text="{Binding GpuDuty}" Style="{StaticResource TileSubLine}" />
+                                    <Grid Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" MinWidth="60" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource HeroValue}"
+                                                   Text="{Binding Cooling.Live.GpuTemperatureText}">
+                                            <TextBlock.Foreground>
+                                                <MultiBinding Converter="{StaticResource TemperatureBrush}">
+                                                    <Binding Path="Cooling.Live.GpuTemperature" />
+                                                    <Binding Path="Cooling.Live.IsLive" />
+                                                </MultiBinding>
+                                            </TextBlock.Foreground>
+                                        </TextBlock>
+                                        <StackPanel Grid.Column="1" Margin="22,0,0,0" VerticalAlignment="Bottom">
+                                            <TextBlock Text="{Binding GpuPower}" Style="{StaticResource HeroSecondValue}" />
+                                            <TextBlock Text="{Binding GpuPowerStatus}" Style="{StaticResource TileSubLine}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       ToolTip="Am Netz und nur solange Windows die Karte ohnehin wach meldet, steht hier ihre Leistungsaufnahme aus dem NVIDIA-Treiber. Sonst der von Windows gemeldete Gerätezustand: D3 unterscheidet nicht zwischen D3hot und D3cold und bedeutet nicht gemessene 0 Watt. Im Akkubetrieb wird die Karte dafür nie angesprochen." />
+                                        </StackPanel>
+                                        <ctrl:Sparkline Grid.Column="2" Height="44" Margin="24,4,0,4" MinWidth="60"
+                                                        Values="{Binding Cooling.Live.GpuTemperatureHistory}"
+                                                        Temperature="{Binding Cooling.Live.GpuTemperature}"
+                                                        IsLive="{Binding Cooling.Live.IsLive}"
+                                                        ToolTip="Die letzten drei Minuten, Skala 30 bis 100 °C." />
+                                    </Grid>
+                                    <Grid Margin="0,16,0,0">
+                                        <TextBlock Style="{StaticResource TileLine}">
+                                            <Run Text="Lüfter" Foreground="{StaticResource TextTertiaryBrush}" /><Run Text=" " /><Run Text="{Binding Cooling.Live.GpuRpmText, Mode=OneWay}" />
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding Cooling.Live.GpuDutyText}" Style="{StaticResource TileLine}"
+                                                   HorizontalAlignment="Right" />
+                                    </Grid>
+                                    <ctrl:LevelBar Height="4" Margin="0,8,0,0"
+                                                   Value="{Binding Cooling.Live.GpuDuty}"
+                                                   Temperature="{Binding Cooling.Live.GpuTemperature}"
+                                                   IsLive="{Binding Cooling.Live.IsLive}" />
                                 </StackPanel>
                             </Border>
+                        </ctrl:TilePanel>
+
+                        <ctrl:TilePanel MinTileWidth="212" Margin="0,0,0,20">
                             <Border Style="{StaticResource Tile}">
                                 <StackPanel>
                                     <TextBlock Text="LÜFTER" Style="{StaticResource TileLabel}" />

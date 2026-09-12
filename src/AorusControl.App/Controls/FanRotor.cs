@@ -33,9 +33,6 @@ public sealed class FanRotor : FrameworkElement
     private const double FastestRpm = 6000;
     private const double FastestDegreesPerSecond = 500;
 
-    private static readonly Color CoolColor = Color.FromRgb(0x35, 0xC7, 0xE6);
-    private static readonly Color WarmColor = Color.FromRgb(0xF2, 0x9A, 0x3C);
-    private static readonly Color IdleColor = Color.FromRgb(0x8A, 0x93, 0x9B);
 
     private readonly Stopwatch _clock = new();
     private double _angle;
@@ -270,25 +267,9 @@ public sealed class FanRotor : FrameworkElement
         }, geometry);
     }
 
-    private static Color Mix(Color from, Color to, double share) => Color.FromRgb(
-        (byte)(from.R + (to.R - from.R) * share),
-        (byte)(from.G + (to.G - from.G) * share),
-        (byte)(from.B + (to.B - from.B) * share));
+    private static Color Mix(Color from, Color to, double share) => ThermalPalette.Mix(from, to, share);
 
-    /// <summary>
-    /// The app's own cyan while the machine is cool, warming towards amber from about 65 °C.
-    ///
-    /// The two ends are blended directly rather than walked round the colour wheel: the
-    /// wheel's short path from cyan to amber runs through a loud green that belongs to no
-    /// other part of this app.
-    /// </summary>
-    private Color Tint()
-    {
-        if (double.IsNaN(Temperature) || !IsLive) return IdleColor;
-        double share = Math.Clamp((Temperature - 55) / 30.0, 0, 1);
-        return Color.FromRgb(
-            (byte)(CoolColor.R + (WarmColor.R - CoolColor.R) * share),
-            (byte)(CoolColor.G + (WarmColor.G - CoolColor.G) * share),
-            (byte)(CoolColor.B + (WarmColor.B - CoolColor.B) * share));
-    }
+    /// <summary>The shared ramp, so this arc and the dashboard's degrees agree on what warm
+    /// looks like.</summary>
+    private Color Tint() => ThermalPalette.Tint(Temperature, IsLive);
 }

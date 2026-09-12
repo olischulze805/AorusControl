@@ -212,9 +212,29 @@
                 <Setter Property="Margin" Value="0,4,0,6" />
                 <Setter Property="TextTrimming" Value="CharacterEllipsis" />
             </Style>
+            <!-- Die beiden Zahlen, wegen denen das Dashboard geöffnet wird. Der Grad steht
+                 grösser als das Watt, weil er der gefährlichere Wert ist; beide stehen
+                 deutlich über allem anderen auf der Seite. -->
+            <Style x:Key="HeroValue" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="44" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="VerticalAlignment" Value="Bottom" />
+                <Setter Property="LineHeight" Value="48" />
+                <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+            </Style>
+            <Style x:Key="HeroSecondValue" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="26" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            </Style>
             <Style x:Key="TileValueSmall" TargetType="TextBlock" BasedOn="{StaticResource TileValue}">
                 <Setter Property="FontSize" Value="22" />
                 <Setter Property="Margin" Value="0,6,0,6" />
+                <!-- Umbrechen statt kürzen: die Kacheln sind gleich hoch wie die höchste in
+                     ihrer Reihe, eine zweite Zeile kostet also nichts - "Noch nicht geles..."
+                     dagegen verschweigt das Wort, auf das es ankommt. -->
+                <Setter Property="TextTrimming" Value="None" />
+                <Setter Property="TextWrapping" Value="Wrap" />
             </Style>
             <Style x:Key="TileLine" TargetType="TextBlock">
                 <Setter Property="FontSize" Value="12.5" />

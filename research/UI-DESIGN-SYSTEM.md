@@ -171,16 +171,47 @@ The first version showed CPU and GPU temperature, fan RPM and the raw duty byte,
 fixed columns capped at 880 px. It answered "how hot is it" and nothing else, and the layout
 was squeezed on a narrow window and half empty on a wide one.
 
-It is six tiles now, and the four new ones all answer the same question in different words -
-*what is actually set right now*: the fan mode with a sentence naming what regulates the fans,
-the Windows power mode with the power source next to it, the charge limit, and whether the
-lighting is on. Duty leads with a percentage; the raw byte stays as the footnote, since
-"Rohwert 66 / 229" is a fact about the firmware rather than an answer.
+The second version made it six equal tiles, four of them answering the same question in
+different words - *what is actually set right now*: the fan mode with a sentence naming what
+regulates the fans, the Windows power mode with the power source next to it, the charge limit,
+and whether the lighting is on.
 
-`TilePanel` lays them out in as many equal columns as fit at a minimum width, so they reflow
-from four across to one without ragged gaps. A `WrapPanel` with a fixed `ItemWidth` wraps
-correctly but leaves a gap on the right; computing that width from the panel's own
-`ActualWidth` feeds the layout back into itself and settles on one column.
+Six equal tiles turned out to be the next problem. Everything on the page carried the same
+weight, so the two facts the page is opened for - how hot it is and how much it is drawing -
+were no easier to find than the charge limit, which changes about once a year. The layout now
+has two levels:
+
+- **Two hero cards, CPU and GPU.** The temperature at 44 px, tinted by the shared thermal
+  ramp; the watts beside it at 26 px with one small line saying what they measure; a trend
+  line for the last three minutes; and underneath, the fan speed with a duty bar. Four facts
+  per card, ordered by how often they matter.
+- **Four compact tiles underneath** for the settings, unchanged in content.
+
+Three things earn their place there:
+
+- **Colour carries the temperature.** `ThermalPalette` is one ramp - cyan to amber from
+  55 °C, amber to red from 85 °C - used by the rotor arcs on the cooling page, the dashboard
+  degrees, the trend lines and the duty bars alike, so a colour means the same thing wherever
+  it turns up. The number's own colour is what makes it readable at a glance; a separate
+  warning element would say it later and louder than needed.
+- **A trend beats a snapshot.** `Sparkline` draws the last 90 readings against a fixed 30-100
+  °C scale. Fixed, not auto-scaled: a card that makes 40-42 °C look like a mountain range is
+  worse than one that shows a flat line. The history lives in `FanLiveViewModel` next to the
+  rest of the measurements, and both pages read the same series.
+- **Nothing claims to be current when it is not.** The dashboard used to keep its own copies
+  of the telemetry strings and left the last ones on screen after monitoring stopped. It now
+  reads `Cooling.Live`, which already knows whether a reading happened: the values fall back
+  to dashes, the trend line and duty bar grey out, and the tint drops to neutral. Six
+  duplicated properties on the shell view model disappeared with it.
+
+Duty leads with a percentage. The raw byte was the footnote and is gone from this page: it is
+a fact about the firmware, and the Fixed slider is where it still belongs.
+
+`TilePanel` lays both rows out in as many equal columns as fit at a minimum width, so they
+reflow from four across to one without ragged gaps - the hero row at 430 px, so a default
+window shows both cards side by side and a narrow one stacks them. A `WrapPanel` with a fixed
+`ItemWidth` wraps correctly but leaves a gap on the right; computing that width from the
+panel's own `ActualWidth` feeds the layout back into itself and settles on one column.
 
 ## One cooling card: the profile on top, what it does below
 
@@ -465,7 +496,7 @@ Three rules keep it honest and smooth:
 
 Two things are handled deliberately, not left as loose ends:
 
-- **Percent, not raw duty bytes.** The Dashboard already reports fan duty as "Rohwert X /
+- **Percent, not raw duty bytes.** The dashboard used to report fan duty as "Rohwert X /
   229", so `AorusControl.Core.Features.Cooling.FanSpeedPercent` treats that same 229 as
   100% for every percent shown anywhere in the app (`ToPercent`/`ToRaw`, tested for
   clamping and round-trip tolerance) - including the Fixed-fan slider, which now shows

@@ -100,7 +100,7 @@ using (var powerVm = new MainWindowViewModel(powerReaderFake, new FakeKeyboard()
     Check(powerVm.CpuPower.Contains("25") && powerVm.GpuPowerStatus.Contains("D3"), "dashboard publishes power and PnP status");
     powerVm.SelectedSection = "Cooling";
     await Invoke(powerVm, "RefreshAsync");
-    Check(powerReads == 1 && powerVm.CpuPower.Contains("--"), "other sections skip and clear dashboard sensors");
+    Check(powerReads == 1 && powerVm.CpuPower.Contains("–"), "other sections skip and clear dashboard sensors");
     powerVm.SelectedSection = "Dashboard";
     powerVm.SetDashboardVisible(false);
     await Invoke(powerVm, "RefreshAsync");
@@ -109,7 +109,7 @@ using (var powerVm = new MainWindowViewModel(powerReaderFake, new FakeKeyboard()
     await Invoke(powerVm, "RefreshAsync");
     powerReaderFake.Fail = true;
     await Invoke(powerVm, "RefreshAsync");
-    Check(powerVm.CpuPower.Contains("--") && powerVm.GpuPowerStatus.Contains("unbekannt"), "failed telemetry clears stale power/status");
+    Check(powerVm.CpuPower.Contains("–") && powerVm.GpuPowerStatus.Contains("unbekannt"), "failed telemetry clears stale power/status");
 }
 Console.WriteLine("PASS: dashboard power visibility, stale clearing, and Windows power-state parsing");
 
@@ -122,9 +122,9 @@ using (var gpuWattVm = new MainWindowViewModel(new FakeReader(), new FakeKeyboar
     readPowerSource: () => LaptopPowerSource.Ac))
 {
     await Invoke(gpuWattVm, "RefreshAsync");
-    Check(gpuWattVm.GpuPowerStatus.Contains("20,7 W") || gpuWattVm.GpuPowerStatus.Contains("20.7 W"),
+    Check(gpuWattVm.GpuPower.Contains("20,7 W") || gpuWattVm.GpuPower.Contains("20.7 W"),
         "measured GPU watts reach the tile");
-    Check(!gpuWattVm.GpuPowerStatus.Contains("D0"), "watts replace the device state instead of repeating it");
+    Check(gpuWattVm.GpuPowerStatus.Contains("D0"), "the device state keeps its own line next to the watts");
     // Leaving the page has to give the driver library back: the app then sits in the tray
     // for hours, and a handle held through that is the opposite of letting the card sleep.
     gpuReleases = 0;
