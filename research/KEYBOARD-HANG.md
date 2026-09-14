@@ -1,6 +1,6 @@
 # Tastatur reagiert plötzlich nicht mehr
 
-Stand: 2026-09-09. Offener Fehler am Gerät, nicht in dieser App.
+Stand: 2026-09-14. Offener Fehler am Gerät, nicht in dieser App.
 
 ## Symptom
 
@@ -171,6 +171,73 @@ Tot ist allein die **USB-Datenverbindung zum Rechner**.
 
 Damit ist der Fehler auf zwei Leitungen und deren Kontakte eingegrenzt: das Datenpaar im Flachbandkabel, die Kontakte im ZIF-Stecker, oder eine gerissene Leiterbahn im Kabel. Ein Steckverbinder, der neu gesetzt und gereinigt wird, hat hier eine echte Chance - und wenn eine Leiterbahn gebrochen ist, ist es das Kabel beziehungsweise die Tastatureinheit, nicht der Controller.
 
+## 2026-09-14, 19:50:32 - der zehnte Abriss, und der sauberste
+
+Der Steckverbinder wurde am 10.09. gezogen und neu gesetzt (nichts Sichtbares am Kontakt).
+Danach lief die Tastatur vier Tage. Am 14.09. fiel sie wieder aus. **Das Neusetzen war also
+keine Reparatur** - es hat höchstens einen Kontakt vorübergehend wieder tragen lassen.
+
+Dieser Vorfall ist der aussagekräftigste von allen, weil diesmal nichts passiert ist, was man
+verantwortlich machen könnte:
+
+| | 19:50:32 am 2026-09-14 |
+| --- | --- |
+| Stromwechsel Netz/Akku | keiner - letzter um 17:43 |
+| Standby | keiner - die letzte S3-Phase war am 05.09.; am Netz steht die Standbyzeit auf 0 |
+| Deckel | geschlossen, aber nur der interne Bildschirm ging aus; die Maschine lief weiter |
+| USB-Selektiv-Suspend | **aus**, auf Netz wie Akku (die Änderung vom 09.09.) |
+| Benutzereingabe | keine, der Nutzer war nicht am Gerät |
+| Diese App | lief seit 19:37:07, hat in dieser Minute **nichts** protokolliert und keinen HID-Zugriff gemacht |
+
+Die Ereignisfolge selbst ist die bekannte:
+
+```
+19:50:28  SWD\DAFUPnPProvider\uuid:d080a978-…   überraschend entfernt   (UPnP, Netzwerk)
+19:50:32  USB\VID_1044&PID_7A41\AP0000000003     überraschend entfernt   (die Tastatur)
+19:50:34  USB\VID_0000&PID_0002\5&7230ae1&0&7    als fehlerhaft entfernt  (Port 7, derselbe Hub)
+```
+
+Zwei Sekunden nach dem Abriss meldet sich an Port 7 wieder das Platzhaltergerät
+`VID_0000&PID_0002` - der Hub sieht etwas hängen, bekommt aber keine Gerätebeschreibung. Das
+ist Zeichen für Zeichen dasselbe Bild wie am 10.09. um 18:11:20. Bestätigt: Die Tastatur sitzt
+auf Port 7 von `USB\ROOT_HUB30\4&2ed29309&0&0`, und das Geistergerät steht bis heute als
+„Unknown" auf demselben Port.
+
+Der Nutzer kam zurück, weckte den Bildschirm - die Tastatur war schon tot - und schaltete hart
+aus (Kernel-Power 41 um 20:15:00, „letztes Herunterfahren erfolgreich: false"). Nach dem
+Neustart um 20:14:58 war sie sofort wieder da.
+
+### Was dieser Vorfall ausschließt
+
+- **Energiesparen endgültig.** Das war der letzte verbliebene Softwareverdacht, und er ist
+  erledigt: Der Abriss passierte bei abgeschaltetem Selektiv-Suspend und ohne Standby.
+- **Den Stromwechsel.** Die Vermutung nach dem 09.09., die Umschaltung Netz/Akku sei der
+  Auslöser, trägt nicht mehr - hier gab es keine.
+- **Diese App als Auslöser, jetzt ohne Einschränkung.** Am 09.09. lag zweimal ein
+  fehlgeschlagener HID-Zugriff zwei Sekunden vor dem Abriss, was nach Mitschuld aussah. Hier
+  lief die App, hat das Gerät in dieser Minute aber nicht angefasst und den Ausfall auch nicht
+  bemerkt. Zusammen mit dem Vorfall vom 10.09. ohne laufende App bleibt kein Rest.
+
+Was übrig bleibt, ist unverändert die Verbindung: ein Gerät, das im Leerlauf, ohne Anlass und
+ohne Zutun von außen von einer Sekunde auf die nächste vom Bus fällt, während derselbe Port
+danach noch Widerstand, aber keine Antwort zeigt.
+
+## Vorfallsliste
+
+Alle überraschenden Entfernungen dieser Tastatur aus dem Kernel-PnP-Protokoll:
+
+| Datum | Uhrzeit |
+| --- | --- |
+| 2026-05-03 | 19:27:26 |
+| 2026-05-04 | 18:49:33 |
+| 2026-05-09 | 19:15:25 |
+| 2026-08-25 | 17:57:10 |
+| 2026-09-09 | 19:29:00, 21:03:26 |
+| 2026-09-10 | 18:11:17, 18:21:08, 20:43:27 |
+| 2026-09-14 | 19:50:32 |
+
+Zehn in viereinhalb Monaten, sechs davon in den letzten sechs Tagen. Der Abstand wird kürzer.
+
 ## Was ausgeschlossen ist
 
 - Keine Herstellersoftware, die um dasselbe Gerät konkurriert: GCC ist deinstalliert, kein
@@ -179,10 +246,10 @@ Damit ist der Fehler auf zwei Leitungen und deren Kontakte eingegrenzt: das Date
 - Schnellstart ist aus (`HiberbootEnabled = 0`), das Problem liegt also nicht an einem
   Herunterfahren, das den EC gar nicht stromlos macht.
 
-Diese App ist nicht die Ursache - fünf der sechs Vorfälle liegen vor ihrer Entstehung. Ganz
-freisprechen lässt sie sich nicht: bei laufendem Effekt fragt sie die RGB-Schnittstelle alle
-zwei Sekunden über HID ab, und Polling kann einen Firmwarefehler leichter treffen. Gegenprobe
-wäre eine längere Zeit ohne Effekt beziehungsweise mit geschlossener App.
+Diese App ist nicht die Ursache - fünf der sechs harten Abschaltungen liegen vor ihrer
+Entstehung. Der Rest des Verdachts ist seit dem 14.09. erledigt: Damals lief sie, hat das
+Gerät in der fraglichen Minute nicht angefasst, und der Abriss kam trotzdem. Der Vorfall vom
+10.09. ohne laufende App sagt dasselbe von der anderen Seite.
 
 ## Vorgenommene Änderung
 
@@ -230,5 +297,6 @@ Daraus die Entscheidungsregel für den Ausfall:
 ## Noch nicht geprüft
 
 - Ob es ein BIOS/EC neuer als FB0F (22.03.2026) gibt.
-- Ob der Ausfall auch ohne laufende App auftritt.
 - Ob die beiden Bugchecks vom 27.08. denselben Ursprung haben.
+- Ob eine externe USB-Tastatur als dauerhafter Ersatz taugt, oder ob die Tastatureinheit
+  getauscht werden soll. Die Garantie ist seit Mai 2026 abgelaufen.
