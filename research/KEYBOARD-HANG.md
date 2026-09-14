@@ -265,6 +265,57 @@ powercfg /setactive SCHEME_CURRENT
 Ob das den Ausfall verhindert, zeigt erst die Zeit: der Abstand zwischen zwei Vorfällen liegt
 bei Wochen. Rückgängig mit `1` statt `0`.
 
+## Lässt sich der Strom per Software wegnehmen?
+
+Die Frage ist die richtige: Was bei diesem Fehler hilft, ist nicht der Neustart, sondern die
+Stromtrennung. Die Antwort ist trotzdem nein - jedenfalls nicht wirklich.
+
+- **VBUS abschalten geht nicht.** Dafür gäbe es `IOCTL_USB_HUB_CYCLE_PORT`, das den Strom an
+  einem Anschluss aus- und wieder einschaltet. Es kennt aber nur der USB-2-Hubtreiber
+  (`usbhub.sys`); die Tastatur hängt an einem USB-3-Root-Hub unter `usbhub3.sys`. Dazu kommt:
+  Intern verlötete Anschlüsse haben meist gar keine schaltbare Stromversorgung, weil niemand
+  einen Schalter für etwas einbaut, das nie abgezogen wird.
+- **Was geht, ist ein USB-Reset**: Gerät, Root-Hub oder Host-Controller abschalten und wieder
+  einschalten. Das setzt die Anmeldung zurück, nicht die Stromversorgung des Controllers in
+  der Tastatur.
+- **Am nächsten am Stromstoss** ist der Neustart des xHCI-Controllers: Er geht kurz in den
+  PCI-Schlafzustand. Ob dabei an den Anschlüssen die Spannung wegfällt, entscheidet die
+  Hardware; bei einem intern versorgten Anschluss eher nicht.
+
+Und noch ein Punkt, der erklärt, warum hier ausgerechnet das harte Ausschalten hilft: Die
+Tastatur ist zum Aufwecken berechtigt (`powercfg /devicequery wake_armed` führt
+„HID-Tastatur (002)" bis „(004)"). Ein Gerät, das wecken darf, behält seine Spannung auch
+im Standby und im ausgeschalteten Zustand - sonst könnte es nicht wecken. Erst das Halten
+des Einschaltknopfes nimmt sie ihm weg.
+
+Daraus ergibt sich die Reihenfolge für den nächsten Ausfall, von harmlos nach einschneidend:
+
+```
+tools\Reset-Keyboard.cmd
+```
+
+Das Skript fordert selbst Administratorrechte an, geht die vier Stufen durch - Bus neu
+einlesen, Tastatur zurücksetzen, Root-Hub neu starten, Controller neu starten - und prüft
+nach jeder, ob die Tastenschnittstelle `MI_00` wieder auf OK steht. Beim ersten Erfolg hört
+es auf. Die Kette Tastatur → Hub → Controller wird über `DEVPKEY_Device_Parent` gelaufen
+statt fest eingetragen, und das Wiedereinschalten steht in `finally`: Ein abgeschaltet
+zurückgebliebener Controller nähme auch die Maus mit.
+
+Hilft keine Stufe, bleiben nur die beiden Wege, die wirklich Strom wegnehmen - und beide sind
+freundlicher als der Einschaltknopf:
+
+```
+shutdown /h        Ruhezustand, kommt ohne Kaltstart zurück
+shutdown /s /t 0   Herunterfahren - ausdrücklich NICHT Neustart
+```
+
+Der Unterschied ist wesentlich: Ein **Neustart** lässt die Anschlüsse unter Spannung, ein
+**Herunterfahren** nicht (Schnellstart ist auf diesem Gerät aus). Wer bisher neu gestartet hat
+und dachte, es helfe nichts, hat vielleicht nur das Falsche probiert.
+
+Ob eine der Stufen tatsächlich reicht, ist **ungeprüft** - beim letzten Ausfall gab es das
+Skript noch nicht. Welche Stufe wirkt, gehört beim nächsten Mal hierher.
+
 ## Messung im nächsten Ausfall
 
 `tools/Start-KeyboardHangDiagnose.cmd` - rein lesend, ohne Adminrechte, **vor** dem
