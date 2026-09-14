@@ -26,18 +26,42 @@
     deinstalliert und keine Treiberdatei angefasst.
 #>
 [CmdletBinding()]
-param([switch] $SkipController)
+param([switch] $SkipController, [switch] $KeepOpen)
 
 $ErrorActionPreference = 'Continue'
 $keyboardPattern = '1044.*7A41'
 
+# Die Arbeit passiert im Fenster mit Administratorrechten. Dieses hier hat dann nichts mehr
+# zu sagen und geht sofort zu - ein zweites, stehengebliebenes Fenster lässt nur raten,
+# welches gerade etwas tut.
 if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
         ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host "Administratorrechte werden angefordert ..." -ForegroundColor Cyan
-    $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath)
+    $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath, '-KeepOpen')
     if ($SkipController) { $arguments += '-SkipController' }
-    Start-Process powershell.exe -ArgumentList $arguments -Verb RunAs
+    try {
+        Start-Process powershell.exe -ArgumentList $arguments -Verb RunAs -ErrorAction Stop
+        Write-Host ""
+        Write-Host "Es geht im neuen Fenster mit Administratorrechten weiter." -ForegroundColor Cyan
+        Write-Host "Dieses hier wird nicht mehr gebraucht." -ForegroundColor Cyan
+        Start-Sleep -Seconds 2
+    } catch {
+        Write-Host ""
+        Write-Host "Ohne Administratorrechte geht es nicht: $($_.Exception.Message)" -ForegroundColor Red
+        Start-Sleep -Seconds 20
+    }
     return
+}
+
+# Alle Ausgänge laufen hier durch. Beim Start per Doppelklick würde das Fenster sonst im
+# selben Moment zugehen, in dem das Ergebnis darin steht - und ausgerechnet hier kann man
+# nicht davon ausgehen, dass jemand schnell genug eine Taste findet.
+function Complete {
+    if (-not $KeepOpen) { return }
+    Write-Host ""
+    for ($left = 90; $left -gt 0; $left--) {
+        Write-Host ("`r  Dieses Fenster schließt sich in {0,2} s von selbst. " -f $left) -NoNewline -ForegroundColor DarkGray
+        Start-Sleep -Seconds 1
+    }
 }
 
 # --------------------------------------------------------------- Zustand -----------------
@@ -67,6 +91,7 @@ function Wait-Bus([int] $seconds = 5) {
 
 Write-Host ""
 Write-Host "Tastatur zurückholen - ohne hartes Ausschalten" -ForegroundColor Cyan
+Write-Host "Administratorrechte liegen vor. Es wird nichts installiert und kein Treiber angefasst." -ForegroundColor DarkGray
 Write-Host ""
 Show-State 'Ausgangslage:'
 
@@ -75,6 +100,7 @@ if (Test-Keyboard) {
     Write-Host "Die Tastatur ist angemeldet. Es gibt nichts zurückzusetzen." -ForegroundColor Green
     Write-Host "Reagiert sie trotzdem nicht, ist es nicht die USB-Anmeldung - dann sagt" -ForegroundColor Green
     Write-Host "Start-KeyboardHangDiagnose.cmd mehr als dieses Skript." -ForegroundColor Green
+    Complete
     return
 }
 
@@ -150,6 +176,7 @@ foreach ($step in $steps) {
         Write-Host ""
         Write-Host "Die Tastatur ist zurück. Bitte gleich ausprobieren." -ForegroundColor Green
         Write-Host "Welcher Schritt geholfen hat, gehört in research/KEYBOARD-HANG.md." -ForegroundColor Green
+        Complete
         return
     }
 }
@@ -161,3 +188,4 @@ Write-Host "Damit ist Software am Ende: Die 5 Volt am Anschluss kann sie nicht a
 Write-Host "Was noch Strom wegnimmt, ohne den Einschaltknopf zu quaelen:" -ForegroundColor Red
 Write-Host "  - Ruhezustand  (shutdown /h)   - kommt ohne Kaltstart zurueck" -ForegroundColor Red
 Write-Host "  - Herunterfahren (shutdown /s /t 0) - NICHT Neustart, der laesst Strom drauf" -ForegroundColor Red
+Complete
