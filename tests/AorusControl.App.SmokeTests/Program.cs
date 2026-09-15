@@ -107,7 +107,14 @@ BatteryFlow absurd = BatteryFlowMath.From(online: false, chargeRate: 0, discharg
 Check(absurd.Watts is null, "900 W out of a laptop battery is a bad reading, not a measurement");
 BatteryFlow noPack = BatteryFlowMath.From(online: true, chargeRate: 0, dischargeRate: 0, uint.MaxValue, 0);
 Check(noPack.Percent is null && noPack.FullWattHours is null, "a pack that reports no capacity yields no percentage");
-Console.WriteLine("PASS: battery flow direction and watts, including the flags this machine gets wrong");
+// The rates arrive as Int32 while the capacities beside them are UInt32. Accepting only
+// uint is how the card ended up showing a charge level and no watts on battery.
+Check(BatteryFlowMath.Unsigned(30_393) == 30_393u, "a signed rate is still a rate");
+Check(BatteryFlowMath.Unsigned(30_393u) == 30_393u, "an unsigned rate passes through");
+Check(BatteryFlowMath.Unsigned(-5) == uint.MaxValue, "a negative rate is not a measurement");
+Check(BatteryFlowMath.Unsigned(null) == uint.MaxValue && BatteryFlowMath.Unsigned("30393") == uint.MaxValue,
+    "a missing or non-numeric value is unknown, not zero");
+Console.WriteLine("PASS: battery flow direction and watts, including the flags and types this machine gets wrong");
 
 int powerReads = 0;
 var powerReaderFake = new FakeReader();

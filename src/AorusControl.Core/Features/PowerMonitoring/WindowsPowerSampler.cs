@@ -46,7 +46,8 @@ public sealed class WindowsPowerSampler : IDisposable
                     if (row["Active"] is not true) continue;
                     bool online = Convert.ToBoolean(row["PowerOnline"]);
                     bool discharging = Convert.ToBoolean(row["Discharging"]);
-                    uint rate = row["DischargeRate"] is uint value ? value : uint.MaxValue;
+                    // Signed in WMI, unsigned here - see BatteryFlowMath.Unsigned.
+                    uint rate = BatteryFlowMath.Unsigned(row["DischargeRate"]);
                     double? watts = PowerSampleMath.DischargeWatts(online, discharging, rate);
                     if (watts is null)
                         notes.Add(online ? "Netzbetrieb: Akkuentladung nicht verfügbar." : "Keine gültige Akkuentladerate.");

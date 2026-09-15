@@ -65,6 +65,21 @@ public static class BatteryFlowMath
         return new(direction, watts, percent, remaining, full);
     }
 
+    /// <summary>
+    /// One WMI value as an unsigned rate.
+    ///
+    /// The two rates in BatteryStatus are declared SInt32 and arrive as Int32, while the
+    /// capacities right next to them are UInt32. A reader that accepts only uint turns every
+    /// rate into "unknown" and nothing else - which is exactly what the dashboard showed on
+    /// battery: a charge level, watt hours, and no watts.
+    /// </summary>
+    public static uint Unsigned(object? raw) => raw switch
+    {
+        uint value => value,
+        int value and >= 0 => (uint)value,
+        _ => uint.MaxValue
+    };
+
     /// <summary>Milliwatts to watts, with the sentinel and an implausible reading refused.
     /// A 100 Wh laptop battery does not move 400 W in either direction.</summary>
     private static double? Rate(uint milliwatts) =>
@@ -130,5 +145,5 @@ public sealed class BatteryFlowReader
         return 0;
     }
 
-    private static uint Value(object? raw) => raw is uint number ? number : uint.MaxValue;
+    private static uint Value(object? raw) => BatteryFlowMath.Unsigned(raw);
 }
