@@ -22,6 +22,7 @@
         <infra:BoolVisibilityConverter x:Key="InverseBoolVisible" Inverted="True" />
         <infra:ActiveOpacityConverter x:Key="ActiveOpacity" />
         <infra:TemperatureBrushConverter x:Key="TemperatureBrush" />
+        <infra:PowerFlowAccentConverter x:Key="FlowAccent" />
     </ui:FluentWindow.Resources>
 
     <Grid>
@@ -160,6 +161,51 @@
                                 </StackPanel>
                             </Border>
                         </ctrl:TilePanel>
+
+                        <!-- Der einzige Gesamtwert, den dieses Gerät messen kann: Was durch
+                             den Akku fliesst. Im Akkubetrieb ist das der ganze Verbrauch,
+                             am Netz das, was in den Akku geht - die Karte sagt ausdrücklich,
+                             welches von beidem gerade dasteht. Die Leistung, die das Netzteil
+                             liefert, gibt kein Sensor dieses Laptops her. -->
+                        <Border Style="{StaticResource Tile}" Padding="20,18,20,18" Margin="0,0,0,16">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="STROMFLUSS" Style="{StaticResource TileLabel}" VerticalAlignment="Center" />
+                                    <ui:SymbolIcon Style="{StaticResource InfoDot}"
+                                                   ToolTip="Gelesen wird die Laderate des Akkus über ACPI, also den Embedded Controller - keine NVIDIA-Abfrage, die schlafende Grafikkarte bleibt schlafen. Im Akkubetrieb ist der Wert der Verbrauch des gesamten Geräts inklusive Bildschirm und Grafik. Am Netz steht dort, was in den Akku geht; wie viel das Netzteil insgesamt liefert, misst dieser Laptop nirgends." />
+                                </StackPanel>
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" MinWidth="60" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Bottom">
+                                        <TextBlock Text="{Binding PowerFlowValue}" Style="{StaticResource HeroValue}"
+                                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{Binding PowerFlowLabel}" Style="{StaticResource TileLine}" Margin="0,2,0,0" />
+                                    </StackPanel>
+                                    <!-- Gedeckelt, aber ohne eigene Ausrichtung: eine 900 Pixel
+                                         breite Linie bei 20 W Hub sieht aus wie ein Lineal,
+                                         und HorizontalAlignment würde sie auf ihre Wunschbreite
+                                         schrumpfen lassen - also auf nichts. -->
+                                    <ctrl:Sparkline Grid.Column="1" Height="44" Margin="24,4,0,4" MinWidth="60"
+                                                    MaxWidth="560"
+                                                    Values="{Binding PowerFlowHistory}"
+                                                    IsLive="{Binding PowerFlowIsLive}"
+                                                    Minimum="0" Maximum="90"
+                                                    Accent="{Binding PowerFlowIsCharging, Converter={StaticResource FlowAccent}}"
+                                                    ToolTip="Die letzten drei Minuten, Skala 0 bis 90 W. Beim Wechsel zwischen Laden und Entladen fängt die Linie neu an - es sind zwei verschiedene Messungen." />
+                                </Grid>
+                                <Grid Margin="0,16,0,0">
+                                    <TextBlock Text="{Binding PowerFlowNote}" Style="{StaticResource TileLine}" />
+                                    <TextBlock Text="{Binding Battery.ActivePolicy}" Style="{StaticResource TileSubLine}"
+                                               HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" />
+                                </Grid>
+                                <ctrl:LevelBar Height="4" Margin="0,8,0,0" IsLive="True"
+                                               Value="{Binding BatteryCharge}"
+                                               Accent="{Binding PowerFlowIsCharging, Converter={StaticResource FlowAccent}}" />
+                            </StackPanel>
+                        </Border>
 
                         <ctrl:TilePanel MinTileWidth="212" Margin="0,0,0,20">
                             <Border Style="{StaticResource Tile}">

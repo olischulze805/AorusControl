@@ -14,7 +14,9 @@ if (args.SequenceEqual(new[] { "--dashboard-power-read-only" }))
         DashboardPowerReading reading = reader.Read();
         sawCpu |= reading.CpuPackageWatts is > 0;
         string gpu = reading.GpuWatts is { } gpuWatts ? $"GPU {gpuWatts:F2} W" : "GPU --";
-        string line = $"{DateTimeOffset.Now:O}: CPU {reading.CpuPackageWatts:F3} W; {gpu}; {reading.GpuStatus}; query {watch.Elapsed.TotalMilliseconds:F2} ms";
+        BatteryFlow flow = reading.Battery ?? BatteryFlow.Unknown;
+        string battery = $"Akku {flow.Direction} {(flow.Watts is { } flowWatts ? $"{flowWatts:F2} W" : "--")} bei {flow.Percent:F0} %";
+        string line = $"{DateTimeOffset.Now:O}: CPU {reading.CpuPackageWatts:F3} W; {gpu}; {battery}; {reading.GpuStatus}; query {watch.Elapsed.TotalMilliseconds:F2} ms";
         Console.WriteLine(line);
         lines.AppendLine(line);
         if (i < 7) await Task.Delay(2000);

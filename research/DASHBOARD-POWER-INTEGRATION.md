@@ -1,6 +1,6 @@
 # Dashboard: CPU-Watt und Windows-GPU-Status
 
-Stand: 2026-09-11 (GPU-Watt am Netz ergänzt; ursprünglich 2026-09-09).
+Stand: 2026-09-15 (Stromfluss aus dem Akku ergänzt; davor 2026-09-11 GPU-Watt, ursprünglich 2026-09-09).
 
 ## Starter-Korrektur
 
@@ -57,6 +57,58 @@ dotnet run --project tests/AorusControl.HardwareChecks -- --dashboard-power-read
 Bericht: runs/dashboard-power-20260909-183153.md, GPU-Watt ergänzt in runs/dashboard-power-20260911-212415.md (acht Proben, GPU 20,80–20,84 W, alle D0, erste Abfrage 4,9 s im Hintergrundthread, danach 0,57–1,2 ms). Acht Proben über rund 14 Sekunden: NVIDIA in allen Proben D3, CPU nach Basisprobe 26,224–48,640 W. Parallel liefen Builds/Tests; kein CPU-Leerlauf-Benchmark. Erste Initialisierung 599,50 ms; Folgeabfragen 0,54–2,69 ms.
 
 Dies spricht dagegen, dass die neue Abfrage die RTX dauerhaft nach D0 versetzt. Sehr kurze unbeobachtete Übergänge werden damit nicht ausgeschlossen. Kein aktueller Akkuvergleich, kein gezielter D0→D3-Übergang provoziert, keine NVIDIA-Sensorabfrage in diesem Umsetzungsschritt. Keine Neuinstallation der zuvor entfernten App.
+
+## Gesamtverbrauch: nur der Akku kann ihn messen
+
+Die Frage war, ob sich die **gesamte** Leistungsaufnahme des Geräts messen lässt, ohne die
+Grafikkarte zu wecken. Antwort: ja, aber nur im Akkubetrieb - und der Weg dorthin führt nicht
+über einen Systemsensor, sondern über den Akku selbst.
+
+### Was es auf diesem Gerät nicht gibt
+
+Drei Quellen wurden geprüft und ausgeschlossen:
+
+- **Kein Plattform-Energiezähler.** Windows hätte dafür die Energy Metering Interface
+  (ACPI `PNP0CA2`). Dieses Gerät hat keine; die Kategorie „Energy Meter" enthält ausschließlich
+  die vier RAPL-Instanzen der CPU (`PKG`, `DRAM`, `PP0`, `PP1`).
+- **Nichts in der Gigabyte-WMI.** Alle 96 Getter von `GB_WMIACPI_Get` durchgesehen: Ladepolitik,
+  Ladeschwelle, Akkutemperatur, Kapazität, Zyklen, Lüfter, Thermodaten - kein Wert für
+  Netzteil- oder Systemleistung. (`getPdChargeInStatus` existiert, betrifft aber USB-C-Laden
+  und ist ungeprüft.)
+- **Zusammenrechnen wäre unseriös.** CPU-Paket plus GPU lässt Bildschirm, WLAN, SSD und die
+  Wandlerverluste aus - bei einem Laptop schnell 15 W. Eine Zahl, die genauer aussieht als sie
+  ist, wäre schlechter als keine.
+
+### Was es gibt
+
+`BatteryStatus` aus `root\wmi`, gelesen über ACPI und den Embedded Controller. Kein
+Grafiktreiber beteiligt, die schlafende Karte bleibt schlafen. Die Einheiten sind Milliwatt
+beziehungsweise Milliwattstunden - bestätigt über `BatteryFullChargedCapacity` = 99.013 bei
+16.709 mV Auslegungsspannung; in Milliamperestunden wären das absurde 1.600 Wh.
+
+Drei Zustände, in `BatteryFlowMath.From` an einer Stelle und zeilenweise getestet:
+
+| Netz | Rate | Anzeige |
+| --- | --- | --- |
+| nein | Entladen > 0 | **Gesamtverbrauch** des ganzen Geräts, Bildschirm und Grafik eingeschlossen |
+| ja | Laden > 0 | was **in den Akku** geht - ausdrücklich nicht, was das Netzteil liefert |
+| ja | beide 0 | **Akku ruht**, das Netzteil trägt das Gerät (der Zustand einer erreichten Ladeschwelle) |
+
+Die Flags `Charging` und `Discharging` werden bewusst ignoriert: Dieses Gerät meldet am Netz
+bei 97 % `Discharging = true` mit Rate 0. Maßgeblich sind `PowerOnline` und die beiden Raten;
+eine Entladerate am Netz ist keine Entladung. Genau dafür gibt es eine Testzeile.
+
+### Nebeneffekt: der ehrlichste GPU-Wattmesser, den wir haben
+
+Im Akkubetrieb einmal messen, während die RTX schläft, und einmal, während sie läuft: Die
+Differenz ist, was sie wirklich kostet - inklusive Wandlerverlusten, ohne die Karte je
+anzufassen. Noch nicht durchgeführt.
+
+### Kosten
+
+Die WMI-Abfrage läuft im selben Hintergrund-Tick wie die übrigen Dashboardwerte und kostet
+7-20 ms gegenüber 0,6-1,2 ms vorher (`runs/dashboard-power-20260915-191630.md`). Auf dem
+Hintergrundthread, die Oberfläche merkt davon nichts.
 
 ## Quellen
 

@@ -43,6 +43,17 @@ public sealed class Sparkline : FrameworkElement
         nameof(Maximum), typeof(double), typeof(Sparkline),
         new FrameworkPropertyMetadata(100.0, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    /// <summary>
+    /// Overrides the temperature ramp with one fixed colour. Not everything worth drawing is
+    /// a temperature: the power card measures watts, where warm and cool mean nothing and a
+    /// tint that crept upwards with the number would be inventing a danger level.
+    /// </summary>
+    public static readonly DependencyProperty AccentProperty = DependencyProperty.Register(
+        nameof(Accent), typeof(Color?), typeof(Sparkline),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public Color? Accent { get => (Color?)GetValue(AccentProperty); set => SetValue(AccentProperty, value); }
+
     public double[]? Values { get => (double[]?)GetValue(ValuesProperty); set => SetValue(ValuesProperty, value); }
     public double Temperature { get => (double)GetValue(TemperatureProperty); set => SetValue(TemperatureProperty, value); }
     public bool IsLive { get => (bool)GetValue(IsLiveProperty); set => SetValue(IsLiveProperty, value); }
@@ -55,7 +66,7 @@ public sealed class Sparkline : FrameworkElement
         if (width <= 1 || height <= 1) return;
 
         double[] values = Values ?? [];
-        Color tint = ThermalPalette.Tint(Temperature, IsLive);
+        Color tint = Accent is { } accent && IsLive ? accent : ThermalPalette.Tint(Temperature, IsLive);
 
         // The baseline is drawn even with no data: an empty card should still look like a
         // chart waiting for numbers, not like a rendering failure.

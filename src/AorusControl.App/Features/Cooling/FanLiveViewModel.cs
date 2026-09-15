@@ -53,15 +53,13 @@ public sealed class FanLiveViewModel : ObservableObject
     /// drawing only ever needs the whole series, and copying 90 doubles every two seconds is
     /// cheaper than the change bookkeeping an observable collection would cost.
     /// </summary>
-    public double[] CpuTemperatureHistory { get; private set; } = [];
-    public double[] GpuTemperatureHistory { get; private set; } = [];
+    public double[] CpuTemperatureHistory => _cpuHistory.Samples;
+    public double[] GpuTemperatureHistory => _gpuHistory.Samples;
 
-    private readonly List<double> _cpuHistory = [], _gpuHistory = [];
-
-    /// <summary>Three minutes at the dashboard's two-second reading, half that while the
-    /// cooling page polls every second. Long enough to show a fan spinning up in answer to a
-    /// load, short enough that the line still moves.</summary>
-    private const int HistoryLength = 90;
+    // Ninety readings: three minutes at the dashboard's two-second tick, half that while the
+    // cooling page polls every second. Long enough to show a fan spinning up in answer to a
+    // load, short enough that the line still moves.
+    private readonly SampleHistory _cpuHistory = new(), _gpuHistory = new();
 
     public string CpuRpmText => Speed(_cpuRpm);
     public string GpuRpmText => Speed(_gpuRpm);
@@ -84,8 +82,8 @@ public sealed class FanLiveViewModel : ObservableObject
         GpuTemperature = snapshot.GpuTemperatureCelsius;
         CpuDuty = FanSpeedPercent.ToPercent((byte)Math.Min(snapshot.CpuFanDutyPercent, (ushort)255));
         GpuDuty = FanSpeedPercent.ToPercent((byte)Math.Min(snapshot.GpuFanDutyPercent, (ushort)255));
-        CpuTemperatureHistory = Append(_cpuHistory, snapshot.CpuTemperatureCelsius);
-        GpuTemperatureHistory = Append(_gpuHistory, snapshot.GpuTemperatureCelsius);
+        _cpuHistory.Add(snapshot.CpuTemperatureCelsius);
+        _gpuHistory.Add(snapshot.GpuTemperatureCelsius);
         IsLive = true;
         Announce();
     }
@@ -105,13 +103,6 @@ public sealed class FanLiveViewModel : ObservableObject
         nameof(CpuDutyText), nameof(GpuDutyText), nameof(MarkerTemperature), nameof(MarkerPercent),
         nameof(CpuTemperatureHistory), nameof(GpuTemperatureHistory)
     ];
-
-    private static double[] Append(List<double> history, double value)
-    {
-        history.Add(value);
-        if (history.Count > HistoryLength) history.RemoveRange(0, history.Count - HistoryLength);
-        return [.. history];
-    }
 
     private string Speed(double rpm) =>
         !IsLive ? "– U/min" : rpm < 1 ? "steht" : $"{rpm:N0} U/min";

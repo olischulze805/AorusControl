@@ -88,6 +88,27 @@ BitConverter.GetBytes(9u).CopyTo(powerData, 4);
 Check(DashboardPowerReader.DecodePowerData(powerData).State == 0, "an out-of-range state decodes as unknown, not as D0");
 Check(DashboardPowerReader.DecodePowerData(new byte[8]).State == 0, "truncated power data decodes as unknown");
 
+// The battery is the only whole-machine meter this laptop has, and the flags it reports are
+// not trustworthy: this machine says Discharging=true while sitting on mains at a rate of
+// zero. Every row below is one way that could turn into a wrong sentence on the dashboard.
+const uint fullPack = 99_013, nearlyFull = 96_444;
+BatteryFlow draw = BatteryFlowMath.From(online: false, chargeRate: 0, dischargeRate: 18_400, nearlyFull, fullPack);
+Check(draw.Direction == BatteryFlowDirection.Discharging && draw.Watts == 18.4, "off mains, the discharge rate is the whole machine");
+Check(Math.Round(draw.Percent!.Value) == 97 && draw.FullWattHours == 99.013, "capacity and charge come back in watt hours");
+BatteryFlow fill = BatteryFlowMath.From(online: true, chargeRate: 45_000, dischargeRate: 0, nearlyFull, fullPack);
+Check(fill.Direction == BatteryFlowDirection.Charging && fill.Watts == 45, "on mains, the charge rate is what goes in");
+BatteryFlow rest = BatteryFlowMath.From(online: true, chargeRate: 0, dischargeRate: 0, nearlyFull, fullPack);
+Check(rest.Direction == BatteryFlowDirection.Resting && rest.Watts is null, "mains with nothing flowing is a resting battery");
+BatteryFlow lying = BatteryFlowMath.From(online: true, chargeRate: 0, dischargeRate: 21_000, nearlyFull, fullPack);
+Check(lying.Direction == BatteryFlowDirection.Resting, "a discharge rate on mains is not a discharge");
+BatteryFlow blind = BatteryFlowMath.From(online: false, chargeRate: 0, dischargeRate: uint.MaxValue, nearlyFull, fullPack);
+Check(blind.Direction == BatteryFlowDirection.Unknown && blind.Watts is null, "the unknown-rate sentinel is not a measurement");
+BatteryFlow absurd = BatteryFlowMath.From(online: false, chargeRate: 0, dischargeRate: 900_000, nearlyFull, fullPack);
+Check(absurd.Watts is null, "900 W out of a laptop battery is a bad reading, not a measurement");
+BatteryFlow noPack = BatteryFlowMath.From(online: true, chargeRate: 0, dischargeRate: 0, uint.MaxValue, 0);
+Check(noPack.Percent is null && noPack.FullWattHours is null, "a pack that reports no capacity yields no percentage");
+Console.WriteLine("PASS: battery flow direction and watts, including the flags this machine gets wrong");
+
 int powerReads = 0;
 var powerReaderFake = new FakeReader();
 using (var powerVm = new MainWindowViewModel(powerReaderFake, new FakeKeyboard(), new FakeFan(), new WindowsPowerOverlayController(),
@@ -115,7 +136,8 @@ Console.WriteLine("PASS: dashboard power visibility, stale clearing, and Windows
 
 int gpuReleases = 0;
 using (var gpuWattVm = new MainWindowViewModel(new FakeReader(), new FakeKeyboard(), new FakeFan(), new WindowsPowerOverlayController(),
-    readPower: () => new(25.5, "Aktiv \u00b7 Windows D0", 20.7),
+    readPower: () => new(25.5, "Aktiv \u00b7 Windows D0", 20.7,
+        BatteryFlowMath.From(online: false, chargeRate: 0, dischargeRate: 18_400, 96_444, 99_013)),
     releasePower: () => gpuReleases++,
     gpuPreferenceStore: new FakeGpuPreferenceStore(),
     gpuPreferenceSettings: new FakeGpuPreferenceSettings(),
@@ -124,6 +146,11 @@ using (var gpuWattVm = new MainWindowViewModel(new FakeReader(), new FakeKeyboar
     await Invoke(gpuWattVm, "RefreshAsync");
     Check(gpuWattVm.GpuPower.Contains("20,7 W") || gpuWattVm.GpuPower.Contains("20.7 W"),
         "measured GPU watts reach the tile");
+    Check(gpuWattVm.PowerFlowValue.Contains("18,4") || gpuWattVm.PowerFlowValue.Contains("18.4"),
+        "the battery draw reaches the power card");
+    Check(gpuWattVm.PowerFlowLabel.Contains("Gesamtverbrauch") && gpuWattVm.PowerFlowHistory.Length == 1,
+        "the card names what the figure is and keeps a trend");
+    Check(!gpuWattVm.PowerFlowIsCharging && gpuWattVm.PowerFlowIsLive, "a draw is live and is not charging");
     Check(gpuWattVm.GpuPowerStatus.Contains("D0"), "the device state keeps its own line next to the watts");
     // Leaving the page has to give the driver library back: the app then sits in the tray
     // for hours, and a handle held through that is the opposite of letting the card sleep.

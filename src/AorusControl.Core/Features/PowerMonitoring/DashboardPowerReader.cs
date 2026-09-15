@@ -5,7 +5,8 @@ using AorusControl.Core.Features.PowerProfiles;
 
 namespace AorusControl.Core.Features.PowerMonitoring;
 
-public sealed record DashboardPowerReading(double? CpuPackageWatts, string GpuStatus, double? GpuWatts = null);
+public sealed record DashboardPowerReading(double? CpuPackageWatts, string GpuStatus, double? GpuWatts = null,
+    BatteryFlow? Battery = null);
 
 /// <summary>
 /// CPU watts and the card's device state come from Windows alone. The card's own watt figure
@@ -20,6 +21,7 @@ public sealed class DashboardPowerReader : IDisposable
     private readonly PerformanceCounterCategory _energy = new("Energy Meter");
     private readonly Func<LaptopPowerSource> _readPowerSource;
     private readonly NvidiaWattReader _gpu = new();
+    private readonly BatteryFlowReader _battery = new();
     private CounterSample? _previous;
     private long _previousTime;
 
@@ -62,7 +64,13 @@ public sealed class DashboardPowerReader : IDisposable
             else _gpu.Close();
         }
         catch { gpuWatts = null; }
-        return new(watts, status, gpuWatts);
+
+        // The battery is the one meter that covers the whole machine, and it costs nothing:
+        // ACPI through the embedded controller, no graphics driver anywhere near it.
+        BatteryFlow battery;
+        try { battery = _battery.Read(); }
+        catch { battery = BatteryFlow.Unknown; }
+        return new(watts, status, gpuWatts, battery);
     }
 
     /// <summary>

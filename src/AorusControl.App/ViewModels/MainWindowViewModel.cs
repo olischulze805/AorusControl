@@ -41,9 +41,35 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private static readonly DashboardPowerReader SharedPowerReader = new();
     private string _cpuPower = "– W";
     private string _gpuPower = "– W";
+    private string _flowValue = "– W";
+    private string _flowLabel = "Noch nicht gelesen";
+    private string _flowNote = string.Empty;
+    private double _batteryCharge;
+    private bool _flowIsCharging;
+    private bool _flowIsLive;
+    private double[] _flowHistory = [];
+    private readonly SampleHistory _flow = new();
+    private BatteryFlowDirection _flowDirection = BatteryFlowDirection.Unknown;
     private string _gpuPowerStatus = "Status unbekannt";
     public string CpuPower { get => _cpuPower; private set => SetProperty(ref _cpuPower, value); }
     public string GpuPower { get => _gpuPower; private set => SetProperty(ref _gpuPower, value); }
+
+    /// <summary>
+    /// What the battery is doing, in the three words that matter: the figure, what it means,
+    /// and how full the pack is.
+    ///
+    /// On battery the figure is the whole machine's draw - processor, graphics, screen and
+    /// all - which is the only total this laptop can measure at all. On mains it is what
+    /// goes into the battery, and the card says so rather than letting it pass for a system
+    /// figure: the power the adapter delivers is not readable anywhere on this machine.
+    /// </summary>
+    public string PowerFlowValue { get => _flowValue; private set => SetProperty(ref _flowValue, value); }
+    public string PowerFlowLabel { get => _flowLabel; private set => SetProperty(ref _flowLabel, value); }
+    public string PowerFlowNote { get => _flowNote; private set => SetProperty(ref _flowNote, value); }
+    public double BatteryCharge { get => _batteryCharge; private set => SetProperty(ref _batteryCharge, value); }
+    public bool PowerFlowIsCharging { get => _flowIsCharging; private set => SetProperty(ref _flowIsCharging, value); }
+    public bool PowerFlowIsLive { get => _flowIsLive; private set => SetProperty(ref _flowIsLive, value); }
+    public double[] PowerFlowHistory { get => _flowHistory; private set => SetProperty(ref _flowHistory, value); }
     public string GpuPowerStatus { get => _gpuPowerStatus; private set => SetProperty(ref _gpuPowerStatus, value); }
 
     public MainWindowViewModel()
@@ -302,6 +328,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                         CpuPower = power.CpuPackageWatts is { } watts ? $"{watts:F1} W" : "– W";
                         GpuPower = power.GpuWatts is { } gpuWatts ? $"{gpuWatts:F1} W" : "– W";
                         GpuPowerStatus = power.GpuStatus;
+                        PublishBatteryFlow(power.Battery ?? BatteryFlow.Unknown);
                     }
                 }
                 catch { ClearPowerDisplay(); }
@@ -353,11 +380,52 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     /// the app then sits in the tray for hours; holding a driver handle through that would
     /// undo the point of letting the card sleep.
     /// </summary>
+    /// <summary>
+    /// Turns one battery reading into the card's three lines, and keeps the trend.
+    ///
+    /// The series is thrown away whenever the direction changes: a line running from "40 W
+    /// out of the battery" straight into "60 W into it" draws two different measurements as
+    /// one shape, and the reader has no way to see the seam.
+    /// </summary>
+    private void PublishBatteryFlow(BatteryFlow battery)
+    {
+        if (battery.Direction != _flowDirection)
+        {
+            _flowDirection = battery.Direction;
+            PowerFlowHistory = _flow.Reset();
+        }
+
+        PowerFlowIsCharging = battery.Direction == BatteryFlowDirection.Charging;
+        PowerFlowIsLive = battery.Direction is BatteryFlowDirection.Charging or BatteryFlowDirection.Discharging;
+        if (battery.Watts is { } watts) PowerFlowHistory = _flow.Add(watts);
+
+        PowerFlowValue = battery.Watts is { } value ? $"{value:F1} W" : battery.Direction switch
+        {
+            BatteryFlowDirection.Resting => "Netzbetrieb",
+            _ => "– W"
+        };
+        PowerFlowLabel = battery.Direction switch
+        {
+            BatteryFlowDirection.Discharging => "Gesamtverbrauch aus dem Akku",
+            BatteryFlowDirection.Charging => "geht in den Akku",
+            BatteryFlowDirection.Resting => "Akku ruht · das Netzteil trägt das Gerät",
+            _ => "Kein Akkuwert"
+        };
+        BatteryCharge = battery.Percent ?? 0;
+        PowerFlowNote = battery.Percent is { } percent && battery.RemainingWattHours is { } remaining && battery.FullWattHours is { } full
+            ? $"Akku {percent:F0} % · {remaining:F1} von {full:F1} Wh"
+            : battery.Percent is { } onlyPercent ? $"Akku {onlyPercent:F0} %" : string.Empty;
+    }
+
     private void ClearPowerDisplay()
     {
         CpuPower = "– W";
         GpuPower = "– W";
         GpuPowerStatus = "Status unbekannt";
+        PowerFlowValue = "– W";
+        PowerFlowLabel = "Noch nicht gelesen";
+        PowerFlowNote = string.Empty;
+        PowerFlowIsLive = false;
         _releasePower?.Invoke();
     }
 

@@ -16,6 +16,9 @@ public static class ThermalPalette
     public static readonly Color Warm = Color.FromRgb(0xF2, 0x9A, 0x3C);
     public static readonly Color Hot = Color.FromRgb(0xEF, 0x5F, 0x5F);
     public static readonly Color Idle = Color.FromRgb(0x8A, 0x93, 0x9B);
+    /// <summary>Only for the power card: green while the battery fills. It sits outside
+    /// the ramp below on purpose - it says a direction, not a level.</summary>
+    public static readonly Color Charge = Color.FromRgb(0x4C, 0xC3, 0x8A);
 
     /// <summary>
     /// The app's own cyan while the machine is cool, warming towards amber from about 55 °C

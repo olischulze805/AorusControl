@@ -10,6 +10,7 @@ using System.Xml.Linq;
 using AorusControl.App;
 using AorusControl.App.ViewModels;
 using AorusControl.Core.Features.Cooling;
+using AorusControl.Core.Features.PowerMonitoring;
 using AorusControl.Core.Features.Keyboard;
 using AorusControl.Core.Features.PowerProfiles;
 using AorusControl.Core.Models;
@@ -127,6 +128,16 @@ static void RenderDashboardLive(string output)
     Publish(vm, "CpuPower", "32,4 W");
     Publish(vm, "GpuPower", "78,5 W");
     Publish(vm, "GpuPowerStatus", "Aktiv \u00b7 Windows D0");
+
+    // The power card runs off a battery reading rather than a string, so it is fed one - and
+    // ninety of them, so its trend line carries a shape like the two cards above it.
+    var publishFlow = typeof(MainWindowViewModel).GetMethod("PublishBatteryFlow",
+        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+    for (int index = 0; index < 90; index++)
+    {
+        uint milliwatts = (uint)(24_000 + 14_000 * Math.Sin(index / 11.0) + index * 60);
+        publishFlow.Invoke(vm, [BatteryFlowMath.From(false, 0, milliwatts, 71_500, 99_013)]);
+    }
 
     vm.SelectedSection = "Dashboard";
     var window = new MainWindow(vm);

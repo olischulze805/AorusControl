@@ -29,6 +29,17 @@ public sealed class LevelBar : FrameworkElement
         nameof(IsLive), typeof(bool), typeof(LevelBar),
         new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    /// <summary>
+    /// Overrides the temperature ramp with one fixed colour. Not everything worth drawing is
+    /// a temperature: the power card measures watts, where warm and cool mean nothing and a
+    /// tint that crept upwards with the number would be inventing a danger level.
+    /// </summary>
+    public static readonly DependencyProperty AccentProperty = DependencyProperty.Register(
+        nameof(Accent), typeof(Color?), typeof(LevelBar),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public Color? Accent { get => (Color?)GetValue(AccentProperty); set => SetValue(AccentProperty, value); }
+
     public double Value { get => (double)GetValue(ValueProperty); set => SetValue(ValueProperty, value); }
     public double Temperature { get => (double)GetValue(TemperatureProperty); set => SetValue(TemperatureProperty, value); }
     public bool IsLive { get => (bool)GetValue(IsLiveProperty); set => SetValue(IsLiveProperty, value); }
@@ -48,7 +59,8 @@ public sealed class LevelBar : FrameworkElement
         // A stopped fan draws nothing at all: a sliver of fill would read as "barely
         // turning", which is a different fact from "not turning".
         if (!IsLive || share <= 0) return;
-        context.DrawRoundedRectangle(ThermalPalette.Brush(ThermalPalette.Tint(Temperature, IsLive)), null,
+        Color fill = Accent ?? ThermalPalette.Tint(Temperature, IsLive);
+        context.DrawRoundedRectangle(ThermalPalette.Brush(fill), null,
             new Rect(0, 0, Math.Max(height, width * share), height), radius.TopLeft, radius.TopLeft);
     }
 }

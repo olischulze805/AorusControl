@@ -185,6 +185,10 @@ has two levels:
   ramp; the watts beside it at 26 px with one small line saying what they measure; a trend
   line for the last three minutes; and underneath, the fan speed with a duty bar. Four facts
   per card, ordered by how often they matter.
+- **One power card between them**, full width: what flows through the battery. Off mains
+  that is the whole machine's draw - the only total this laptop can measure at all; on mains
+  it is what goes into the battery, and the card says which of the two it is showing rather
+  than letting one pass for the other.
 - **Four compact tiles underneath** for the settings, unchanged in content.
 
 Three things earn their place there:
@@ -198,6 +202,11 @@ Three things earn their place there:
   °C scale. Fixed, not auto-scaled: a card that makes 40-42 °C look like a mountain range is
   worse than one that shows a flat line. The history lives in `FanLiveViewModel` next to the
   rest of the measurements, and both pages read the same series.
+- **Colour can also mean a direction.** `Sparkline` and `LevelBar` take an `Accent` that
+  overrides the thermal ramp, because watts are not degrees: a power figure drifting towards
+  alarm orange as it rises would invent a danger level where there is none. The power card
+  uses green for charging and the app's cyan for drawing, so the direction is readable
+  without the label.
 - **Nothing claims to be current when it is not.** The dashboard used to keep its own copies
   of the telemetry strings and left the last ones on screen after monitoring stopped. It now
   reads `Cooling.Live`, which already knows whether a reading happened: the values fall back
