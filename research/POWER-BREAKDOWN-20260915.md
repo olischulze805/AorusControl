@@ -25,7 +25,7 @@ eine glatte 0 zurück. Daraus folgen zwei Dinge, die jede weitere Auswertung bes
 - Ein Vergleich Sekunde für Sekunde gegen die RAPL-Werte der CPU ist **unzulässig**. Nur
   Mediane über Minuten tragen.
 - Der erste Helligkeitsversuch mit 20 Sekunden pro Stufe ergab entsprechend Unsinn: 0 %
-  angeblich teurer als 50 %, ohne monotonen Verlauf. Verworfen, nicht interpretiert.
+  angeblich teurer als 50 %, ohne monotonen Verlauf. Verworfen, nicht interpretiert; der Lauf liegt als runs/brightness-power-20260915-194621.md bei.
 
 Die Aussetzer erklären zusätzlich ein Flackern der Dashboardkarte zwischen Zahl und
 Gedankenstrich; sie werden seither über `BatteryFlowMath.Bridge` für die Dauer eines
@@ -76,7 +76,7 @@ Der Arbeitsspeicher ist also nicht kostenlos, er steckt unsichtbar im Rest.
 ## Was der Bildschirm kostet
 
 Differenzmessung mit Rückkehr auf die Ausgangsstufe, 65 Sekunden pro Stufe — angepasst an
-das Aktualisierungsintervall des Akkus (`runs/brightness-power-20260915-195408.md`):
+das Aktualisierungsintervall des Akkus (`runs/brightness-power-20260915-195044.md`):
 
 | Helligkeit | Gesamt | CPU-Paket | Rest ohne CPU |
 | ---: | ---: | ---: | ---: |
