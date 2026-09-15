@@ -25,11 +25,13 @@ Console.WriteLine("PASS: single-instance ownership, activation and release");
 
 await KeyboardSessionTests.RunAsync();
 await KeyboardReconnectTests.RunAsync();
+await KeyboardStartRetryTests.RunAsync();
 KeyboardStorageTests.Run();
 KeyboardFrameTests.Run();
 await WorkerProtocolTests.RunAsync();
 await GpuPreferenceTests.RunAsync();
 await BatteryTests.RunAsync();
+await BatteryRestoreTests.RunAsync();
 await FanSupervisorTests.RunAsync();
 FanCurveStoreTests.Run();
 HsvColorTests.Run();
@@ -640,7 +642,16 @@ sealed class FakeStartupManager : IStartupManager
     public bool Enabled { get; private set; }
     public bool FailEnable { get; set; }
     public bool FailDisable { get; set; }
+    public int Repairs { get; private set; }
+    public bool NeedsRepair { get; set; }
     public Task<bool> IsEnabledAsync(CancellationToken cancellationToken = default) => Task.FromResult(Enabled);
+    public Task<bool> RepairAsync(CancellationToken cancellationToken = default)
+    {
+        Repairs++;
+        if (!Enabled || !NeedsRepair) return Task.FromResult(false);
+        NeedsRepair = false;
+        return Task.FromResult(true);
+    }
     public Task EnableAsync(CancellationToken cancellationToken = default)
     {
         if (FailEnable) throw new InvalidOperationException("Simulated schtasks failure");

@@ -9,6 +9,7 @@ using AorusControl.App.Features.Updates;
 using AorusControl.App.Infrastructure;
 using AorusControl.Core.Models;
 using AorusControl.Core.Services;
+using AorusControl.Core.Features.Battery;
 using AorusControl.Core.Features.Cooling;
 using AorusControl.Core.Features.Diagnostics;
 using AorusControl.Core.Features.Keyboard;
@@ -98,6 +99,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         IFixedFanLeaseClient? fixedFanLeaseClient = null,
         IFanCurveStore? fanCurveStore = null,
         IStartupManager? startupManager = null,
+        IBatterySettingsStore? batterySettings = null,
         Func<TimeSpan, Task>? resumeReapplyDelay = null,
         Func<TimeSpan, CancellationToken, Task>? debounceWait = null,
         Func<DashboardPowerReading>? readPower = null,
@@ -122,7 +124,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         Windows = new WindowsSettingsViewModel(
             powerOverlay,
             startupManager ?? new StartupManager(Environment.ProcessPath ?? "AorusControl.exe"));
-        Battery = new BatteryViewModel(batteryController ?? new GigabyteWmiBatteryChargeController(), debounceWait);
+        Battery = new BatteryViewModel(batteryController ?? new GigabyteWmiBatteryChargeController(), debounceWait,
+            batterySettings ?? new BatterySettingsStore(AppData.File("battery-v1.json")));
         Graphics = new GpuPreferenceViewModel(
             gpuPreferenceStore ?? new WindowsGpuPreferenceStore(),
             gpuPreferenceSettings ?? new GpuPreferenceSettingsStore(AppData.File("gpu-preferences-v1.json")),

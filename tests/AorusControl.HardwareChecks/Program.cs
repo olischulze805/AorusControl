@@ -2,6 +2,74 @@ using System.Diagnostics;
 using System.Text;
 using AorusControl.Core.Features.Keyboard;
 using AorusControl.Core.Features.PowerMonitoring;
+using AorusControl.Core.Features.Startup;
+
+// Registers the real autostart definition under a throwaway name, reads it back out of
+// Windows, and deletes it again. The unit test can only prove the file says what we meant;
+// only the Task Scheduler can prove it accepts the schema and keeps the settings.
+//
+// One deviation, and only one: the probe asks for LeastPrivilege instead of
+// HighestAvailable, because registering an elevated task needs elevation and this check is
+// meant to be runnable without it. That single element is also the one the previous, working
+// definition already carried, so it is the least interesting one to verify.
+if (args.SequenceEqual(new[] { "--autostart-definition-check" }))
+{
+    const string probeTask = "AorusControlDefinitionProbe";
+    string executable = Environment.ProcessPath ?? "AorusControl.exe";
+    string xmlPath = Path.Combine(Path.GetTempPath(), "aorus-autostart-probe.xml");
+    await File.WriteAllTextAsync(xmlPath,
+        StartupTaskDefinition.Build(executable, System.Security.Principal.WindowsIdentity.GetCurrent().Name)
+            .Replace("HighestAvailable", "LeastPrivilege"),
+        System.Text.Encoding.Unicode);
+
+    static async Task<(int Code, string Output)> Schtasks(string arguments)
+    {
+        var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("schtasks.exe")
+        {
+            Arguments = arguments,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        })!;
+        string output = await process.StandardOutput.ReadToEndAsync() + await process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        return (process.ExitCode, output);
+    }
+
+    try
+    {
+        (int created, string createOutput) = await Schtasks($"/Create /TN {probeTask} /XML \"{xmlPath}\" /F");
+        Console.WriteLine($"anlegen: Code {created} {createOutput.Trim()}");
+        if (created != 0) return 1;
+
+        (int _, string xml) = await Schtasks($"/Query /TN {probeTask} /XML ONE");
+        bool allPresent = true;
+        foreach (string expected in new[]
+        {
+            "<DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>",
+            "<StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>",
+            "<ExecutionTimeLimit>PT0S</ExecutionTimeLimit>",
+            "<Priority>5</Priority>",
+            "<LogonTrigger>",
+            "<Arguments>--background</Arguments>"
+        })
+        {
+            bool found = xml.Contains(expected, StringComparison.Ordinal);
+            allPresent &= found;
+            Console.WriteLine($"{(found ? "OK   " : "FEHLT")} {expected}");
+        }
+        bool recognised = StartupTaskDefinition.Matches(xml, executable);
+        Console.WriteLine($"{(recognised ? "OK   " : "FEHLT")} Matches erkennt die eigene Aufgabe wieder");
+        return allPresent && recognised ? 0 : 1;
+    }
+    finally
+    {
+        await Schtasks($"/Delete /TN {probeTask} /F");
+        if (File.Exists(xmlPath)) File.Delete(xmlPath);
+        Console.WriteLine($"entfernt: {probeTask}");
+    }
+}
 
 if (args.SequenceEqual(new[] { "--dashboard-power-read-only" }))
 {

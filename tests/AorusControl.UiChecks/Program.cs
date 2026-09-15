@@ -306,6 +306,7 @@ sealed class StubCurveStore : IFanCurveStore
 sealed class StubStartup : AorusControl.Core.Features.Startup.IStartupManager
 {
     public Task<bool> IsEnabledAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
+    public Task<bool> RepairAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
     public Task EnableAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task DisableAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
 }

@@ -204,7 +204,21 @@ public sealed class WindowsSettingsViewModel : ObservableObject, IFeatureModule
 
     private async Task LoadStartupStateAsync()
     {
-        try { await ShowStartupStateAsync(); }
+        try
+        {
+            // An autostart written by an earlier build carries settings this one knows to be
+            // wrong - and an update moves the executable the task points at. Both are checked
+            // once per launch and repaired in place. It never switches autostart on: a user
+            // who turned it off stays off, and finding it back on after an update would be a
+            // far worse surprise than a stale task.
+            bool repaired = await _startup.RepairAsync();
+            await ShowStartupStateAsync();
+            if (repaired)
+            {
+                AppLog.Info("startup", "Autostart-Aufgabe auf die aktuelle Fassung gebracht.");
+                StartupStatus += " Die Aufgabe wurde auf die aktuelle Fassung gebracht.";
+            }
+        }
         catch (Exception exception) { StartupStatus = $"Autostart-Status nicht lesbar: {exception.Message}"; }
     }
 

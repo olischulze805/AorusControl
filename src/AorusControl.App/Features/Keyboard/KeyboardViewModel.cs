@@ -286,9 +286,36 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
         _ => effect.ToString()
     };
 
+    /// <summary>
+    /// How long to keep trying to reach the keyboard at startup, and how far apart.
+    ///
+    /// Right after logon the USB keyboard often enumerates a second or two after this app is
+    /// already running, and the first attempt then fails on a device that is merely not there
+    /// yet. It used to give up at that point and leave the saved colours unapplied for the
+    /// rest of the session - the "sometimes it does not set itself" that has no pattern until
+    /// you notice it is a race. Four attempts across about seven seconds cover it without the
+    /// app hanging on to a keyboard that is genuinely gone.
+    /// </summary>
+    private static readonly TimeSpan[] StartRetryDelays =
+        [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4)];
+
     public async Task StartAsync()
     {
-        if (_busy || _initialized) return;
+        for (int attempt = 0; ; attempt++)
+        {
+            if (await TryStartAsync()) return;
+            if (attempt >= StartRetryDelays.Length || _closing || _disposed) return;
+            Status = $"Tastatur noch nicht bereit - neuer Versuch in {StartRetryDelays[attempt].TotalSeconds:N0} s …";
+            await _resumeReapplyDelay(StartRetryDelays[attempt]);
+        }
+    }
+
+    /// <summary>One attempt. True when the keyboard answered - on false the caller decides
+    /// whether another one is worth it.</summary>
+    private async Task<bool> TryStartAsync()
+    {
+        if (_initialized) return true;
+        if (_busy || _closing || _disposed) return true;
         _busy = true;
         ControlsEnabled = false;
         try
@@ -306,11 +333,13 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
             ControlsEnabled = true;
             if (_brightnessListener is not null && _brightnessListenerTask is null)
                 _brightnessListenerTask = ListenForBrightnessAsync();
+            return true;
         }
         catch (Exception exception)
         {
             AppLog.Error("keyboard", "Tastatur nicht verfügbar.", exception);
             Status = $"Tastatur nicht verfügbar: {exception.Message}";
+            return false;
         }
         finally { _busy = false; }
     }
