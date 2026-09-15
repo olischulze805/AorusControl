@@ -114,6 +114,18 @@ Check(BatteryFlowMath.Unsigned(30_393u) == 30_393u, "an unsigned rate passes thr
 Check(BatteryFlowMath.Unsigned(-5) == uint.MaxValue, "a negative rate is not a measurement");
 Check(BatteryFlowMath.Unsigned(null) == uint.MaxValue && BatteryFlowMath.Unsigned("30393") == uint.MaxValue,
     "a missing or non-numeric value is unknown, not zero");
+// The rate refreshes every 8-16 s and drops a zero in between, measured on this machine.
+// Without bridging, the card blinks between a figure and a dash for no visible reason.
+BatteryFlow gap = BatteryFlowMath.From(online: false, chargeRate: 0, dischargeRate: 0, 94_000, fullPack);
+BatteryFlow bridged = BatteryFlowMath.Bridge(gap, draw, TimeSpan.FromSeconds(6));
+Check(bridged.Direction == BatteryFlowDirection.Discharging && bridged.Watts == 18.4, "a dropout keeps the last figure");
+Check(Math.Round(bridged.Percent!.Value) == 95, "but the charge level is the fresh one, not the old one");
+Check(BatteryFlowMath.Bridge(gap, draw, TimeSpan.FromSeconds(25)).Direction == BatteryFlowDirection.Unknown,
+    "past the instrument's refresh interval the gap is real");
+Check(BatteryFlowMath.Bridge(rest, draw, TimeSpan.FromSeconds(6)).Direction == BatteryFlowDirection.Resting,
+    "a resting battery on mains is an answer and is never overwritten");
+Check(BatteryFlowMath.Bridge(gap, fill, TimeSpan.FromSeconds(6)).Direction == BatteryFlowDirection.Unknown,
+    "only a discharge is bridged");
 Console.WriteLine("PASS: battery flow direction and watts, including the flags and types this machine gets wrong");
 
 int powerReads = 0;

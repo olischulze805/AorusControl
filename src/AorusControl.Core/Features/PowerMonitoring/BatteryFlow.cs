@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Management;
 
 namespace AorusControl.Core.Features.PowerMonitoring;
@@ -66,6 +67,28 @@ public static class BatteryFlowMath
     }
 
     /// <summary>
+    /// Carries the previous reading across a dropout.
+    ///
+    /// Measured on this machine on 2026-09-15: the battery refreshes its rate every 8 to 16
+    /// seconds, and one reading in that minute came back as a plain 0 - not a value, a gap.
+    /// Publishing "no value" for that single sample makes the card blink between a figure and
+    /// a dash for no reason the reader can see.
+    ///
+    /// Holding the last figure for as long as the instrument's own refresh interval claims
+    /// nothing the instrument does not: between two updates, the previous number *is* the
+    /// current reading. Beyond that the gap is real and the dash is right. Only a discharge
+    /// is bridged - on mains a zero rate is a resting battery, which is an answer, not a gap.
+    /// </summary>
+    public static readonly TimeSpan BridgeWindow = TimeSpan.FromSeconds(20);
+
+    public static BatteryFlow Bridge(BatteryFlow fresh, BatteryFlow? previous, TimeSpan age) =>
+        fresh.Direction == BatteryFlowDirection.Unknown
+        && previous is { Direction: BatteryFlowDirection.Discharging }
+        && age <= BridgeWindow
+            ? previous with { Percent = fresh.Percent, RemainingWattHours = fresh.RemainingWattHours }
+            : fresh;
+
+    /// <summary>
     /// One WMI value as an unsigned rate.
     ///
     /// The two rates in BatteryStatus are declared SInt32 and arrive as Int32, while the
@@ -95,6 +118,8 @@ public sealed class BatteryFlowReader
     // cannot answer is not asked again every two seconds.
     private uint _fullCapacity;
     private bool _capacityRead;
+    private BatteryFlow? _lastGood;
+    private long _lastGoodAt;
 
     public BatteryFlow Read()
     {
@@ -113,12 +138,20 @@ public sealed class BatteryFlowReader
                 using (row)
                 {
                     if (row["Active"] is not true) continue;
-                    return BatteryFlowMath.From(
+                    BatteryFlow flow = BatteryFlowMath.From(
                         Convert.ToBoolean(row["PowerOnline"]),
                         Value(row["ChargeRate"]),
                         Value(row["DischargeRate"]),
                         Value(row["RemainingCapacity"]),
                         _fullCapacity);
+                    flow = BatteryFlowMath.Bridge(flow, _lastGood,
+                        Stopwatch.GetElapsedTime(_lastGoodAt, Stopwatch.GetTimestamp()));
+                    if (flow.Direction == BatteryFlowDirection.Discharging)
+                    {
+                        _lastGood = flow;
+                        _lastGoodAt = Stopwatch.GetTimestamp();
+                    }
+                    return flow;
                 }
             }
         }

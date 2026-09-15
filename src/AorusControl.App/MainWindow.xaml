@@ -172,7 +172,7 @@
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="STROMFLUSS" Style="{StaticResource TileLabel}" VerticalAlignment="Center" />
                                     <ui:SymbolIcon Style="{StaticResource InfoDot}"
-                                                   ToolTip="Gelesen wird die Laderate des Akkus über ACPI, also den Embedded Controller - keine NVIDIA-Abfrage, die schlafende Grafikkarte bleibt schlafen. Im Akkubetrieb ist der Wert der Verbrauch des gesamten Geräts inklusive Bildschirm und Grafik. Am Netz steht dort, was in den Akku geht; wie viel das Netzteil insgesamt liefert, misst dieser Laptop nirgends." />
+                                                   ToolTip="Gelesen wird die Laderate des Akkus über ACPI, also den Embedded Controller - keine NVIDIA-Abfrage, die schlafende Grafikkarte bleibt schlafen. Im Akkubetrieb ist der Wert der Verbrauch des gesamten Geräts inklusive Bildschirm und Grafik. Am Netz steht dort, was in den Akku geht; wie viel das Netzteil insgesamt liefert, misst dieser Laptop nirgends. Der Akku meldet seine Rate nur alle 8 bis 16 Sekunden - dieser Wert hinkt den CPU-Watt darüber also nach und lässt sich nicht Sekunde für Sekunde mit ihnen verrechnen." />
                                 </StackPanel>
                                 <Grid Margin="0,10,0,0">
                                     <Grid.ColumnDefinitions>
