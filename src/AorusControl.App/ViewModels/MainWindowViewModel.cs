@@ -157,7 +157,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     /// <summary>The attached feature modules. Everything the shell does to all of them -
     /// start them, wait for them, release them - goes through this list, so a new feature
     /// is a class plus one entry rather than another branch in three methods.</summary>
-    private IReadOnlyList<IFeatureModule> Modules => [Keyboard, Cooling, Windows, Battery, Graphics];
+    private IReadOnlyList<IFeatureModule> Modules => [Graphics, Keyboard, Cooling, Windows, Battery];
 
     public KeyboardViewModel Keyboard { get; }
     public CoolingViewModel Cooling { get; }
@@ -206,7 +206,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             ToggleButtonText = "Überwachung stoppen";
             Status = "Live-Telemetrie verbunden";
             await RefreshAsync();
-            if (_isRunning) _timer.Start();
+            if (_isRunning && (_dashboardVisible || Cooling.IsFixedActive)) _timer.Start();
         }
         finally { _starting = false; }
     }

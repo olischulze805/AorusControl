@@ -6,6 +6,16 @@ Stand 2026-09-09. Nur Code-/Registry-Lesen und Webrecherche; keine Einstellungen
 
 Automatische Umschaltung der bevorzugten GPU für ausgewählte Programme ist technisch plausibel und implementierbar. Eine funktionierende End-to-End-Umschaltung wurde noch nicht getestet. Keine harte RTX-Sperre, kein Wechsel bereits laufender Grafikgeräte garantiert.
 
+## Autostart-Befund vom 2026-09-16
+
+Die Behauptung unten, die GPU-Automatik laufe im Infobereich auch ohne je geöffnetes Fenster, gilt für den aktuellen Startpfad **nicht**. Der Autostart startet `AorusControl.App` mit `--background` und erzeugt `MainWindow`, ruft aber `ShowWindow()` nicht auf. `MainWindowViewModel.StartAsync()` hängt derzeit an `MainWindow.Loaded`, das bei diesem unsichtbaren Fenster noch nicht ausgelöst wird. Dadurch werden `GpuPreferenceViewModel.StartAsync()`, das erste Anwenden der gespeicherten Programme und das Abonnement von `SystemEvents.PowerModeChanged` bis zum ersten Öffnen des Fensters nicht ausgeführt. Nach dem Öffnen läuft die Automatik auch bei wieder verstecktem Fenster weiter. Die Auswahl des Tabs „Leistung & Akku“ ist technisch nicht erforderlich; sie macht nur Status und Programme sichtbar.
+
+Der separat gestartete `AorusControl.Worker.exe` übernimmt ausschließlich Hardware-/Lüfteraufgaben und keine GPU-Präferenzwechsel. Die Autostart-Aufgabe selbst erlaubt inzwischen Akku-Betrieb (`DisallowStartIfOnBatteries=false`, `StopIfGoingOnBatteries=false`); die fehlende Initialisierung der Oberfläche ist hier die Ursache. Erforderliche Korrektur: Module beim App-Start unabhängig vom `Loaded`-Ereignis einmalig starten und Mehrfachstarts verhindern. Danach Autostart ohne Öffnen des Fensters und einen echten Netz-/Akkuwechsel prüfen.
+
+### Korrektur im Quellcode
+
+`App.OnStartup` ruft nun `MainWindowViewModel.StartAsync()` auch bei `--background` auf. Der `Loaded`-Handler navigiert nur noch zur Startseite und startet die Module nicht erneut. `Graphics` steht in der Startreihenfolge vor den Hardware-Modulen, damit die gespeicherten GPU-Präferenzen schon vor einer möglichen Tastatur-Retry-Verzögerung angewendet werden. Das GPU-Modul meldet den Stromquellen-Handler nur einmal an, auch wenn die Überwachung später erneut gestartet wird. Bei verstecktem Autostart wird das Dashboard als unsichtbar markiert; dessen Telemetrie wird deshalb nicht abgefragt. Debug- und Release-Build ohne Warnungen; alle Smoke-Tests bestanden (keine echten Hardware-Setter). Ein echter Windows-Neustart mit dem neuen Release/Installer und Netz-/Akkuwechsel muss noch live verifiziert werden.
+
 ## Umgesetzt am 2026-09-09
 
 Karte „Grafikkarte je nach Stromquelle" unter Leistung & Akku. Ausgewählte Programme laufen am Netz auf der RTX und im Akkubetrieb auf der Intel-Grafik, damit die RTX in ihrem Schlafzustand bleibt.

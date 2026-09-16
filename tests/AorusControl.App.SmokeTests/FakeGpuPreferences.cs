@@ -29,7 +29,12 @@ internal sealed class FakeGpuPreferenceStore : IGpuPreferenceStore
 internal sealed class FakeGpuPreferenceSettings : IGpuPreferenceSettingsStore
 {
     private IReadOnlyList<ManagedProgram> _programs = [];
+    public int Loads { get; private set; }
 
-    public IReadOnlyList<ManagedProgram> Load() => _programs;
+    public IReadOnlyList<ManagedProgram> Load()
+    {
+        Loads++;
+        return _programs;
+    }
     public void Save(IReadOnlyList<ManagedProgram> programs) => _programs = programs.ToArray();
 }

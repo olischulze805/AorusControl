@@ -145,6 +145,15 @@ Der AC-Rundlauf am 2026-09-03 bestätigte alle drei GUIDs mit exaktem Readback: 
 
 ## 3. Gigabyte-Systemleistung und Dynamic Boost
 
+### Begriffe und Befund für das AORUS 5 SE4
+
+- **NVIDIA GPU Boost** erhöht den GPU-Takt automatisch, solange Temperatur- und Leistungsgrenzen Spielraum lassen. Es ist keine Umschaltung zwischen Intel- und NVIDIA-Grafik.
+- **NVIDIA Dynamic Boost 2.0** verteilt auf unterstützten Laptops das gemeinsame Leistungsbudget je nach Last zwischen CPU, GPU und Grafikspeicher. Gigabyte führt es für das AORUS 5 SE4 ausdrücklich auf und nennt für dessen RTX 3070 Laptop GPU eine *maximale* Grafikleistung von 130 W. Diese Zahl ist kein garantierter Dauerwert und belegt für sich allein nicht die Aufteilung von Grundbudget und Zusatzbudget.
+- **Gigabyte SystemPerformance / AI-Leistungsmodus** ist eine zusätzliche Herstellerschicht für Eco, Balance und Performance. Ihr mögliches Zusammenspiel mit NVIDIA Dynamic Boost ist modellabhängig. Auf unserem FB0F-Gerät lehnen die relevanten Capability- und Power-Getter diese Schicht ab.
+- `GetDynamicBoostStatus=0` ist auf diesem Gerät nur ein Gigabyte-WMI-Rohwert. Ohne verifizierte Bedeutung des Codes und unabhängige NVIDIA-Messung darf er nicht als „NVIDIA Dynamic Boost ist aus“ angezeigt werden. Ein Schreibtest wurde nicht durchgeführt.
+
+Quellen: [Gigabyte AORUS 5 SE4 Spezifikation](https://www.gigabyte.com/jp/Laptop/AORUS-5--Intel-12th-Gen/sp), [NVIDIA Dynamic Boost 2.0](https://www.nvidia.com/de-de/geforce/news/rtx-30-series-laptops/), [NVIDIA GPU Boost](https://www.nvidia.com/en-us/geforce/technologies/gpu-boost/technology/).
+
 Eine weitere Schicht in der aktuellen Komponente heißt `SystemPerformance` und hat Eco, Balance und Performance, jeweils für Netz- und Akkubetrieb. Sie ruft modellabhängige CPU- und GPU-Leistungsfunktionen auf:
 
 - Eco: niedrigste CPU-/GPU-Leistungsstufe

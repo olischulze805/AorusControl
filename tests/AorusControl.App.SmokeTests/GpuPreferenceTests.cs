@@ -22,9 +22,12 @@ internal static class GpuPreferenceTests
         var registry = new FakeGpuPreferenceStore();
         registry.Seed(game, "AutoHDREnable=1;GpuPreference=0;");
         LaptopPowerSource source = LaptopPowerSource.Ac;
+        var settings = new FakeGpuPreferenceSettings();
 
-        using var module = new GpuPreferenceViewModel(registry, new FakeGpuPreferenceSettings(), () => source);
+        using var module = new GpuPreferenceViewModel(registry, settings, () => source);
         await module.StartAsync();
+        await module.StartAsync();
+        Check(settings.Loads == 1, "a second start does not register power events or reload managed programs again");
         Check(registry.Writes == 0, "an empty list writes nothing at startup");
 
         await module.AddAsync(game);

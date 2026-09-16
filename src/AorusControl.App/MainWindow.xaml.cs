@@ -115,14 +115,13 @@ public partial class MainWindow : FluentWindow
     private void UpdateVisibilityForViewModel() =>
         _viewModel.SetDashboardVisible(IsVisible && WindowState != WindowState.Minimized);
 
-    private async void OnLoaded(object sender, RoutedEventArgs eventArgs)
+    private void OnLoaded(object sender, RoutedEventArgs eventArgs)
     {
         // The ViewModel starts on "Dashboard"; without this the pane itself shows nothing
         // selected, so the highlight and the visible section disagree on first launch.
         // SelectedItem is read-only on NavigationView - Navigate is how a selection is
         // made programmatically, and it raises SelectionChanged like a click would.
         Nav.Navigate("Dashboard");
-        await _viewModel.StartAsync();
     }
 
     private async void OnClosing(object? sender, CancelEventArgs eventArgs)

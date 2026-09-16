@@ -38,7 +38,7 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
     private readonly Func<LaptopPowerSource> _readPowerSource;
     private readonly Dictionary<string, GpuPreference> _lastWritten = [];
     private readonly List<ManagedProgram> _managed = [];
-    private bool _busy, _disposed, _automatic = true;
+    private bool _busy, _disposed, _started, _automatic = true;
     private int _missing;
     private string _status = "Noch nicht geprüft";
     private LaptopPowerSource _source = LaptopPowerSource.Unknown;
@@ -101,6 +101,8 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
 
     public async Task StartAsync()
     {
+        if (_started || _disposed) return;
+        _started = true;
         try
         {
             _managed.Clear();
