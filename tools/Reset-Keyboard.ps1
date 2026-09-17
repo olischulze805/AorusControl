@@ -3,30 +3,37 @@
     Versucht, die interne Tastatur ohne hartes Ausschalten zurückzuholen.
 
 .DESCRIPTION
-    Für den Moment, in dem die Tastatur wieder tot ist. Die Schritte werden von harmlos nach
-    einschneidend abgearbeitet und nach jedem wird geprüft, ob das Gerät zurück ist; beim
-    ersten Erfolg ist Schluss.
+    Für den Moment, in dem die Tastatur wieder tot ist. Die Schritte gehen von harmlos nach
+    einschneidend, nach jedem wird geprüft, ob das Gerät zurück ist, und beim ersten Erfolg
+    ist Schluss. Jede Zeile geht zusätzlich in einen Bericht unter research/runs.
 
-        1. Bus neu einlesen          - nichts wird abgeschaltet
-        2. Tastatur aus und wieder an - USB-Reset des Geräts, falls es überhaupt noch da ist
-        3. Root-Hub neu starten       - nimmt die Maus für ein paar Sekunden mit
-        4. USB-Controller neu starten - das Nächste, was Software an einem Stromstoß hat
+    Entscheidend ist, WAS zurückgesetzt wird. Am 2026-09-17 sah der Gerätebaum im Ausfall so
+    aus:
 
-    Was hier NICHT geht, und warum: Die 5 Volt am Anschluss lassen sich per Software nicht
-    abschalten. Dafür gäbe es IOCTL_USB_HUB_CYCLE_PORT, das aber nur der USB-2-Hubtreiber
-    kennt; die Tastatur hängt an einem USB-3-Root-Hub. Und intern verlötete Anschlüsse haben
-    ohnehin meist keine schaltbare Stromversorgung. Bleibt Schritt 4: Der Controller geht
-    kurz in den PCI-Schlafzustand und kommt zurück - ob die Anschlüsse dabei stromlos werden,
-    entscheidet die Hardware, nicht Windows.
+        USB\VID_1044&PID_7A41\AP0000000003   Present=False  CM_PROB_PHANTOM
+        USB\VID_0000&PID_0002\5&7230AE1&0&7  Present=True   CM_PROB_FAILED_POST_START
 
-    Hilft nichts davon, ist wirklich nur noch echtes Stromlosmachen übrig: Ruhezustand oder
-    Herunterfahren (nicht Neustart - der lässt die Anschlüsse unter Spannung).
+    Die Tastatur selbst ist also gar nicht mehr da - ihr Eintrag ist eine Karteileiche. Am
+    Anschluss hängt stattdessen der Platzhalter, den Windows anlegt, wenn ein Gerät nicht
+    einmal seine Beschreibung beantwortet. Die erste Fassung dieses Skripts setzte die
+    Karteileiche zurück und ließ den Platzhalter unangetastet; das konnte nicht wirken.
 
-    Braucht Administratorrechte und fordert sie selbst an. Es wird nichts installiert, nichts
-    deinstalliert und keine Treiberdatei angefasst.
+    Jetzt wird beides angefasst, und Stufe 3 macht per Software genau das, was bisher von Hand
+    im Gerätemanager passierte: den Geräteeintrag entfernen und den Bus neu einlesen lassen.
+    Entfernt wird nur der Eintrag, keine Treiberdatei - Windows legt ihn beim nächsten
+    Erkennen neu an.
+
+    Was NICHT geht: die 5 Volt am Anschluss abschalten. Dafür gäbe es IOCTL_USB_HUB_CYCLE_PORT,
+    das aber nur der USB-2-Hubtreiber kennt; diese Tastatur hängt an einem USB-3-Root-Hub. Und
+    intern verlötete Anschlüsse haben ohnehin meist keine schaltbare Stromversorgung. Hilft
+    keine Stufe, bleibt nur echtes Stromlosmachen: Ruhezustand oder Herunterfahren - nicht
+    Neustart, der lässt die Anschlüsse unter Spannung.
+
+    Braucht Administratorrechte und fordert sie selbst an. Es wird keine Treiberdatei
+    deinstalliert und nichts am EC geschrieben.
 #>
 [CmdletBinding()]
-param([switch] $SkipController, [switch] $KeepOpen)
+param([switch] $SkipController, [switch] $KeepOpen, [string] $OutputDirectory)
 
 $ErrorActionPreference = 'Continue'
 $keyboardPattern = '1044.*7A41'
@@ -52,23 +59,29 @@ if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
     return
 }
 
-# Alle Ausgänge laufen hier durch. Beim Start per Doppelklick würde das Fenster sonst im
-# selben Moment zugehen, in dem das Ergebnis darin steht - und ausgerechnet hier kann man
-# nicht davon ausgehen, dass jemand schnell genug eine Taste findet.
-function Complete {
-    if (-not $KeepOpen) { return }
-    Write-Host ""
-    for ($left = 90; $left -gt 0; $left--) {
-        Write-Host ("`r  Dieses Fenster schließt sich in {0,2} s von selbst. " -f $left) -NoNewline -ForegroundColor DarkGray
-        Start-Sleep -Seconds 1
-    }
+# --------------------------------------------------------------- Bericht -----------------
+# Weil sonst hinterher niemand sagen kann, was passiert ist. Beim ersten Versuch am
+# 2026-09-17 war genau das der Fall: Das Fenster war zu, und es gab nichts zu lesen.
+$root = Split-Path -Parent $PSScriptRoot
+if (-not $OutputDirectory) { $OutputDirectory = Join-Path $root 'research\runs' }
+New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
+$report = Join-Path $OutputDirectory ("keyboard-reset-{0:yyyyMMdd-HHmmss}.md" -f (Get-Date))
+
+function Say([string] $text, [string] $colour = 'Gray') {
+    if ($text) { Write-Host $text -ForegroundColor $colour } else { Write-Host "" }
+    Add-Content -Path $script:report -Encoding utf8 -Value $text
 }
+
+Say "# Tastatur-Reset"
+Say ""
+Say ("- Gestartet: {0:yyyy-MM-dd HH:mm:ss}" -f (Get-Date))
+Say ""
 
 # --------------------------------------------------------------- Zustand -----------------
 function Test-Keyboard {
     # Zurück ist die Tastatur erst, wenn die Tastenschnittstelle MI_00 wieder auf OK steht.
     # Das Verbundgerät allein genügt nicht: Es taucht auch dann auf, wenn die Schnittstellen
-    # darunter nie starten.
+    # darunter nie starten - und als Karteileiche taucht es sogar ohne Gerät auf.
     $keys = Get-PnpDevice -ErrorAction SilentlyContinue |
         Where-Object { $_.InstanceId -match "HID.*$keyboardPattern&MI_00" }
     return [bool]($keys | Where-Object Status -eq 'OK')
@@ -77,7 +90,7 @@ function Test-Keyboard {
 function Show-State([string] $label) {
     $devices = @(Get-PnpDevice -ErrorAction SilentlyContinue | Where-Object InstanceId -match $keyboardPattern)
     $ok = @($devices | Where-Object Status -eq 'OK').Count
-    Write-Host ("  {0,-22} {1} von {2} Schnittstellen auf OK, Tasten: {3}" -f $label, $ok, $devices.Count,
+    Say ("  {0,-16} {1} von {2} Schnittstellen auf OK, Tasten: {3}" -f $label, $ok, $devices.Count,
         $(if (Test-Keyboard) { 'DA' } else { 'weg' }))
 }
 
@@ -89,103 +102,135 @@ function Wait-Bus([int] $seconds = 5) {
     Write-Host "`r             `r" -NoNewline
 }
 
-Write-Host ""
-Write-Host "Tastatur zurückholen - ohne hartes Ausschalten" -ForegroundColor Cyan
-Write-Host "Administratorrechte liegen vor. Es wird nichts installiert und kein Treiber angefasst." -ForegroundColor DarkGray
-Write-Host ""
+Say "Tastatur zurückholen - ohne hartes Ausschalten" 'Cyan'
+Say "Administratorrechte liegen vor. Keine Treiberdatei wird deinstalliert." 'DarkGray'
+Say ""
 Show-State 'Ausgangslage:'
 
+function Complete {
+    Say ""
+    Say "Bericht: $report" 'Green'
+    if (-not $KeepOpen) { return }
+    for ($left = 90; $left -gt 0; $left--) {
+        Write-Host ("`r  Dieses Fenster schließt sich in {0,2} s von selbst. " -f $left) -NoNewline -ForegroundColor DarkGray
+        Start-Sleep -Seconds 1
+    }
+}
+
 if (Test-Keyboard) {
-    Write-Host ""
-    Write-Host "Die Tastatur ist angemeldet. Es gibt nichts zurückzusetzen." -ForegroundColor Green
-    Write-Host "Reagiert sie trotzdem nicht, ist es nicht die USB-Anmeldung - dann sagt" -ForegroundColor Green
-    Write-Host "Start-KeyboardHangDiagnose.cmd mehr als dieses Skript." -ForegroundColor Green
+    Say ""
+    Say "Die Tastatur ist angemeldet. Es gibt nichts zurückzusetzen." 'Green'
+    Say "Reagiert sie trotzdem nicht, ist es nicht die USB-Anmeldung - dann sagt" 'Green'
+    Say "Start-KeyboardHangDiagnose.cmd mehr als dieses Skript." 'Green'
     Complete
     return
 }
 
 # --------------------------------------------------------------- Bauplan -----------------
-# Die Kette Tastatur -> Root-Hub -> Controller wird nicht fest eingetragen, sondern über
-# DEVPKEY_Device_Parent gelaufen: Auf einem anderen Gerät sitzt sie woanders, und ein hart
-# eingetragener Pfad wäre genau dann falsch, wenn man ihn braucht.
+# Die Kette Gerät -> Root-Hub -> Controller wird über DEVPKEY_Device_Parent gelaufen statt
+# fest eingetragen: Auf einem anderen Gerät sitzt sie woanders, und ein hart eingetragener
+# Pfad wäre genau dann falsch, wenn man ihn braucht.
 function Get-Parent([string] $instanceId) {
     try { (Get-PnpDeviceProperty -InstanceId $instanceId -KeyName 'DEVPKEY_Device_Parent' -ErrorAction Stop).Data }
     catch { $null }
 }
 
-# Das Verbundgerät, nicht eine seiner Schnittstellen: Es ist der Elternteil aller vier
-# und damit das, was ein USB-Reset zurücksetzen muss.
-$composite = (Get-PnpDevice -ErrorAction SilentlyContinue |
-    Where-Object { $_.InstanceId -match '^USB\\VID_1044&PID_7A41' -and $_.InstanceId -notmatch '&MI_' } |
-    Select-Object -First 1).InstanceId
+function Find-Device([string] $pattern) {
+    Get-PnpDevice -ErrorAction SilentlyContinue |
+        Where-Object { $_.InstanceId -match $pattern -and $_.InstanceId -notmatch '&MI_' } |
+        Select-Object -First 1
+}
 
-# Der Hub ist der Elternteil der Tastatur; ist die Tastatur ganz verschwunden, hilft der
-# Platzhalter am selben Anschluss oder - als letzter Ausweg - der Hub der Maus.
-$hub = if ($composite) { Get-Parent $composite } else { $null }
-if (-not $hub) {
-    $ghost = (Get-PnpDevice -ErrorAction SilentlyContinue |
-        Where-Object { $_.InstanceId -match '^USB\\VID_0000&PID_0002' } | Select-Object -First 1).InstanceId
-    if ($ghost) { $hub = Get-Parent $ghost }
+$composite = Find-Device '^USB\\VID_1044&PID_7A41'
+$ghost = Find-Device '^USB\\VID_0000&PID_0002'
+# Der Hub am liebsten über das Gerät, das wirklich am Bus hängt: Eine Karteileiche kennt ihren
+# Elternteil zwar noch, aber der Platzhalter ist der, der gerade am Anschluss sitzt.
+$hub = $null
+foreach ($candidate in @($ghost, $composite)) {
+    if ($candidate -and -not $hub) { $hub = Get-Parent $candidate.InstanceId }
 }
 $controller = if ($hub) { Get-Parent $hub } else { $null }
 
-Write-Host ""
-Write-Host "  Verbundgerät: $(if ($composite) { $composite } else { 'nicht vorhanden' })"
-Write-Host "  Root-Hub:     $(if ($hub) { $hub } else { 'unbekannt' })"
-Write-Host "  Controller:   $(if ($controller) { $controller } else { 'unbekannt' })"
-Write-Host ""
+Say ""
+foreach ($pair in @(@{ N = 'Verbundgerät'; D = $composite }, @{ N = 'Platzhalter '; D = $ghost })) {
+    Say ("  {0}: {1}" -f $pair.N, $(if ($pair.D) {
+        "{0}  Present={1}  {2}" -f $pair.D.InstanceId, $pair.D.Present, $pair.D.Problem
+    } else { 'nicht vorhanden' }))
+}
+Say ("  Root-Hub:     {0}" -f $(if ($hub) { $hub } else { 'unbekannt' }))
+Say ("  Controller:   {0}" -f $(if ($controller) { $controller } else { 'unbekannt' }))
 
 # --------------------------------------------------------------- Schritte ----------------
+function Invoke-Step([string] $name, [scriptblock] $action) {
+    Say ""
+    Say $name 'Cyan'
+    try { & $action }
+    catch { Say ("  Fehlgeschlagen: {0}" -f $_.Exception.Message) 'Red' }
+    Wait-Bus 5
+    Show-State 'danach:'
+    return (Test-Keyboard)
+}
+
 function Restart-Device([string] $instanceId, [string] $what) {
-    Write-Host "  $what wird neu gestartet ..." -ForegroundColor Yellow
-    try {
-        Disable-PnpDevice -InstanceId $instanceId -Confirm:$false -ErrorAction Stop
-    } catch {
-        Write-Host "  Abschalten fehlgeschlagen: $($_.Exception.Message)" -ForegroundColor Red
-        return
-    }
+    Say ("  $what wird neu gestartet ...") 'Yellow'
+    try { Disable-PnpDevice -InstanceId $instanceId -Confirm:$false -ErrorAction Stop }
+    catch { Say ("  Abschalten fehlgeschlagen: {0}" -f $_.Exception.Message) 'Red'; return }
     # Das Wiedereinschalten steht in finally, weil ein abgeschaltet zurückbleibender
     # Controller auch die Maus mitnimmt - und dann gäbe es gar keine Eingabe mehr.
     try { Start-Sleep -Seconds 3 }
     finally {
-        try { Enable-PnpDevice -InstanceId $instanceId -Confirm:$false -ErrorAction Stop }
-        catch { Write-Host "  EINSCHALTEN FEHLGESCHLAGEN: $($_.Exception.Message)" -ForegroundColor Red }
+        try { Enable-PnpDevice -InstanceId $instanceId -Confirm:$false -ErrorAction Stop; Say "  wieder eingeschaltet." }
+        catch { Say ("  EINSCHALTEN FEHLGESCHLAGEN: {0}" -f $_.Exception.Message) 'Red' }
     }
+}
+
+function Remove-Node([string] $instanceId, [string] $what) {
+    # Genau das, was bisher von Hand im Gerätemanager passierte: den Eintrag entfernen und neu
+    # erkennen lassen. /remove-device löscht nur den Knoten, keine Treiberdatei.
+    Say ("  Geräteeintrag $what wird entfernt ...") 'Yellow'
+    $output = & pnputil /remove-device $instanceId 2>&1
+    Say ("  {0}" -f (($output | Where-Object { $_ -match '\S' }) -join ' · '))
 }
 
 $steps = @(
     @{ Name = '1. Bus neu einlesen'; Action = { pnputil /scan-devices | Out-Null } }
 )
-if ($composite) {
-    $steps += @{ Name = '2. Tastatur aus und wieder an'; Action = { Restart-Device $composite 'Die Tastatur' }.GetNewClosure() }
+if ($ghost) {
+    $steps += @{ Name = '2. Platzhalter am Anschluss zurücksetzen'; Action = { Restart-Device $ghost.InstanceId 'Der Platzhalter' }.GetNewClosure() }
+    $steps += @{ Name = '3. Geräteeinträge entfernen und neu erkennen lassen'; Action = {
+        Remove-Node $ghost.InstanceId 'des Platzhalters'
+        if ($composite) { Remove-Node $composite.InstanceId 'der Tastatur' }
+        pnputil /scan-devices | Out-Null
+    }.GetNewClosure() }
+}
+elseif ($composite) {
+    $steps += @{ Name = '2. Geräteeintrag der Tastatur entfernen und neu erkennen lassen'; Action = {
+        Remove-Node $composite.InstanceId 'der Tastatur'
+        pnputil /scan-devices | Out-Null
+    }.GetNewClosure() }
 }
 if ($hub) {
-    $steps += @{ Name = '3. Root-Hub neu starten (die Maus blinkt kurz weg)'; Action = { Restart-Device $hub 'Der Root-Hub' }.GetNewClosure() }
+    $steps += @{ Name = '4. Root-Hub neu starten (die Maus blinkt kurz weg)'; Action = { Restart-Device $hub 'Der Root-Hub' }.GetNewClosure() }
 }
 if ($controller -and -not $SkipController) {
-    $steps += @{ Name = '4. USB-Controller neu starten (alles USB blinkt kurz weg)'; Action = { Restart-Device $controller 'Der USB-Controller' }.GetNewClosure() }
+    $steps += @{ Name = '5. USB-Controller neu starten (alles USB blinkt kurz weg)'; Action = { Restart-Device $controller 'Der USB-Controller' }.GetNewClosure() }
 }
 
 foreach ($step in $steps) {
-    Write-Host ""
-    Write-Host $step.Name -ForegroundColor Cyan
-    & $step.Action
-    Wait-Bus 5
-    Show-State 'danach:'
-    if (Test-Keyboard) {
-        Write-Host ""
-        Write-Host "Die Tastatur ist zurück. Bitte gleich ausprobieren." -ForegroundColor Green
-        Write-Host "Welcher Schritt geholfen hat, gehört in research/KEYBOARD-HANG.md." -ForegroundColor Green
+    if (Invoke-Step $step.Name $step.Action) {
+        Say ""
+        Say "Die Tastatur ist zurück. Bitte gleich ausprobieren." 'Green'
+        Say ("Geholfen hat: {0}" -f $step.Name) 'Green'
         Complete
         return
     }
 }
 
-Write-Host ""
-Write-Host "Kein Schritt hat geholfen." -ForegroundColor Red
-Write-Host ""
-Write-Host "Damit ist Software am Ende: Die 5 Volt am Anschluss kann sie nicht abschalten." -ForegroundColor Red
-Write-Host "Was noch Strom wegnimmt, ohne den Einschaltknopf zu quaelen:" -ForegroundColor Red
-Write-Host "  - Ruhezustand  (shutdown /h)   - kommt ohne Kaltstart zurueck" -ForegroundColor Red
-Write-Host "  - Herunterfahren (shutdown /s /t 0) - NICHT Neustart, der laesst Strom drauf" -ForegroundColor Red
+Say ""
+Say "Kein Schritt hat geholfen." 'Red'
+Say ""
+Say "Damit ist Software am Ende: Die 5 Volt am Anschluss kann sie nicht abschalten." 'Red'
+Say "Was noch Strom wegnimmt, ohne den Einschaltknopf zu quaelen:" 'Red'
+Say "  - Ruhezustand  (shutdown /h)   - kommt ohne Kaltstart zurueck" 'Red'
+Say "  - Herunterfahren (shutdown /s /t 0) - NICHT Neustart, der laesst Strom drauf" 'Red'
 Complete
