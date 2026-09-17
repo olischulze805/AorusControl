@@ -345,6 +345,57 @@ Gerät im Alltag zu benutzen, taugt bei zwei bis sechs Minuten Laufzeit keiner v
 Software hat hier nichts mehr beizutragen. Die Werkzeuge bleiben im Baum, weil sie die
 Diagnose belegen und weil der Hub-Zyklus im Einzelfall noch ein paar Minuten kauft.
 
+## Kann Software den Tastaturcontroller verändert haben?
+
+Der Nutzer erinnert sich, dass es anfing, nachdem er in der Gigabyte-Software Updates gemacht
+hatte. Die Frage ist berechtigt, und die Protokolle beantworten die eine Hälfte klar.
+
+**Ein Treiber war es nicht.** Die interne Tastatur läuft ausschließlich auf Microsofts
+eigenen Treibern:
+
+```
+HID\VID_1044&PID_7A41&MI_00   INF=keyboard.inf  Anbieter=Microsoft
+USB\VID_1044&PID_7A41&MI_00   INF=input.inf     Anbieter=Microsoft
+```
+
+Im Treiberspeicher liegt kein einziges ITE- oder Gigabyte-Paket für eine Tastatur. GCC hat
+hier also nie einen Treiber installiert, und ein Treiber-Update kann die Ursache nicht sein.
+
+**Die Firmware ist die offene Flanke.** Der Tastaturcontroller *ist* der EC - derselbe
+ITE-Chip, der Lüfter, Fn-Tasten und Ladelogik macht -, und dessen Firmware steckt im
+BIOS-Paket. Zeitlich passt es:
+
+| | |
+| --- | --- |
+| BIOS FB0F, Freigabedatum | **2026-03-22** |
+| Erster Abriss der Tastatur | **2026-05-03** |
+
+Wann FB0F tatsächlich eingespielt wurde, lässt sich nicht mehr feststellen: Das Systemprotokoll
+reicht nur bis 2026-05-17 zurück, das Setup-Protokoll bis 2026-07-19. Rund um den ersten
+Abriss zeigt das PnP-Protokoll keinerlei Treiber- oder Geräteaktivität an der Tastatur.
+
+**Dagegen spricht zweierlei**, und das wiegt schwer:
+
+- Es wird **schlechter** - Wochen, dann Stunden, dann Minuten. Firmware altert nicht.
+- Das **Neusetzen des Steckers** änderte das Verhalten für vier Tage. Firmware interessiert
+  sich nicht für Steckkontakte.
+
+Beides zusammen ergibt trotzdem ein stimmiges Bild: eine grenzwertige Verbindung und eine
+Firmware, die weniger Toleranz dafür hat als die vorherige. Die Firmware wäre dann nicht die
+Ursache, aber der Punkt, ab dem der Kontakt nicht mehr reichte.
+
+### Der Test, der es entscheidet
+
+**Das BIOS/EC neu flashen** - dieselbe Fassung oder eine neuere von der Produktseite
+(AORUS 5, Intel 12th Gen). Das schreibt die EC-Firmware neu und setzt den Controller
+gründlicher zurück als jedes Ausschalten.
+
+- Hält die Tastatur danach wieder Tage: Es war die Firmware.
+- Stirbt sie weiter nach Minuten: Es ist die Verbindung, endgültig und ohne Restzweifel.
+
+Am Netz durchführen, nicht unterbrechen. Mehr Aufwand als ein Neustart, aber es beendet die
+Frage in einem Durchgang - und billiger als eine neue Tastatureinheit ist es allemal.
+
 ## Was ausgeschlossen ist
 
 - Keine Herstellersoftware, die um dasselbe Gerät konkurriert: GCC ist deinstalliert, kein
@@ -454,7 +505,9 @@ Daraus die Entscheidungsregel für den Ausfall:
 
 ## Noch nicht geprüft
 
-- Ob es ein BIOS/EC neuer als FB0F (22.03.2026) gibt.
+- Ob es ein BIOS/EC neuer als FB0F (22.03.2026) gibt - und ob ein Neuflashen der
+  vorhandenen Fassung das Verhalten ändert. Siehe oben; das ist der nächste sinnvolle
+  Schritt.
 - Ob die beiden Bugchecks vom 27.08. denselben Ursprung haben.
 - Ob eine externe USB-Tastatur als dauerhafter Ersatz taugt, oder ob die Tastatureinheit
   getauscht werden soll. Die Garantie ist seit Mai 2026 abgelaufen.
