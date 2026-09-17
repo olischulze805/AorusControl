@@ -518,6 +518,56 @@ die Tastatur nachweislich angemeldet ist.
 Am Netz durchführen, nicht unterbrechen. Mehr Aufwand als ein Neustart, aber es beendet die
 Frage in einem Durchgang - und billiger als eine neue Tastatureinheit ist es allemal.
 
+## Der Bus im Moment des Abrisses (2026-09-17, 19:32:55)
+
+63 Sekunden USB-Mitschnitt, 42.422 Ereignisse, und der Abriss liegt mittendrin
+(`runs/usb-trace-20260917-193154.etl`). Zum ersten Mal ist zu sehen, was in den Sekunden
+passiert, die Windows im Ereignisprotokoll gar nicht aufführt.
+
+### Der Verlauf
+
+| Zeit | Was geschieht |
+| --- | --- |
+| bis 19:32:53.70 | **630 Ereignisse pro Sekunde, völlig gleichmäßig** - normaler Betrieb |
+| 19:32:53.705 | **erster fehlgeschlagener Transfer** (`URB_Hdr_Status 0xC0000011`, `NTSTATUS 0xC0000001`) |
+| 19:32:53.728-729 | vier weitere Fehlschläge, dann vier abgebrochene Transfers (`STATUS_CANCELLED`) |
+| 19:32:54 | Verkehr bricht von 630 auf 100 Ereignisse ein |
+| 19:32:55.595 | Windows protokolliert die überraschende Entfernung |
+| 19:32:55.65-57.66 | **vier Anläufe, das Gerät neu aufzuzählen** - jedes Mal Geräteobjekt anlegen, Steuerendpunkt anlegen, keine Antwort, alles wieder abbauen |
+| 19:32:56.68 | die alte Tastatur wird abgebaut: sechs Endpunkte (0x81, 0x83, 0x04, 0x82, 0x85, 0x06) einzeln entfernt |
+
+### Was dadurch feststeht
+
+- **Kein allmählicher Verfall.** Bis zur letzten Millisekunde läuft der Verkehr mit voller
+  Rate. Keine CRC-Fehler, keine Wiederholungen, keine Transfers, die erst im zweiten Anlauf
+  gelingen - und dann von einem Transfer auf den nächsten scheitert alles.
+- **Kein Abziehen und kein Stromproblem.** Der Anschluss meldet **kein** Disconnect, keine
+  Überstromabschaltung. Der Hub sieht das Gerät weiterhin als angeschlossen und versucht
+  viermal, es anzusprechen.
+- **Das Gerät antwortet nicht mehr auf dem Steuerendpunkt.** Jeder Neuanlauf scheitert an der
+  ersten Anfrage über Endpunkt 0 - genau das Bild, das der Geräte-Manager als Code 43
+  („Fehler bei einer Anforderung des USB-Gerätedeskriptors") zeigt.
+
+### Was es nicht entscheidet - und was es einengt
+
+Beide Erklärungen bleiben möglich, aber die Beschreibung wird schärfer:
+
+- **Gegen einen langsam schlechter werdenden Kontakt.** Ein Kontakt, der zunehmend schlechter
+  leitet, meldet sich vorher an: Fehler, die sich häufen, Transfers, die nach Wiederholung
+  doch gelingen. Davon ist nichts zu sehen. Der Übergang ist binär und sofortig.
+- **Für eine unterbrochene Datenleitung.** Dass der Hub das Gerät weiter als angeschlossen
+  führt, heißt: die Leitung mit dem Anschlusswiderstand (D+) hat noch Durchgang. Bricht nur
+  **D-**, bleibt das Gerät genau so sichtbar und kann trotzdem kein einziges Bit übertragen.
+  Ein aussetzender Kontakt auf einer der beiden Datenleitungen passt exakt.
+- **Für einen hängenden Controller.** Ebenso: Der Chip behält seinen Anschlusswiderstand, hält
+  die Beleuchtung auf dem letzten Bild stehen (der eingefrorene Regenbogen) und verarbeitet
+  Fn-Tasten weiter - nur seine USB-Einheit antwortet nicht mehr.
+
+Die Aufnahme trennt diese beiden nicht. Sie schließt aber aus, was man von außen bisher nicht
+ausschließen konnte: ein schleichend schlechter werdendes Signal, ein Wackelkontakt mit
+Fehlerhäufung, ein Stromproblem am Anschluss und einen Fehler im Windows-Treiberstapel. Der
+Stapel verhält sich vom ersten bis zum letzten Ereignis korrekt.
+
 ## Was ausgeschlossen ist
 
 - Keine Herstellersoftware, die um dasselbe Gerät konkurriert: GCC ist deinstalliert, kein
