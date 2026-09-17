@@ -448,6 +448,47 @@ Naheliegende Frage, und die Antwort ist trotzdem nein:
   Ausfall, die GCC-Installation erst danach, und vor allem ein Fehler, der sich
   verschlimmert. Eine Firmwareversion wird nicht mit der Zeit schlechter.
 
+### FB0E gegen FB0F verglichen
+
+Beide Pakete liegen im Projekt und wurden ausgepackt und gegeneinander gehalten.
+
+**Die Manifeste der Hersteller-Flasher sagen es selbst:**
+
+```
+FB0E  info.xml    <BIOS1>FB0E</BIOS1>  <EC>F00B</EC>  <BIN1>RX5ME4FB0E.rom</BIN1>
+FB0F  info1.xml   <BIOS>FB0F</BIOS>    <EC>F00B</EC>  <BIN>RX5ME4FB0F.rom</BIN>
+```
+
+**Dieselbe EC-Fassung F00B in beiden.** Die BIOS-Nummer wechselt, die EC-Nummer nicht.
+
+Die ROMs selbst:
+
+| | FB0E | FB0F |
+| --- | --- | --- |
+| Datei | `RX5ME4FB0E.rom` | `RX5ME4FB0F.rom` |
+| Größe | 38.797.312 Bytes | 38.797.312 Bytes |
+| Datum der Paketdatei | 2023-02-06 | 2026-04-28 |
+| SHA256 (Anfang) | `4810857caa667f96…` | `49c5fb7ee8e4a40a…` |
+
+Blockweiser Vergleich über 64 KB: **80 von 592 Blöcken unterscheiden sich**, rund 5 MB, verteilt
+auf zwanzig zusammenhängende Bereiche zwischen `0x01090000` und `0x024F0000`. FB0F ist also ein
+umfangreiches BIOS-Update - aber eben eines, das die EC-Kennung nicht anfasst.
+
+Eine Disassemblierung der EC-Firmware war nicht möglich: Das Abbild liegt nicht als
+zusammenhängender Klartextbereich vor - weder `F00B` noch `IT8xxx` noch eine Versionszeichenkette
+ist im ROM zu finden -, sondern komprimiert in einem der Firmwarevolumes.
+
+### Was das für ein Downgrade bedeutet
+
+Damit ist die Frage entschieden, und zwar nicht über eine Abwägung, sondern über die Daten:
+
+1. **Der EC bleibt gleich** - F00B hier wie dort.
+2. **Die Tastatur-Firmware ist ohnehin ein dritter Chip** (IT8298, 1.9.0.4 von 2023) und in
+   keinem der beiden BIOS-Pakete enthalten.
+
+Ein Downgrade auf FB0E ändert also UEFI-Code, aber weder die EC-Fassung noch irgendetwas am
+Tastaturcontroller. Für dieses Problem kann es nichts ausrichten - bei vollem Flash-Risiko.
+
 ### Was ein Firmware-Bug im FB0F angeht
 
 Danach war ausdrücklich gefragt. Ehrliche Antwort: **Aus dem Abbild ist das nicht zu
