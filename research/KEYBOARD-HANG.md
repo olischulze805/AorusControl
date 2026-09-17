@@ -384,6 +384,42 @@ Beides zusammen ergibt trotzdem ein stimmiges Bild: eine grenzwertige Verbindung
 Firmware, die weniger Toleranz dafür hat als die vorherige. Die Firmware wäre dann nicht die
 Ursache, aber der Punkt, ab dem der Kontakt nicht mehr reichte.
 
+### Was auf der Platte steht
+
+Der Installationsordner der Gigabyte-Software trägt ein Datum, und es liegt **nach** den
+ersten beiden Abrissen:
+
+| | |
+| --- | --- |
+| Erster Abriss | 2026-05-03 19:27 |
+| Zweiter Abriss | 2026-05-04 18:49 |
+| `Control Center\Lib\MBStorage` | 2026-05-04 **19:18** |
+| `GIGABYTE Control Center_2026_Mar_release_All_Setup` | 2026-05-04 **21:06** |
+
+Die März-Fassung von GCC wurde also am 4. Mai eingespielt - einen Tag nach dem ersten Ausfall
+und einige Stunden nach dem zweiten. **Diese Installation kann die ersten beiden Abrisse nicht
+verursacht haben.** (Ein GCC-Protokoll von 2025-01-15 zeigt, dass die Software schon vorher da
+war; frühere Update-Läufe lassen sich nicht mehr datieren.)
+
+Das entkräftet den Zusammenhang nicht vollständig - ein BIOS-Update kann Wochen vorher
+gelaufen sein -, aber es nimmt ihm den unmittelbaren Beleg.
+
+### Warum ein Downgrade nicht der erste Schritt ist
+
+Naheliegende Frage, und die Antwort ist trotzdem nein:
+
+- **Gleiche Fassung neu flashen kostet nichts** und prüft dieselbe Hypothese. Wenn die
+  EC-Firmware in einem schlechten Zustand ist, schreibt das sie neu. Kein Rückrollrisiko,
+  keine Versionssperre.
+- **Ein Downgrade hat echtes Risiko.** Auf dieser Plattform laufen Boot Guard und BIOS Guard;
+  manche Fassungen verweigern eine ältere Version oder brechen mittendrin ab. Ein halb
+  geflashtes Laptop-BIOS ist ein größerer Schaden als eine defekte Tastatur.
+- **Die ältere Fassung ist oft gar nicht mehr zu bekommen**; Gigabyte führt auf der
+  Produktseite in der Regel nur die neueste.
+- **Und die Beweislage trägt es nicht:** sechs Wochen zwischen Freigabe von FB0F und erstem
+  Ausfall, die GCC-Installation erst danach, und vor allem ein Fehler, der sich
+  verschlimmert. Eine Firmwareversion wird nicht mit der Zeit schlechter.
+
 ### Der Test, der es entscheidet
 
 **Das BIOS/EC neu flashen** - dieselbe Fassung oder eine neuere von der Produktseite
