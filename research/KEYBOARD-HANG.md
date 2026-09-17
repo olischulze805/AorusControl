@@ -1,6 +1,7 @@
 # Tastatur reagiert plötzlich nicht mehr
 
-Stand: 2026-09-14. Offener Fehler am Gerät, nicht in dieser App.
+Stand: 2026-09-17. Offener Fehler am Gerät, nicht in dieser App - aber erstmals ohne hartes
+Ausschalten behoben.
 
 ## Symptom
 
@@ -235,8 +236,72 @@ Alle überraschenden Entfernungen dieser Tastatur aus dem Kernel-PnP-Protokoll:
 | 2026-09-09 | 19:29:00, 21:03:26 |
 | 2026-09-10 | 18:11:17, 18:21:08, 20:43:27 |
 | 2026-09-14 | 19:50:32 |
+| 2026-09-16 | 19:09:26, 20:05:09 |
+| 2026-09-17 | 17:53:53, 18:00:42, 18:37:19 |
 
-Zehn in viereinhalb Monaten, sechs davon in den letzten sechs Tagen. Der Abstand wird kürzer.
+Vierzehn in viereinhalb Monaten, zehn davon in den letzten neun Tagen. Der Abstand wird
+kürzer: Der Abriss vom 17.09. kam drei Minuten nach dem Hochfahren.
+
+## 2026-09-17: zum ersten Mal ohne hartes Ausschalten zurückgeholt
+
+Vier weitere Abrisse in zwei Tagen (16.09. zweimal, 17.09. zweimal), der letzte **drei Minuten
+und elf Sekunden nach dem Hochfahren**. Insgesamt 14.
+
+Dabei kam der erste Erfolg - versehentlich. Die Reihenfolge ist es wert, festgehalten zu
+werden, weil sie drei Dinge auf einmal beantwortet.
+
+### Was nicht half
+
+Aus dem Bericht `runs/keyboard-reset-20260917-181738.md`, dem ersten Lauf, der überhaupt
+zustande kam:
+
+| Stufe | Ergebnis |
+| --- | --- |
+| Bus neu einlesen | nichts |
+| Platzhalter aus/ein | mechanisch erfolgreich, Tastatur blieb weg |
+| **Geräteeinträge entfernen + neu einlesen** | beide entfernt, Tastatur blieb weg |
+| Root-Hub abschalten | "Nicht unterstützt" |
+| Controller abschalten | "Nicht unterstützt" |
+
+Die dritte Zeile ist die praktisch wichtigste: **Das Deinstallieren des Treibers im
+Geräte-Manager bringt für sich genommen nichts.** Es war jahrelang Teil des Rituals, und es
+war der wirkungslose Teil.
+
+### Was half
+
+Windows meldete beim Root-Hub "Nicht unterstützt" - **und setzte das Deaktiviert-Kennzeichen
+trotzdem.** Das Skript glaubte der Meldung, sparte sich das Wiedereinschalten, und damit waren
+Maus und interne Tastatur weg. Der Nutzer hat den Hub von Hand wieder aktiviert.
+
+Danach war die Tastatur **da**: alle 16 Schnittstellen auf OK, mit frischen Instanz-IDs
+(`7&26820964` → `7&2388714C`), und der Platzhalter auf Port 7 zur Karteileiche geworden, weil
+das echte Gerät den Anschluss zurückhatte. Ohne hartes Ausschalten, zum ersten Mal seit Mai.
+
+Gehalten hat es allerdings nur Minuten: Der Beobachter meldete um 18:37:19 den nächsten Abriss,
+26 Sekunden nachdem er gestartet worden war. Der Hub-Zyklus ist also eine Wiederbelebung, keine
+Reparatur - was zum übrigen Bild passt.
+
+**Ein Aus-und-wieder-Ein des Root-Hubs holt die Tastatur also zurück.** Das widerlegt meine
+eigene Einschätzung von derselben Stunde, ein Neu-Aufzählen könne ein schweigendes Gerät nicht
+zum Antworten bringen: Das Abschalten des Hubs ist mehr als ein Neu-Aufzählen, es nimmt dem
+Anschluss die Initialisierung und baut sie neu auf.
+
+### Was daraus im Werkzeug wurde
+
+Der Schritt ist der wirksamste und zugleich der gefährlichste - an diesem Hub hängen alle
+Eingabegeräte, und **ein deaktiviertes Gerät bleibt deaktiviert, auch über einen Neustart
+hinweg.** Zwei Lehren stehen jetzt im Code:
+
+- **Nachsehen statt glauben.** Der zurückgelesene Zustand entscheidet, nicht die
+  Rückmeldung - dieselbe Regel, die für jeden Hardwareschreibvorgang der App ohnehin gilt und
+  die in diesem Werkzeug gefehlt hat.
+- **Ein Wächter, kein `finally`.** `finally` schützt gegen eine Ausnahme, nicht gegen ein
+  geschlossenes Fenster oder einen beendeten Prozess. Vor dem Abschalten startet jetzt ein
+  eigener Prozess, der nach 30 Sekunden bedingungslos wieder einschaltet - dasselbe Muster wie
+  die Lüfterleine der App.
+
+Für den Notfall gibt es zusätzlich `tools\Enable-DisabledUsb.cmd`: Es sucht jedes
+abgeschaltete USB-Gerät und schaltet es wieder ein, bedienbar allein mit dem Touchpad.
 
 ## Was ausgeschlossen ist
 

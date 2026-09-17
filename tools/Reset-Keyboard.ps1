@@ -178,26 +178,74 @@ function Invoke-Step([string] $name, [scriptblock] $action) {
 function Restart-Device([string] $instanceId, [string] $what) {
     Say ("  $what wird neu gestartet ...") 'Yellow'
     try { Disable-PnpDevice -InstanceId $instanceId -Confirm:$false -ErrorAction Stop }
+    catch { Say ("  Abschalten meldete: {0}" -f $_.Exception.Message.Trim()) 'DarkGray' }
+    try { Start-Sleep -Seconds 3 }
+    finally { Restore-Device $instanceId }
+}
+
+<#
+.SYNOPSIS
+    Schaltet den Root-Hub aus und wieder ein - mit einem Wächter, der ihn auch dann
+    zurückholt, wenn dieses Skript stirbt.
+
+.DESCRIPTION
+    Das ist die Stufe, die am 2026-09-17 als einzige gewirkt hat: Danach meldete sich die
+    Tastatur mit frischen Instanz-IDs neu an, ohne hartes Ausschalten.
+
+    Sie ist zugleich die gefährlichste, und am selben Tag ist genau das schiefgegangen. Zwei
+    Dinge waren falsch:
+
+    Erstens wurde der Fehlermeldung geglaubt. Windows antwortete "Nicht unterstützt" und setzte
+    das Deaktiviert-Kennzeichen trotzdem. Der Code sah einen Fehlschlag, sparte sich das
+    Wiedereinschalten - und Maus und Tastatur waren weg. Deshalb wird jetzt nachgesehen statt
+    geglaubt: Was zählt, ist der zurückgelesene Zustand.
+
+    Zweitens schützt finally nur gegen eine Ausnahme, nicht gegen ein geschlossenes Fenster
+    oder einen beendeten Prozess. Ein deaktiviertes Gerät bleibt deaktiviert, auch über einen
+    Neustart hinweg - wer sich den Hub abschaltet, an dem die Eingabegeräte hängen, kommt ohne
+    fremde Hilfe nicht mehr heraus.
+
+    Also ein eigener Prozess als Wächter, nach demselben Muster wie die Lüfterleine der App:
+    Er wird vorher gestartet, schläft, und schaltet dann ein - egal was hier passiert.
+#>
+function Restart-Hub([string] $instanceId, [string] $what) {
+    Say ("  $what wird aus- und wieder eingeschaltet.") 'Yellow'
+    Say "  Maus und Tastatur sind dabei fuer ein paar Sekunden weg - das gehoert dazu." 'DarkGray'
+
+    $guard = "Start-Sleep -Seconds 30; Enable-PnpDevice -InstanceId '$instanceId' -Confirm:`$false -ErrorAction SilentlyContinue"
+    try {
+        Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @(
+            '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $guard) -ErrorAction Stop | Out-Null
+        Say "  Waechter laeuft: schaltet spaetestens in 30 s wieder ein, auch wenn dieses Fenster stirbt." 'DarkGray'
+    }
     catch {
-        # Root-Hub und Host-Controller lassen sich nicht abschalten - am 2026-09-17 beide mit
-        # "Nicht unterstuetzt". Windows erlaubt das nur fuer Geraete, die sich als abschaltbar
-        # melden, und ein Bus, an dem die Eingabegeraete haengen, tut das nicht.
-        #
-        # pnputil /restart-device geht einen anderen Weg: abmelden und neu aufzaehlen, ohne den
-        # Knoten je in den Aus-Zustand zu bringen. Das ist der letzte Hebel, den Software an
-        # dieser Stelle noch hat.
-        Say ("  Abschalten nicht moeglich ({0}) - stattdessen neu aufzaehlen." -f $_.Exception.Message.Trim()) 'Yellow'
-        $output = & pnputil /restart-device $instanceId 2>&1
-        Say ("  {0}" -f (($output | Where-Object { $_ -match '[^ ]' }) -join ' - '))
+        Say ("  Waechter konnte nicht gestartet werden ({0}) - Schritt wird uebersprungen." -f $_.Exception.Message.Trim()) 'Red'
         return
     }
-    # Das Wiedereinschalten steht in finally, weil ein abgeschaltet zurückbleibender
-    # Controller auch die Maus mitnimmt - und dann gäbe es gar keine Eingabe mehr.
-    try { Start-Sleep -Seconds 3 }
-    finally {
-        try { Enable-PnpDevice -InstanceId $instanceId -Confirm:$false -ErrorAction Stop; Say "  wieder eingeschaltet." }
-        catch { Say ("  EINSCHALTEN FEHLGESCHLAGEN: {0}" -f $_.Exception.Message) 'Red' }
+
+    try { Disable-PnpDevice -InstanceId $instanceId -Confirm:$false -ErrorAction Stop }
+    catch { Say ("  Abschalten meldete: {0}" -f $_.Exception.Message.Trim()) 'DarkGray' }
+    # Nachsehen statt glauben: Genau hier ging es schief.
+    Say ("  zurueckgelesen: {0}" -f (Get-PnpDevice -InstanceId $instanceId -ErrorAction SilentlyContinue).Problem)
+    Start-Sleep -Seconds 5
+    Restore-Device $instanceId
+}
+
+<#
+.SYNOPSIS
+    Schaltet ein Gerät wieder ein und gibt nicht eher Ruhe, bis der Zustand es bestätigt.
+#>
+function Restore-Device([string] $instanceId) {
+    for ($attempt = 1; $attempt -le 5; $attempt++) {
+        try { Enable-PnpDevice -InstanceId $instanceId -Confirm:$false -ErrorAction Stop } catch { }
+        Start-Sleep -Seconds 2
+        $state = Get-PnpDevice -InstanceId $instanceId -ErrorAction SilentlyContinue
+        if (-not $state -or $state.Problem -ne 'CM_PROB_DISABLED') {
+            Say ("  wieder eingeschaltet (Versuch {0})." -f $attempt) 'Green'
+            return
+        }
     }
+    Say "  EINSCHALTEN FEHLGESCHLAGEN - bitte Enable-DisabledUsb.cmd ausfuehren." 'Red'
 }
 
 function Remove-Node([string] $instanceId, [string] $what) {
@@ -226,10 +274,10 @@ elseif ($composite) {
     }.GetNewClosure() }
 }
 if ($hub) {
-    $steps += @{ Name = '4. Root-Hub neu starten (die Maus blinkt kurz weg)'; Action = { Restart-Device $hub 'Der Root-Hub' }.GetNewClosure() }
+    $steps += @{ Name = '4. Root-Hub aus und wieder an - hat am 2026-09-17 als einzige Stufe gewirkt'; Action = { Restart-Hub $hub 'Der Root-Hub' }.GetNewClosure() }
 }
 if ($controller -and -not $SkipController) {
-    $steps += @{ Name = '5. USB-Controller neu starten (alles USB blinkt kurz weg)'; Action = { Restart-Device $controller 'Der USB-Controller' }.GetNewClosure() }
+    $steps += @{ Name = '5. USB-Controller neu starten (alles USB blinkt kurz weg)'; Action = { Restart-Hub $controller 'Der USB-Controller' }.GetNewClosure() }
 }
 
 foreach ($step in $steps) {
