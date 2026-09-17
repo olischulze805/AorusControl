@@ -31,7 +31,7 @@ param([int] $MaxMinutes = 30, [int] $BufferMegabytes = 64, [switch] $KeepOpen, [
 
 $ErrorActionPreference = 'Continue'
 $session = 'AorusUsbTrace'
-$device = 'USB\VID_1044&PID_7A41\AP0000000003'
+$script:device = 'USB\VID_1044&PID_7A41\AP0000000003'
 
 if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
         ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -69,6 +69,32 @@ Write-Host "Laeuft, bis die Tastatur verschwindet - hoechstens $MaxMinutes Minut
 Write-Host "Ringpuffer $BufferMegabytes MB: es bleibt immer das Letzte stehen, also der Abriss." -ForegroundColor DarkGray
 Write-Host ""
 
+# Erst aufzeichnen, wenn es etwas aufzuzeichnen gibt.
+#
+# Der erste Lauf am 2026-09-17 startete 90 Sekunden NACH dem Abriss, merkte beim ersten Blick
+# "nicht angemeldet", stoppte sofort - und hinterliess zwei Sekunden Fremdverkehr als
+# vermeintliches Ergebnis. Ein Werkzeug, das in diesem Fall erfolgreich aussieht, ist
+# schlimmer als eines, das sich beschwert.
+function Test-Keyboard { (Get-PnpDevice -InstanceId $script:device -ErrorAction SilentlyContinue).Status -eq 'OK' }
+
+if (-not (Test-Keyboard)) {
+    Write-Host "Die Tastatur ist gerade NICHT angemeldet." -ForegroundColor Yellow
+    Write-Host "Aufgezeichnet werden kann nur ein Abriss, der noch bevorsteht - es wird gewartet," -ForegroundColor Yellow
+    Write-Host "bis sie zurueck ist. Hol sie mit Reset-Keyboard.cmd oder einem Neustart zurueck." -ForegroundColor Yellow
+    Write-Host "Abbrechen mit Strg+C." -ForegroundColor DarkGray
+    $waitUntil = (Get-Date).AddMinutes($MaxMinutes)
+    while (-not (Test-Keyboard)) {
+        if ((Get-Date) -gt $waitUntil) {
+            Write-Host "`nIn $MaxMinutes Minuten nicht zurueckgekommen - nichts aufgezeichnet." -ForegroundColor Red
+            if ($KeepOpen) { Start-Sleep -Seconds 30 }
+            return
+        }
+        Write-Host ("`r  warte auf die Tastatur ... {0:HH:mm:ss} " -f (Get-Date)) -NoNewline -ForegroundColor Yellow
+        Start-Sleep -Seconds 2
+    }
+    Write-Host "`r  Tastatur ist zurueck - Aufzeichnung beginnt.      " -ForegroundColor Green
+}
+
 # Eine eventuell haengengebliebene Sitzung von vorher zuerst wegraeumen.
 Stop-Trace
 $create = logman create trace $session -ets -o $etl -f bincirc -max $BufferMegabytes -bs 64 -nb 32 320 2>&1
@@ -86,8 +112,7 @@ $deadline = $startedAt.AddMinutes($MaxMinutes)
 $dropped = $null
 try {
     while ((Get-Date) -lt $deadline) {
-        $present = (Get-PnpDevice -InstanceId $device -ErrorAction SilentlyContinue).Status -eq 'OK'
-        if (-not $present) { $dropped = Get-Date; break }
+        if (-not (Test-Keyboard)) { $dropped = Get-Date; break }
         Write-Host ("`r  laeuft seit {0:hh\:mm\:ss} - Tastatur angemeldet " -f ((Get-Date) - $startedAt)) -NoNewline
         Start-Sleep -Milliseconds 500
     }
