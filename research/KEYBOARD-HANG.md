@@ -303,6 +303,48 @@ hinweg.** Zwei Lehren stehen jetzt im Code:
 Für den Notfall gibt es zusätzlich `tools\Enable-DisabledUsb.cmd`: Es sucht jedes
 abgeschaltete USB-Gerät und schaltet es wieder ein, bedienbar allein mit dem Touchpad.
 
+## Die Laufzeit bricht zusammen
+
+Der Abstand zwischen Systemstart und Abriss, aus Kernel-Boot und Kernel-PnP gegeneinander
+gerechnet:
+
+| Abriss | Minuten nach dem Start |
+| --- | ---: |
+| 2026-09-16 19:09 | 18,5 |
+| 2026-09-16 20:05 | 49,9 |
+| 2026-09-17 17:53 | **2,2** |
+| 2026-09-17 18:00 | **3,3** |
+| 2026-09-17 18:37 | **5,9** |
+
+Innerhalb eines Tages von Dutzenden Minuten auf wenige. Dazu die Beobachtungen des Nutzers vom
+selben Abend:
+
+- **Der Ruhezustand holt sie nicht zurück.**
+- **Vollständiges Ausschalten und wieder Einschalten** brachte sie zurück, aber nur für
+  Minuten.
+
+Damit ist auch der letzte verlässliche Behelf weg. Von Mai bis August lagen Wochen zwischen den
+Vorfällen, vorige Woche Stunden, jetzt Minuten. Das ist keine sporadische Störung mehr, das ist
+eine Verbindung am Ende ihrer Lebensdauer.
+
+Der Hub-Zyklus (siehe oben) holt sie ebenfalls zurück - und hält genauso kurz. Als Weg, das
+Gerät im Alltag zu benutzen, taugt bei zwei bis sechs Minuten Laufzeit keiner von beiden.
+
+### Was jetzt noch bleibt
+
+- **Externe USB-Tastatur.** Sofort, billig, und am Schreibtisch mit externem Monitor ohnehin
+  die bequemere Lösung. Die naheliegende Antwort.
+- **Tastatureinheit tauschen.** Bei diesem Gehäuse hängt sie an der oberen Abdeckung, also
+  teuer. Garantie seit Mai 2026 abgelaufen.
+- **Noch einmal öffnen.** Das Neusetzen am 10.09. hielt vier Tage. Sinnvoll wäre diesmal nur
+  noch, die Kontakte zu reinigen und das Flachbandkabel an der Knickstelle vor dem Stecker auf
+  einen Riss anzusehen - ein Riss dort erklärt jede einzelne Beobachtung: dass Druck und
+  Stromtrennung kurzzeitig helfen, dass es mit der Zeit schlechter wird, und dass der
+  Controller dabei durchgehend lebt.
+
+Software hat hier nichts mehr beizutragen. Die Werkzeuge bleiben im Baum, weil sie die
+Diagnose belegen und weil der Hub-Zyklus im Einzelfall noch ein paar Minuten kauft.
+
 ## Was ausgeschlossen ist
 
 - Keine Herstellersoftware, die um dasselbe Gerät konkurriert: GCC ist deinstalliert, kein
