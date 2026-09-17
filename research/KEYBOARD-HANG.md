@@ -361,9 +361,37 @@ USB\VID_1044&PID_7A41&MI_00   INF=input.inf     Anbieter=Microsoft
 Im Treiberspeicher liegt kein einziges ITE- oder Gigabyte-Paket für eine Tastatur. GCC hat
 hier also nie einen Treiber installiert, und ein Treiber-Update kann die Ursache nicht sein.
 
-**Die Firmware ist die offene Flanke.** Der Tastaturcontroller *ist* der EC - derselbe
-ITE-Chip, der Lüfter, Fn-Tasten und Ladelogik macht -, und dessen Firmware steckt im
-BIOS-Paket. Zeitlich passt es:
+**Die Tastatur hat ihre eigene Firmware - und sie ist unverändert.** Das ist der Kern, und
+eine frühere Notiz hier war ungenau: Der Tastaturcontroller ist nicht der System-EC aus dem
+BIOS, sondern ein eigener Chip mit eigenem, getrennt veröffentlichtem Firmwareabbild.
+
+Das Update-Paket liegt im Projekt (`third-party/downloads/nb-driver-64bit-aorus5-ve-
+keyboardfirmware-9.0.4.zip`). Ausgepackt enthält es ITEs Serial-HID-Updater und das Abbild:
+
+```
+SHFU.ini      HWID=USB\VID_1044&PID_7A41     <- genau diese Tastatur
+              BOOTDEVICECHIPID=8298          <- ITE IT8298
+              UPDATEFILESIZEKB=120
+docking_b.bin 122.880 Bytes, bei 0x2010:
+              "Gigabyte Fusion_8298:1.9.0.4"
+```
+
+Und das Gerät meldet sich mit:
+
+```
+USB\VID_1044&PID_7A41&REV_1904&MI_03
+```
+
+`REV_1904` ist bcdDevice 0x1904, also **1.9.0.4** - Zeichen für Zeichen die Version im
+Abbild. **Die Tastatur läuft bereits auf der neuesten veröffentlichten Firmware, und die
+stammt vom 13.09.2023.**
+
+Damit ist die Frage beantwortet, ob im Mai 2026 ein Firmware-Update die Tastatur verändert
+hat: **Es gab nichts zu aktualisieren.** Seit 2023 ist keine neuere Fassung erschienen, und
+die installierte ist genau die aus dem Paket.
+
+Bleibt der System-EC (F00B im BIOS FB0F) - ein anderer Chip, der Lüfter, Akku und Fn-Logik
+macht. Zeitlich wäre das noch denkbar:
 
 | | |
 | --- | --- |
@@ -420,11 +448,28 @@ Naheliegende Frage, und die Antwort ist trotzdem nein:
   Ausfall, die GCC-Installation erst danach, und vor allem ein Fehler, der sich
   verschlimmert. Eine Firmwareversion wird nicht mit der Zeit schlechter.
 
+### Was ein Firmware-Bug im FB0F angeht
+
+Danach war ausdrücklich gefragt. Ehrliche Antwort: **Aus dem Abbild ist das nicht zu
+belegen.** Die EC-Firmware ist ein 8051-Binary in der BIOS-Kapsel; einen Defekt in der
+USB-Behandlung dort statisch zu finden, bräuchte Disassemblierung, eine Referenz zum
+ITE-Baustein und vor allem einen reproduzierbaren Auslöser. Nichts davon ist hier vorhanden,
+und eine Vermutung als Befund auszugeben wäre schlimmer als die offene Frage.
+
+Was die Untersuchung stattdessen ergeben hat, ist mehr wert: Die Tastatur hängt gar nicht an
+der EC-Firmware aus dem BIOS, sondern an ihrem eigenen, unveränderten Abbild.
+
 ### Der Test, der es entscheidet
 
-**Das BIOS/EC neu flashen** - dieselbe Fassung oder eine neuere von der Produktseite
-(AORUS 5, Intel 12th Gen). Das schreibt die EC-Firmware neu und setzt den Controller
-gründlicher zurück als jedes Ausschalten.
+**Die Tastatur-Firmware neu schreiben**, nicht das BIOS. Der Updater erlaubt das
+ausdrücklich auch für dieselbe Version (`DONOTUPDATETHESAMEVERSION=0`), und er trifft genau
+den Chip, der ausfällt - ohne BIOS, ohne Rückrollrisiko, ohne Boot Guard.
+
+Ein Vorbehalt, der zählt: Geflasht wird über genau die USB-Verbindung, die zurzeit nach
+Minuten abreißt. Reisst sie mitten im Schreiben ab, bleibt der Controller halb programmiert.
+Der Updater kennt dafür einen Bootloader-Modus (`USB\VID_048D&PID_89DB`), ein zweiter Versuch
+ist also möglich - garantiert ist nichts. Nur direkt nach einem Kaltstart versuchen, solange
+die Tastatur nachweislich angemeldet ist.
 
 - Hält die Tastatur danach wieder Tage: Es war die Firmware.
 - Stirbt sie weiter nach Minuten: Es ist die Verbindung, endgültig und ohne Restzweifel.
