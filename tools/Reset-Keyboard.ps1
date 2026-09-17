@@ -33,10 +33,11 @@
     deinstalliert und nichts am EC geschrieben.
 #>
 [CmdletBinding()]
-param([switch] $SkipController, [switch] $KeepOpen, [string] $OutputDirectory)
+param([switch] $SkipController, [switch] $KeepOpen, [string] $OutputDirectory, [int] $HubOffSeconds = 20)
 
 $ErrorActionPreference = 'Continue'
 $keyboardPattern = '1044.*7A41'
+$script:HubOffSeconds = [Math]::Clamp($HubOffSeconds, 5, 120)
 
 # Die Arbeit passiert im Fenster mit Administratorrechten. Dieses hier hat dann nichts mehr
 # zu sagen und geht sofort zu - ein zweites, stehengebliebenes Fenster lässt nur raten,
@@ -209,14 +210,15 @@ function Restart-Device([string] $instanceId, [string] $what) {
     Er wird vorher gestartet, schläft, und schaltet dann ein - egal was hier passiert.
 #>
 function Restart-Hub([string] $instanceId, [string] $what) {
-    Say ("  $what wird aus- und wieder eingeschaltet.") 'Yellow'
-    Say "  Maus und Tastatur sind dabei fuer ein paar Sekunden weg - das gehoert dazu." 'DarkGray'
+    Say ("  $what wird fuer {0} s abgeschaltet." -f $script:HubOffSeconds) 'Yellow'
+    Say "  Maus und Tastatur sind so lange weg - das Touchpad bleibt, es haengt nicht am USB-Bus." 'DarkGray'
 
-    $guard = "Start-Sleep -Seconds 30; Enable-PnpDevice -InstanceId '$instanceId' -Confirm:`$false -ErrorAction SilentlyContinue"
+    $guardSeconds = $script:HubOffSeconds + 40
+    $guard = "Start-Sleep -Seconds $guardSeconds; Enable-PnpDevice -InstanceId '$instanceId' -Confirm:`$false -ErrorAction SilentlyContinue"
     try {
         Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @(
             '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $guard) -ErrorAction Stop | Out-Null
-        Say "  Waechter laeuft: schaltet spaetestens in 30 s wieder ein, auch wenn dieses Fenster stirbt." 'DarkGray'
+        Say ("  Waechter laeuft: schaltet spaetestens in {0} s wieder ein, auch wenn dieses Fenster stirbt." -f $guardSeconds) 'DarkGray'
     }
     catch {
         Say ("  Waechter konnte nicht gestartet werden ({0}) - Schritt wird uebersprungen." -f $_.Exception.Message.Trim()) 'Red'
@@ -225,9 +227,22 @@ function Restart-Hub([string] $instanceId, [string] $what) {
 
     try { Disable-PnpDevice -InstanceId $instanceId -Confirm:$false -ErrorAction Stop }
     catch { Say ("  Abschalten meldete: {0}" -f $_.Exception.Message.Trim()) 'DarkGray' }
-    # Nachsehen statt glauben: Genau hier ging es schief.
-    Say ("  zurueckgelesen: {0}" -f (Get-PnpDevice -InstanceId $instanceId -ErrorAction SilentlyContinue).Problem)
-    Start-Sleep -Seconds 5
+
+    # Nachsehen statt glauben - und erst nach einer Pause, denn die Abschaltung landet nicht
+    # sofort: Am 2026-09-17 meldete der sofortige Rueckgriff CM_PROB_NONE, obwohl derselbe
+    # Aufruf Minuten zuvor sehr wohl abgeschaltet hatte.
+    Start-Sleep -Seconds 3
+    $state = (Get-PnpDevice -InstanceId $instanceId -ErrorAction SilentlyContinue).Problem
+    Say ("  zurueckgelesen: {0}" -f $state) $(if ($state -eq 'CM_PROB_DISABLED') { 'Green' } else { 'Yellow' })
+
+    # Und dann lange genug aus lassen. Der eine Zyklus, der die Tastatur zurueckbrachte, dauerte
+    # Minuten; fuenf Sekunden brachten nichts. Solange der Anschluss nur kurz aus ist, wird er
+    # offenbar gar nicht neu aufgebaut.
+    for ($left = $script:HubOffSeconds; $left -gt 0; $left--) {
+        Write-Host ("`r  aus, noch {0,2} s " -f $left) -NoNewline -ForegroundColor Yellow
+        Start-Sleep -Seconds 1
+    }
+    Write-Host "`r                  `r" -NoNewline
     Restore-Device $instanceId
 }
 
