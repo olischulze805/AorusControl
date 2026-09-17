@@ -43,7 +43,11 @@ $keyboardPattern = '1044.*7A41'
 # welches gerade etwas tut.
 if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
         ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath, '-KeepOpen')
+    # Der Pfad MUSS in Anfuehrungszeichen: Start-Process setzt die Argumentliste ohne eigenes
+    # Quoting zusammen, und dieser Ordner heisst "Gigabyte Control Center". Ohne sie bekam das
+    # zweite Fenster nur "-File C:\Users\...\chatgpt\Gigabyte" zu sehen, brach sofort ab und war
+    # wieder zu, bevor man es lesen konnte - so ist das Skript nie ein einziges Mal gelaufen.
+    $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"", '-KeepOpen')
     if ($SkipController) { $arguments += '-SkipController' }
     try {
         Start-Process powershell.exe -ArgumentList $arguments -Verb RunAs -ErrorAction Stop
