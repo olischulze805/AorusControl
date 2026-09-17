@@ -178,7 +178,19 @@ function Invoke-Step([string] $name, [scriptblock] $action) {
 function Restart-Device([string] $instanceId, [string] $what) {
     Say ("  $what wird neu gestartet ...") 'Yellow'
     try { Disable-PnpDevice -InstanceId $instanceId -Confirm:$false -ErrorAction Stop }
-    catch { Say ("  Abschalten fehlgeschlagen: {0}" -f $_.Exception.Message) 'Red'; return }
+    catch {
+        # Root-Hub und Host-Controller lassen sich nicht abschalten - am 2026-09-17 beide mit
+        # "Nicht unterstuetzt". Windows erlaubt das nur fuer Geraete, die sich als abschaltbar
+        # melden, und ein Bus, an dem die Eingabegeraete haengen, tut das nicht.
+        #
+        # pnputil /restart-device geht einen anderen Weg: abmelden und neu aufzaehlen, ohne den
+        # Knoten je in den Aus-Zustand zu bringen. Das ist der letzte Hebel, den Software an
+        # dieser Stelle noch hat.
+        Say ("  Abschalten nicht moeglich ({0}) - stattdessen neu aufzaehlen." -f $_.Exception.Message.Trim()) 'Yellow'
+        $output = & pnputil /restart-device $instanceId 2>&1
+        Say ("  {0}" -f (($output | Where-Object { $_ -match '[^ ]' }) -join ' - '))
+        return
+    }
     # Das Wiedereinschalten steht in finally, weil ein abgeschaltet zurückbleibender
     # Controller auch die Maus mitnimmt - und dann gäbe es gar keine Eingabe mehr.
     try { Start-Sleep -Seconds 3 }
