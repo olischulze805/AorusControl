@@ -183,6 +183,12 @@
                                         <TextBlock Text="{Binding PowerFlowValue}" Style="{StaticResource HeroValue}"
                                                    Foreground="{StaticResource TextPrimaryBrush}" />
                                         <TextBlock Text="{Binding PowerFlowLabel}" Style="{StaticResource TileLine}" Margin="0,2,0,0" />
+                                        <!-- Die Zeit steht unter den Watt, weil sie aus ihnen
+                                             kommt - und sie verschwindet, sobald die Rate
+                                             keine hergibt, statt eine alte stehenzulassen. -->
+                                        <TextBlock Text="{Binding PowerFlowRuntime}" Style="{StaticResource TileValueSmall}"
+                                                   Margin="0,6,0,0"
+                                                   ToolTip="Gerechnet aus der verbleibenden Kapazität und dem Mittel der letzten drei Minuten - nicht aus der Momentanrate, die zwischen ruhendem Bildschirm und scrollender Seite um das Doppelte springt. Windows' eigene Schätzung meldet dieses Gerät als unbekannt. Beim Laden zählt die Zeit bis zum eingestellten Ladelimit, nicht bis 100 %." />
                                     </StackPanel>
                                     <!-- Gedeckelt, aber ohne eigene Ausrichtung: eine 900 Pixel
                                          breite Linie bei 20 W Hub sieht aus wie ein Lineal,

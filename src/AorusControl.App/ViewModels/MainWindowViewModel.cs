@@ -49,7 +49,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private bool _flowIsCharging;
     private bool _flowIsLive;
     private double[] _flowHistory = [];
+    private string _flowRuntime = string.Empty;
     private readonly SampleHistory _flow = new();
+    // Three minutes: long enough that opening a page does not halve the estimate, short
+    // enough that putting the machine to work is visible in it within a page of reading.
+    private readonly MovingAverage _flowAverage = new(TimeSpan.FromMinutes(3));
     private BatteryFlowDirection _flowDirection = BatteryFlowDirection.Unknown;
     private string _gpuPowerStatus = "Status unbekannt";
     public string CpuPower { get => _cpuPower; private set => SetProperty(ref _cpuPower, value); }
@@ -71,6 +75,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public bool PowerFlowIsCharging { get => _flowIsCharging; private set => SetProperty(ref _flowIsCharging, value); }
     public bool PowerFlowIsLive { get => _flowIsLive; private set => SetProperty(ref _flowIsLive, value); }
     public double[] PowerFlowHistory { get => _flowHistory; private set => SetProperty(ref _flowHistory, value); }
+
+    /// <summary>The same figure as time: how long the pack lasts, or how long until charging
+    /// stops. Empty whenever the rate does not support one - a resting battery has no
+    /// remaining time, and neither does a machine that has just been unplugged.</summary>
+    public string PowerFlowRuntime { get => _flowRuntime; private set => SetProperty(ref _flowRuntime, value); }
     public string GpuPowerStatus { get => _gpuPowerStatus; private set => SetProperty(ref _gpuPowerStatus, value); }
 
     public MainWindowViewModel()
@@ -396,11 +405,17 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         {
             _flowDirection = battery.Direction;
             PowerFlowHistory = _flow.Reset();
+            _flowAverage.Reset();
         }
 
         PowerFlowIsCharging = battery.Direction == BatteryFlowDirection.Charging;
         PowerFlowIsLive = battery.Direction is BatteryFlowDirection.Charging or BatteryFlowDirection.Discharging;
-        if (battery.Watts is { } watts) PowerFlowHistory = _flow.Add(watts);
+        if (battery.Watts is { } watts)
+        {
+            PowerFlowHistory = _flow.Add(watts);
+            PowerFlowRuntime = Remaining(battery, _flowAverage.Add(watts));
+        }
+        else PowerFlowRuntime = string.Empty;
 
         PowerFlowValue = battery.Watts is { } value ? $"{value:F1} W" : battery.Direction switch
         {
@@ -420,6 +435,21 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             : battery.Percent is { } onlyPercent ? $"Akku {onlyPercent:F0} %" : string.Empty;
     }
 
+    /// <summary>
+    /// The estimate in words, from the smoothed rate rather than this second's.
+    ///
+    /// While charging it names the limit it is counting up to. Saying "voll in 40 Minuten"
+    /// on a machine that stops at 80 % would be a promise the charge limit breaks.
+    /// </summary>
+    private string Remaining(BatteryFlow battery, double averageWatts) =>
+        BatteryRuntimeMath.From(battery, averageWatts, Battery.StopPercent) switch
+        {
+            null => string.Empty,
+            { UntilCharged: false } left => $"noch ca. {left.Text}",
+            { } until when Battery.StopPercent is { } stop => $"bis {stop} % in ca. {until.Text}",
+            { } until => $"voll in ca. {until.Text}"
+        };
+
     private void ClearPowerDisplay()
     {
         CpuPower = "– W";
@@ -428,6 +458,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         PowerFlowValue = "– W";
         PowerFlowLabel = "Noch nicht gelesen";
         PowerFlowNote = string.Empty;
+        PowerFlowRuntime = string.Empty;
         PowerFlowIsLive = false;
         _releasePower?.Invoke();
     }

@@ -67,6 +67,11 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
     private bool _deviceIsStandard, _deviceIsCustom;
     private int _deviceLimit;
     public IReadOnlyList<int> LimitChoices { get; } = Enumerable.Range(60, 41).ToArray();
+
+    /// <summary>Where the device stops charging, or null when the firmware decides. The
+    /// dashboard needs it to say when charging will finish: with a limit of 80 % the pack
+    /// stops there, and a figure counted up to 100 % would promise an hour that never comes.</summary>
+    public int? StopPercent => _deviceIsCustom && _deviceLimit is >= 60 and <= 100 ? _deviceLimit : null;
     public string Status { get => _status; private set => SetProperty(ref _status, value); }
     public string ActivePolicy { get => _activePolicy; private set => SetProperty(ref _activePolicy, value); }
 
@@ -186,6 +191,7 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
         _deviceIsStandard = state.IsStandardMode;
         _deviceIsCustom = state.IsCustomMode;
         _deviceLimit = state.StoredStopPercent;
+        OnPropertyChanged(nameof(StopPercent));
         // Start the slider where the device actually is. It used to keep its own default,
         // which read as a claim about the hardware next to the large percentage readout.
         if (state.StoredStopPercent is >= 60 and <= 100)

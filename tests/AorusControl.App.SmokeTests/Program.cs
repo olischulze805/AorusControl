@@ -38,6 +38,7 @@ HsvColorTests.Run();
 RecentColorsStoreTests.Run();
 StartupManagerTests.Run();
 FanSpeedPercentTests.Run();
+BatteryRuntimeTests.Run();
 KeyboardEffectFrameTests.Run();
 KeyboardLayoutTests.Run();
 AppDataTests.Run();
