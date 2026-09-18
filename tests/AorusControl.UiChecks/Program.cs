@@ -379,8 +379,8 @@ sealed class StubGpuActivity : AorusControl.Core.Features.GpuPreferences.IGpuAct
 {
     public IReadOnlyList<AorusControl.Core.Features.GpuPreferences.GpuUser>? Read() =>
     [
-        new("theHunter", @"C:\Program Files\Steam\steamapps\common\theHunter\theHunter.exe", IsNvidia: true, Processes: 1),
-        new("Claude", @"C:\Program Files\WindowsApps\Claude_2.2553.1.0_x64__pzs8sxrjxfjjc\app\Claude.exe", IsNvidia: true, Processes: 2),
-        new("firefox", @"C:\Program Files\Mozilla Firefox\firefox.exe", IsNvidia: false, Processes: 4)
+        new("theHunter", @"C:\Program Files\Steam\steamapps\common\theHunter\theHunter.exe", IsNvidia: true, ProcessIds: [1000]),
+        new("Claude", @"C:\Program Files\WindowsApps\Claude_2.2553.1.0_x64__pzs8sxrjxfjjc\app\Claude.exe", IsNvidia: true, ProcessIds: [1000, 1001]),
+        new("firefox", @"C:\Program Files\Mozilla Firefox\firefox.exe", IsNvidia: false, ProcessIds: [1000, 1001, 1002, 1003])
     ];
 }

@@ -27,9 +27,12 @@ internal static class GpuPreferenceTests
         var settings = new FakeGpuPreferenceSettings();
 
         var running = new FakeGpuActivity(
-            new GpuUser("game", game, IsNvidia: true, Processes: 1),
-            new GpuUser("editor", @"C:\App\editor.exe", IsNvidia: false, Processes: 2));
-        using var module = new GpuPreferenceViewModel(registry, settings, () => source, running);
+            new GpuUser("game", game, IsNvidia: true, ProcessIds: [1000]),
+            new GpuUser("editor", @"C:\App\editor.exe", IsNvidia: false, ProcessIds: [1000, 1001]));
+        var closer = new FakeProgramCloser();
+        bool confirmed = false;
+        using var module = new GpuPreferenceViewModel(registry, settings, () => source, running, closer,
+            confirm: _ => confirmed);
         await module.StartAsync();
         await module.StartAsync();
         Check(settings.Loads == 1, "a second start does not register power events or reload managed programs again");
@@ -50,6 +53,20 @@ internal static class GpuPreferenceTests
         Check(registry.Find(game)!.Preference == GpuPreference.Nvidia, "a program added on mains goes to the RTX");
         Check(!module.Running[0].CanAdd && module.Running[0].Detail.Contains("verwaltet"),
             "and the running entry says so instead of offering the button again");
+
+        // Ending somebody's program needs a yes, and the row on the Intel chip is not what is
+        // keeping the card awake, so it is not offered at all.
+        Check(module.Running[0].CanClose && !module.Running[1].CanClose,
+            "closing is offered for the RTX user and not for the Intel one");
+        await module.CloseRunningCommand.ExecuteAsync(module.Running[0]);
+        Check(closer.Asked.Count == 0, "a declined confirmation closes nothing");
+        confirmed = true;
+        await module.CloseRunningCommand.ExecuteAsync(module.Running[1]);
+        Check(closer.Asked.Count == 0, "and a program on the Intel chip is refused even with a yes");
+        await module.CloseRunningCommand.ExecuteAsync(module.Running[0]);
+        Check(closer.Asked.SequenceEqual(module.Running[0].ProcessIds) || closer.Asked.Count == 1,
+            "a confirmed close takes every process of that program");
+        confirmed = false;
 
         running.Unreadable = true;
         await module.RefreshRunningCommand.ExecuteAsync();

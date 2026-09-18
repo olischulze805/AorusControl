@@ -55,3 +55,16 @@ internal sealed class FakeGpuActivity(params GpuUser[] users) : IGpuActivityRead
         return Unreadable ? null : users;
     }
 }
+
+/// <summary>Records what would have been closed. The real closer is exercised separately
+/// against a process the test starts itself; here only the decision matters.</summary>
+internal sealed class FakeProgramCloser(CloseOutcome? outcome = null) : IProgramCloser
+{
+    public List<int> Asked { get; } = [];
+
+    public Task<CloseOutcome> CloseAsync(IReadOnlyList<int> processIds, CancellationToken cancellationToken = default)
+    {
+        Asked.AddRange(processIds);
+        return Task.FromResult(outcome ?? new CloseOutcome(processIds.Count, 0, 0));
+    }
+}

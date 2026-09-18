@@ -79,6 +79,12 @@ public sealed class GpuUsageViewModel(GpuUser user, bool managed)
     public string Name { get; } = user.Program;
     public string Path { get; } = user.Path;
     public bool IsNvidia { get; } = user.IsNvidia;
+    public IReadOnlyList<int> ProcessIds { get; } = user.ProcessIds;
+
+    /// <summary>Closing is offered only where it would achieve something: a program on the
+    /// Intel chip is not what is keeping the RTX awake, so ending it buys nothing and only
+    /// risks somebody's unsaved work.</summary>
+    public bool CanClose { get; } = user.IsNvidia;
     public string Chip { get; } = user.IsNvidia ? "RTX 3070" : "Intel-Grafik";
 
     /// <summary>The line under the name. Deliberately without the path: a Store app's path
@@ -117,6 +123,8 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
     private readonly IGpuPreferenceSettingsStore _settings;
     private readonly Func<LaptopPowerSource> _readPowerSource;
     private readonly IGpuActivityReader _activity;
+    private readonly IProgramCloser _closer;
+    private readonly Func<string, bool> _confirm;
     private bool _visible;
     private readonly Dictionary<string, GpuPreference> _lastWritten = [];
     private readonly List<ManagedProgram> _managed = [];
@@ -129,17 +137,26 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
         IGpuPreferenceStore registry,
         IGpuPreferenceSettingsStore settings,
         Func<LaptopPowerSource> readPowerSource,
-        IGpuActivityReader? activity = null)
+        IGpuActivityReader? activity = null,
+        IProgramCloser? closer = null,
+        Func<string, bool>? confirm = null)
     {
         _registry = registry;
         _settings = settings;
         _readPowerSource = readPowerSource;
         _activity = activity ?? new WindowsGpuActivityReader();
+        _closer = closer ?? new ProgramCloser();
+        // Ending somebody's program is not something to do on a single click, and the dialog
+        // is the app's, not this class's - so it comes in from outside and tests can answer it.
+        _confirm = confirm ?? (message => System.Windows.MessageBox.Show(message, "AORUS Control",
+            System.Windows.MessageBoxButton.OKCancel, System.Windows.MessageBoxImage.Warning,
+            System.Windows.MessageBoxResult.Cancel) == System.Windows.MessageBoxResult.OK);
         RemoveCommand = new AsyncRelayCommand<GpuProgramViewModel>(RemoveAsync);
         AddSuggestionCommand = new AsyncRelayCommand<GpuProgramViewModel>(
             suggestion => suggestion is null ? Task.CompletedTask : AddAsync(suggestion.Name));
         AddRunningCommand = new AsyncRelayCommand<GpuUsageViewModel>(
             running => running is null ? Task.CompletedTask : AddAsync(running.Path));
+        CloseRunningCommand = new AsyncRelayCommand<GpuUsageViewModel>(CloseRunningAsync);
         RefreshRunningCommand = new AsyncRelayCommand(RefreshRunningAsync);
         ApplyNowCommand = new AsyncRelayCommand(() => ApplyAsync("Von Hand angewendet"));
     }
@@ -173,6 +190,7 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
     public AsyncRelayCommand<GpuProgramViewModel> RemoveCommand { get; }
     public AsyncRelayCommand<GpuProgramViewModel> AddSuggestionCommand { get; }
     public AsyncRelayCommand<GpuUsageViewModel> AddRunningCommand { get; }
+    public AsyncRelayCommand<GpuUsageViewModel> CloseRunningCommand { get; }
     public AsyncRelayCommand RefreshRunningCommand { get; }
     public AsyncRelayCommand ApplyNowCommand { get; }
 
@@ -365,6 +383,48 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
                     : $"{reason} · {written} von {_managed.Count} umgestellt. Wirkt beim nächsten Start des Programms.";
         }
         finally { _busy = false; Show(); }
+    }
+
+    /// <summary>
+    /// Ends a program that is holding the discrete card awake, once the user has confirmed it.
+    ///
+    /// The lasting fix is the preference next to it - that one survives the next start, which
+    /// this does not. But a preference only takes effect when a program starts, so on battery,
+    /// now, with the card awake and the list naming the culprit, there is nothing else that
+    /// gets it back to sleep.
+    /// </summary>
+    private async Task CloseRunningAsync(GpuUsageViewModel? program)
+    {
+        if (program is null || _disposed || _busy || !program.CanClose) return;
+        string many = program.ProcessIds.Count > 1 ? $" ({program.ProcessIds.Count} Prozesse)" : string.Empty;
+        string question = string.Join(Environment.NewLine + Environment.NewLine,
+            $"{program.Name}{many} beenden?",
+            "Das Programm wird zuerst gebeten, sich zu schließen - hat es ein Fenster, kann es " +
+            "vorher noch nachfragen und speichern. Antwortet es nicht innerhalb weniger Sekunden, " +
+            "wird es beendet, und nicht gespeicherte Arbeit geht dabei verloren.",
+            "Dauerhaft hilft stattdessen die Regel darunter: sie greift beim nächsten Start.");
+        if (!_confirm(question)) return;
+
+        _busy = true;
+        CloseOutcome outcome;
+        try { outcome = await _closer.CloseAsync(program.ProcessIds); }
+        catch (Exception exception)
+        {
+            AppLog.Error("gpu", $"{program.Name} konnte nicht beendet werden.", exception);
+            Status = $"{program.Name} konnte nicht beendet werden: {exception.Message}";
+            return;
+        }
+        finally { _busy = false; }
+
+        Status = outcome switch
+        {
+            { Closed: 0 } => $"{program.Name} ließ sich nicht beenden - keine Rechte, oder es hat abgelehnt.",
+            { Refused: > 0 } => $"{program.Name}: {outcome.Closed} beendet, {outcome.Refused} laufen weiter.",
+            { Forced: > 0 } => $"{program.Name} beendet - {outcome.Forced} davon erzwungen, weil nichts antwortete.",
+            _ => $"{program.Name} hat sich geschlossen."
+        };
+        AppLog.Info("gpu", Status);
+        await RefreshRunningAsync();
     }
 
     /// <summary>

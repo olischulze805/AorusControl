@@ -876,14 +876,30 @@
                                                         <TextBlock Text="{Binding Detail}" Style="{StaticResource Hint}" Margin="0,3,0,0"
                                                                    TextTrimming="CharacterEllipsis" ToolTip="{Binding Path}" />
                                                     </StackPanel>
-                                                    <ui:Button Grid.Column="2" Style="{StaticResource SecondaryButton}" Content="Übernehmen"
-                                                               VerticalAlignment="Center" Margin="14,0,0,0"
-                                                               Visibility="{Binding CanAdd, Converter={StaticResource BoolVisible}}"
-                                                               Command="{Binding DataContext.Graphics.AddRunningCommand,
-                                                                                 RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                               CommandParameter="{Binding}">
-                                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
-                                                    </ui:Button>
+                                                    <StackPanel Grid.Column="2" Orientation="Horizontal"
+                                                                VerticalAlignment="Center" Margin="14,0,0,0">
+                                                        <!-- Beenden steht links, kleiner und ohne
+                                                             Beschriftung: Es hilft jetzt, aber nur
+                                                             jetzt. Die Regel daneben ist die
+                                                             dauerhafte Antwort und bekommt deshalb
+                                                             das Wort. -->
+                                                        <ui:Button Style="{StaticResource SecondaryButton}"
+                                                                   Visibility="{Binding CanClose, Converter={StaticResource BoolVisible}}"
+                                                                   ToolTip="Beendet dieses Programm, damit die RTX schlafen kann. Es wird zuerst gebeten, sich zu schließen; antwortet es nicht, wird es beendet. Es gibt vorher eine Rückfrage. Dauerhaft hilft die Zuordnung darunter - die wirkt beim nächsten Start."
+                                                                   Command="{Binding DataContext.Graphics.CloseRunningCommand,
+                                                                                     RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                   CommandParameter="{Binding}">
+                                                            <ui:Button.Icon><ui:SymbolIcon Symbol="Dismiss24" /></ui:Button.Icon>
+                                                        </ui:Button>
+                                                        <ui:Button Style="{StaticResource SecondaryButton}" Content="Übernehmen"
+                                                                   Margin="8,0,0,0"
+                                                                   Visibility="{Binding CanAdd, Converter={StaticResource BoolVisible}}"
+                                                                   Command="{Binding DataContext.Graphics.AddRunningCommand,
+                                                                                     RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                   CommandParameter="{Binding}">
+                                                            <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                                                        </ui:Button>
+                                                    </StackPanel>
                                                 </Grid>
                                             </Border>
                                         </DataTemplate>

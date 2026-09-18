@@ -41,6 +41,7 @@ FanSpeedPercentTests.Run();
 BatteryRuntimeTests.Run();
 GpuActivityTests.Run();
 TrayStatusTests.Run();
+await ProgramCloserTests.RunAsync();
 KeyboardEffectFrameTests.Run();
 KeyboardLayoutTests.Run();
 AppDataTests.Run();

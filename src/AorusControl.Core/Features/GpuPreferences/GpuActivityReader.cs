@@ -10,10 +10,13 @@ namespace AorusControl.Core.Features.GpuPreferences;
 public sealed record GpuContext(int ProcessId, string Program, string? Path, bool IsNvidia);
 
 /// <summary>One program, and the chip it is actually using.</summary>
-/// <param name="Processes">How many of its processes hold a context; browsers and Electron
-/// apps run several, and listing each one separately would bury everything else.</param>
-public sealed record GpuUser(string Program, string Path, bool IsNvidia, int Processes)
+/// <param name="ProcessIds">Every process of it that holds a context. Browsers and Electron
+/// apps run several, and listing each one separately would bury everything else - but closing
+/// the program means closing all of them, so the ids are kept rather than just counted.</param>
+public sealed record GpuUser(string Program, string Path, bool IsNvidia, IReadOnlyList<int> ProcessIds)
 {
+    public int Processes => ProcessIds.Count;
+
     /// <summary>Store apps are addressed by package id, not by path. Windows keeps their
     /// graphics preference under that id, so handing this path to the registry would write an
     /// entry nothing ever reads - the program search is the way in for these.</summary>
@@ -41,13 +44,20 @@ public interface IGpuActivityReader
 /// </summary>
 public static class GpuActivitySummary
 {
-    public static IReadOnlyList<GpuUser> From(IEnumerable<GpuContext> contexts, string? windowsDirectory = null)
+    /// <param name="ownPath">This app's own executable. It uses the Intel chip and appears in
+    /// the list like anything else, which would be an odd thing to offer to close from inside
+    /// itself.</param>
+    public static IReadOnlyList<GpuUser> From(IEnumerable<GpuContext> contexts,
+        string? windowsDirectory = null, string? ownPath = null)
     {
         ArgumentNullException.ThrowIfNull(contexts);
         string windows = windowsDirectory ?? Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        string? own = ownPath ?? Environment.ProcessPath;
 
         return contexts
-            .Where(context => context.Path is { Length: > 0 } path && !Under(path, windows))
+            .Where(context => context.Path is { Length: > 0 } path
+                && !Under(path, windows)
+                && !path.Equals(own, StringComparison.OrdinalIgnoreCase))
             .GroupBy(context => context.Path!, StringComparer.OrdinalIgnoreCase)
             .Select(program => new GpuUser(
                 program.First().Program,
@@ -55,7 +65,7 @@ public static class GpuActivitySummary
                 // A program on both chips is on the discrete one as far as this list is
                 // concerned: that is the state worth knowing and worth changing.
                 program.Any(context => context.IsNvidia),
-                program.Select(context => context.ProcessId).Distinct().Count()))
+                program.Select(context => context.ProcessId).Distinct().ToArray()))
             // The RTX users first - they are the ones the page exists for.
             .OrderByDescending(program => program.IsNvidia)
             .ThenBy(program => program.Program, StringComparer.CurrentCultureIgnoreCase)
