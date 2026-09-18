@@ -40,7 +40,7 @@ Dazu drei Regeln, die genauso viel wert sind wie die Tabelle:
 | Helligkeit, Tempo, Ladelimit | `Slider` | richtig - Werte aus einem Bereich |
 | **Ladelimit ein/aus** | **war ein Knopf „Standardladen"** | **falsch, korrigiert** |
 
-### Der eine echte Fehlgriff
+### Der erste echte Fehlgriff: das Ladelimit
 
 „Standardladen" war ein Knopf für einen von zwei sich ausschließenden Zuständen. Die Folgen
 waren alle drei Regeln auf einmal:
@@ -53,6 +53,44 @@ waren alle drei Regeln auf einmal:
 Jetzt trägt ein Schalter „Ladelimit" den Zustand, und der Regler ist seine Unteroption - unter
 Standardladen ausgegraut. „Erneut lesen" bleibt ein Knopf: das ist eine Handlung, kein
 Zustand.
+
+### Der zweite: der festgesetzte Lüfter
+
+Dasselbe Muster, eine Karte weiter. „Fixed aktivieren" war ein Knopf, und der Abschnitt hatte
+keinen Ausgang: Wer die Lüfter wieder freigeben wollte, musste wissen, dass ein Profil-Chip
+weiter oben die Sperre nebenbei mit freigibt.
+
+Von allen Zuständen, in die diese App das Gerät bringen kann, ist ein temperaturunabhängig
+festgehaltener Lüfter derjenige, der am dringendsten ablesbar und von dort aus umkehrbar sein
+muss. Jetzt ein Schalter, der zugleich die Überschrift des Abschnitts ist.
+
+Ein Unterschied zum Ladelimit: Dort ist der Regler unter „aus" gesperrt, weil es nichts zu
+setzen gibt. Hier bleibt er bedienbar - der Wert ist das, was man gleich anwenden *wird*,
+nicht eine Einstellung ohne Wirkung.
+
+### Weitere Logikfunde aus demselben Durchgang
+
+| Fund | Warum es falsch war |
+| --- | --- |
+| „Was du selbst in Windows umstellst, wird nicht überschrieben" | galt nur bis zum nächsten App-Start: der zuletzt geschriebene Wert lag in einem Dictionary im Speicher. Jetzt steht er beim Programm und wird mitgespeichert. |
+| Der Ladelimit-Schalter schrieb direkt zum Controller | Ein Umlegen während eines laufenden Lesevorgangs fiel ersatzlos weg, und der Schalter zeigte danach einen Zustand, nach dem nie jemand gefragt hatte. Jetzt dieselbe Warteschlange wie der Regler. |
+| „Automatik aus · die aktuellen Einstellungen bleiben stehen" | ließ die naheliegende Frage offen: Eine Regel, die man bei ausgeschalteter Automatik wählt, wird gespeichert und tut nichts. Wer auf eine Wirkung wartet, hält das Auswahlfeld für kaputt. |
+
+## Prozesse beenden
+
+Auf der Liste „Wer benutzt welche Grafikkarte" steht jetzt je RTX-Zeile ein Knopf zum Beenden.
+Das widerspricht nicht der Festlegung in `GPU-AC-BATTERY-PREFERENCES.md`, keine Prozesse zu
+beenden: Die betraf die App, die das **von sich aus** tut. Hier liest der Nutzer, was die Karte
+wachhält, benennt eines davon und bestätigt.
+
+Wie es beendet wird, wird nicht verschleiert: Ein Programm mit Fenster wird **gebeten** - es
+kann nachfragen und speichern. Ein Hintergrunddienst hat nichts, was man fragen könnte, und
+wird nach Ablauf der Frist beendet. Das Ergebnis unterscheidet beides, weil „geschlossen" und
+„abgeschossen" verschiedene Nachrichten sind.
+
+Angeboten wird es nur auf den RTX-Zeilen. Ein Programm auf der Intel-Grafik hält die Karte
+nicht wach; es zu beenden bringt nichts und riskiert nur fremde ungespeicherte Arbeit. Die App
+selbst steht gar nicht mehr auf der Liste.
 
 ## Was bewusst nicht geändert wurde
 
