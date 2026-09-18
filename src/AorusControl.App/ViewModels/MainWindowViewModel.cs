@@ -115,7 +115,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         Action? releasePower = null,
         IGpuPreferenceStore? gpuPreferenceStore = null,
         IGpuPreferenceSettingsStore? gpuPreferenceSettings = null,
-        Func<LaptopPowerSource>? readPowerSource = null)
+        Func<LaptopPowerSource>? readPowerSource = null,
+        IGpuActivityReader? gpuActivity = null)
     {
         _reader = reader;
         _readPower = readPower;
@@ -138,7 +139,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         Graphics = new GpuPreferenceViewModel(
             gpuPreferenceStore ?? new WindowsGpuPreferenceStore(),
             gpuPreferenceSettings ?? new GpuPreferenceSettingsStore(AppData.File("gpu-preferences-v1.json")),
-            readPowerSource ?? powerOverlay.ReadPowerSource);
+            readPowerSource ?? powerOverlay.ReadPowerSource,
+            gpuActivity);
         Updates = new UpdateViewModel();
         _timer = new DispatcherTimer(DispatcherPriority.Background)
         {

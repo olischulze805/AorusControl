@@ -61,6 +61,7 @@ var thread = new Thread(() =>
         RenderMainWindow(output);
         RenderDashboardLive(output);
         RenderCoolingStates(output);
+        RenderGraphicsPage(output);
         RenderToolTip(output);
         Console.WriteLine("PASS: main window laid out at every checked width; no native window or hardware started.");
         app.Shutdown();
@@ -94,6 +95,34 @@ static void RenderMainWindow(string output)
             Layout(content, width, 1500);
             Save(content, output, $"main-{section.ToLowerInvariant()}-{width}.png", width, 1500);
         }
+    }
+}
+
+/// <summary>
+/// The graphics page with both its lists filled.
+///
+/// The plain render above shows it empty, which is exactly the state that would hide a broken
+/// binding: no rows means no drop-downs, and the two per-program rules live in drop-downs. A
+/// row here that comes out without its chip selected is the failure this render is for.
+/// </summary>
+static void RenderGraphicsPage(string output)
+{
+    var vm = new MainWindowViewModel(new StubReader(), new StubKeyboard(), new StubFan(), new WindowsPowerOverlayController(),
+        batteryController: new StubBattery(), fanCurveStore: new StubCurveStore(), startupManager: new StubStartup(),
+        gpuPreferenceStore: new StubGpuRegistry(), gpuPreferenceSettings: new StubGpuSettings(),
+        readPowerSource: () => AorusControl.Core.Features.PowerProfiles.LaptopPowerSource.Battery,
+        gpuActivity: new StubGpuActivity());
+    vm.Graphics.StartAsync().GetAwaiter().GetResult();
+    vm.Graphics.RefreshRunningCommand.ExecuteAsync().GetAwaiter().GetResult();
+
+    var window = new MainWindow(vm);
+    var content = (FrameworkElement)window.Content;
+    content.DataContext = vm;
+    vm.SelectedSection = "Power";
+    foreach (int width in new[] { 720, 1600 })
+    {
+        Layout(content, width, 1900);
+        Save(content, output, $"main-power-filled-{width}.png", width, 1900);
     }
 }
 
@@ -309,4 +338,49 @@ sealed class StubStartup : AorusControl.Core.Features.Startup.IStartupManager
     public Task<bool> RepairAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
     public Task EnableAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task DisableAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+}
+
+// The graphics card's two lists, filled from memory. Both stubs matter: with the real ones
+// the render would write into this machine's own Windows graphics preferences.
+sealed class StubGpuRegistry : AorusControl.Core.Features.GpuPreferences.IGpuPreferenceStore
+{
+    private readonly Dictionary<string, string> _entries = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [@"C:\Program Files\Steam\steamapps\common\theHunter\theHunter.exe"] = "GpuPreference=2;",
+        [@"C:\Program Files\Mozilla Firefox\firefox.exe"] = "GpuPreference=1;"
+    };
+
+    public IReadOnlyList<AorusControl.Core.Features.GpuPreferences.GpuPreferenceProgram> List() =>
+        _entries.Select(entry => new AorusControl.Core.Features.GpuPreferences.GpuPreferenceProgram(entry.Key, entry.Value)).ToArray();
+
+    public AorusControl.Core.Features.GpuPreferences.GpuPreferenceProgram? Find(string name) =>
+        _entries.TryGetValue(name, out string? raw)
+            ? new AorusControl.Core.Features.GpuPreferences.GpuPreferenceProgram(name, raw)
+            : null;
+
+    public void Set(string name, AorusControl.Core.Features.GpuPreferences.GpuPreference preference) =>
+        _entries[name] = AorusControl.Core.Features.GpuPreferences.GpuPreferenceText.With(_entries.GetValueOrDefault(name), preference);
+}
+
+sealed class StubGpuSettings : AorusControl.Core.Features.GpuPreferences.IGpuPreferenceSettingsStore
+{
+    public IReadOnlyList<AorusControl.Core.Features.GpuPreferences.ManagedProgram> Load() =>
+    [
+        new(@"C:\Program Files\Steam\steamapps\common\theHunter\theHunter.exe", null),
+        new(@"C:\Program Files\Mozilla Firefox\firefox.exe", null,
+            OnAc: AorusControl.Core.Features.GpuPreferences.GpuPreference.Integrated,
+            OnBattery: AorusControl.Core.Features.GpuPreferences.GpuPreference.Integrated)
+    ];
+
+    public void Save(IReadOnlyList<AorusControl.Core.Features.GpuPreferences.ManagedProgram> programs) { }
+}
+
+sealed class StubGpuActivity : AorusControl.Core.Features.GpuPreferences.IGpuActivityReader
+{
+    public IReadOnlyList<AorusControl.Core.Features.GpuPreferences.GpuUser>? Read() =>
+    [
+        new("theHunter", @"C:\Program Files\Steam\steamapps\common\theHunter\theHunter.exe", IsNvidia: true, Processes: 1),
+        new("Claude", @"C:\Program Files\WindowsApps\Claude_2.2553.1.0_x64__pzs8sxrjxfjjc\app\Claude.exe", IsNvidia: true, Processes: 2),
+        new("firefox", @"C:\Program Files\Mozilla Firefox\firefox.exe", IsNvidia: false, Processes: 4)
+    ];
 }

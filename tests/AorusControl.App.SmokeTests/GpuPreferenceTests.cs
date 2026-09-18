@@ -44,6 +44,7 @@ internal static class GpuPreferenceTests
             "the summary counts the one program on the discrete card");
         Check(module.Running[0].CanAdd, "an unmanaged, non-Store program can be taken over from here");
         Check(module.Running[1].Detail.Contains("2 Prozesse"), "several processes of one program are said once");
+        Check(!module.Running[1].Detail.Contains(@"C:\"), "the path stays on the tooltip - it wraps to three lines otherwise");
 
         await module.AddAsync(game);
         Check(registry.Find(game)!.Preference == GpuPreference.Nvidia, "a program added on mains goes to the RTX");

@@ -81,14 +81,16 @@ public sealed class GpuUsageViewModel(GpuUser user, bool managed)
     public bool IsNvidia { get; } = user.IsNvidia;
     public string Chip { get; } = user.IsNvidia ? "RTX 3070" : "Intel-Grafik";
 
+    /// <summary>The line under the name. Deliberately without the path: a Store app's path
+    /// runs to three wrapped lines at the narrowest window width and buries everything worth
+    /// reading. It is on the row's tooltip, where looking for it costs nothing.</summary>
     public string Detail { get; } = string.Join(" · ", new[]
     {
         user.Processes > 1 ? $"{user.Processes} Prozesse" : null,
         managed ? "wird schon verwaltet" : null,
         // The registry keeps a Store app's preference under its package id, so writing this
         // path would leave an entry nothing ever reads. The program search knows the ids.
-        user.IsStoreApp && !managed ? "Store-App · über „Programm suchen“ hinzufügen" : null,
-        user.Path
+        user.IsStoreApp && !managed ? "Store-App · über „Programm suchen“ hinzufügen" : null
     }.Where(part => part is { Length: > 0 }));
 
     /// <summary>Only a program that can actually be assigned gets the button.</summary>

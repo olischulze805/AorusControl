@@ -813,8 +813,11 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="Wer benutzt gerade welche Grafikkarte" Style="{StaticResource CardTitle}" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,12,0">
+                                        <!-- Gekürzt, sonst läuft der Titel bei 720 Pixeln unter
+                                             den Knopf rechts daneben. -->
+                                        <TextBlock Text="Wer benutzt welche Grafikkarte" Style="{StaticResource CardTitle}"
+                                                   TextTrimming="CharacterEllipsis" />
                                         <ui:SymbolIcon Style="{StaticResource InfoDot}"
                                                        ToolTip="Gelesen aus den Leistungsindikatoren des Grafikkerns, nicht aus dem NVIDIA-Treiber - eine schlafende Karte bleibt dabei schlafen. Ein Programm steht hier, sobald es einen Grafikkontext auf einem Chip hält; auf der RTX hält es sie damit wach, auch bei null Prozent Last. Windows' eigene Komponenten sind ausgeblendet, weil ihnen keine Grafikkarte zugewiesen werden kann." />
                                     </StackPanel>
@@ -960,23 +963,27 @@
                                                         <!-- Zwei Regeln pro Programm: ein Browser gehört auch am Netz
                                                              auf die Intel-Grafik, ein Spiel auch am Akku auf die RTX.
                                                              Die feste Kopplung konnte beides nicht. -->
-                                                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0"
-                                                                    Visibility="{Binding HasRules, Converter={StaticResource BoolVisible}}">
-                                                            <StackPanel Margin="0,0,14,0">
+                                                        <!-- WrapPanel, nicht nebeneinander erzwungen: bei 720
+                                                             Pixeln bleibt neben dem Entfernen-Knopf keine Breite
+                                                             für zwei Felder, und eines abgeschnitten ist
+                                                             schlimmer als zwei untereinander. -->
+                                                        <WrapPanel Margin="0,10,0,-10"
+                                                                   Visibility="{Binding HasRules, Converter={StaticResource BoolVisible}}">
+                                                            <StackPanel Margin="0,0,14,10">
                                                                 <TextBlock Text="AM NETZ" Style="{StaticResource TileLabel}" />
-                                                                <ComboBox Margin="0,4,0,0" MinWidth="160"
+                                                                <ComboBox Margin="0,4,0,0" MinWidth="150"
                                                                           ItemsSource="{Binding Choices}"
                                                                           DisplayMemberPath="Text" SelectedValuePath="Value"
                                                                           SelectedValue="{Binding OnAc, Mode=TwoWay}" />
                                                             </StackPanel>
-                                                            <StackPanel>
+                                                            <StackPanel Margin="0,0,0,10">
                                                                 <TextBlock Text="AM AKKU" Style="{StaticResource TileLabel}" />
-                                                                <ComboBox Margin="0,4,0,0" MinWidth="160"
+                                                                <ComboBox Margin="0,4,0,0" MinWidth="150"
                                                                           ItemsSource="{Binding Choices}"
                                                                           DisplayMemberPath="Text" SelectedValuePath="Value"
                                                                           SelectedValue="{Binding OnBattery, Mode=TwoWay}" />
                                                             </StackPanel>
-                                                        </StackPanel>
+                                                        </WrapPanel>
                                                     </StackPanel>
                                                     <ui:Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Content="Entfernen"
                                                                VerticalAlignment="Top" Margin="14,0,0,0"
