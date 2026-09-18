@@ -140,7 +140,7 @@ public sealed class WindowsSettingsViewModel : ObservableObject, IFeatureModule
             if (actual != GuidFor(mode))
                 throw new InvalidOperationException(Strings.Current.Format("Win_ReadbackMismatch", actual));
             ActivePowerMode = mode.ToString();
-            PowerStatus = $"Aktiv: {Describe(mode)} (Netzbetrieb)";
+            PowerStatus = Strings.Current.Format("Pwr_ActiveOnMains", Describe(mode));
         }
         catch (Exception exception)
         {
@@ -203,7 +203,7 @@ public sealed class WindowsSettingsViewModel : ObservableObject, IFeatureModule
             }
             Guid current = await Task.Run(_overlay.ReadActiveForCurrentPowerSource);
             ActivePowerMode = KeyFor(current);
-            PowerStatus = $"Aktiv: {DescribeGuid(current)} (Netzbetrieb)";
+            PowerStatus = Strings.Current.Format("Pwr_ActiveOnMains", DescribeGuid(current));
             PowerControlsEnabled = true;
         }
         catch (Exception exception)

@@ -297,5 +297,12 @@ internal static class GermanStrings
             ["Saver_Savings"] = "Bildschirm auf {0} % spart etwa 3 W. Der CPU-Deckel auf {1} % bringt im Leerlauf nichts - erst unter Last, und dann auf Kosten der Reaktionszeit.",
             ["Saver_Title"] = "Akku sparen",
             ["Tip_BatterySaver"] = "Gilt nur im Akkubetrieb: Geschrieben wird ausschliesslich die Akku-Seite. Am Netz verhält sich das Gerät genau wie vorher, der Schalter kann also anbleiben. AORUS Control legt dafür eine Kopie deines Energiesparplans an und wechselt darauf - dein eigener Plan wird nie verändert. Ausschalten wechselt zurück und löscht die Kopie.",
+            ["Key_LightingOff"] = "Beleuchtung aus · Auswahl bleibt gespeichert",
+            ["Key_PaletteSaved"] = "Gespeicherte manuelle Farben",
+            ["Key_TurnOff"] = "Ausschalten",
+            ["Key_TurnOn"] = "Einschalten",
+            ["Common_Active"] = "Aktiv: {0}",
+            ["Fan_CurveFromFirmwareNone"] = "Aktuelle Firmware-Kurve geladen. Noch keine eigene Kurve gespeichert.",
+            ["Pwr_ActiveOnMains"] = "Aktiv: {0} (Netzbetrieb)",
         };
 }

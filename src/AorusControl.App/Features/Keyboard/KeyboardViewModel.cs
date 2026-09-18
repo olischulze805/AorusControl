@@ -40,7 +40,7 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
     private KeyboardRgbEffect? _activeEffect;
     private KeyboardRgbEffect _selectedEffect = KeyboardRgbEffect.Breathing;
     private KeyboardRgbColor _zone1 = new(0, 255, 0), _zone2 = new(0, 255, 0), _zone3 = new(0, 255, 0);
-    private string _paletteHint = "Gespeicherte manuelle Farben";
+    private string _paletteHint = Strings.Current["Key_PaletteSaved"];
     private string _status = Strings.Current["Key_Checking"];
     private MediaBrush _previewZone1 = CreateBrush(new(0, 0, 0));
     private MediaBrush _previewZone2 = CreateBrush(new(0, 0, 0));
@@ -99,7 +99,7 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
     public string BrightnessEventStatus { get => _brightnessEventStatus; private set => SetProperty(ref _brightnessEventStatus, value); }
     public bool ControlsEnabled { get => _controlsEnabled; private set => SetProperty(ref _controlsEnabled, value); }
     public bool PowerOn { get => _powerOn; private set => SetProperty(ref _powerOn, value); }
-    public string PowerButtonText => PowerOn ? "Ausschalten" : "Einschalten";
+    public string PowerButtonText => PowerOn ? Strings.Current["Key_TurnOff"] : Strings.Current["Key_TurnOn"];
 
     /// <summary>The state itself, for places that report rather than offer to change it.</summary>
     public string PowerStateText => PowerOn ? Strings.Current["Common_On"] : Strings.Current["Common_Off"];
@@ -237,7 +237,7 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
         ? Strings.Current.Format("Key_Running",
             _activeEffect is { } effect ? GetEffectName(effect) : Strings.Current["Key_ManualZoneColours"],
             DescribeSpeed(Speed), DescribeBrightness(Brightness))
-        : "Beleuchtung aus · Auswahl bleibt gespeichert";
+        : Strings.Current["Key_LightingOff"];
 
     public KeyboardRgbColor GetZoneColor(int zone) => zone switch
     {

@@ -297,5 +297,12 @@ internal static class EnglishStrings
             ["Saver_Savings"] = "The screen at {0} % saves about 3 W. The CPU cap at {1} % does nothing at idle - only under load, and then at the cost of responsiveness.",
             ["Saver_Title"] = "Battery saver",
             ["Tip_BatterySaver"] = "Battery only: only the battery side is written. On mains the machine behaves exactly as before, so the switch can stay on. AORUS Control copies your power plan and switches to the copy - your own plan is never changed. Turning it off switches back and deletes the copy.",
+            ["Key_LightingOff"] = "Lighting off · the selection stays saved",
+            ["Key_PaletteSaved"] = "Saved manual colours",
+            ["Key_TurnOff"] = "Turn off",
+            ["Key_TurnOn"] = "Turn on",
+            ["Common_Active"] = "Active: {0}",
+            ["Fan_CurveFromFirmwareNone"] = "The current firmware curve is loaded. No curve of your own is saved yet.",
+            ["Pwr_ActiveOnMains"] = "Active: {0} (on mains)",
         };
 }

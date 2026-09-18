@@ -138,10 +138,51 @@ ist der teure Teil. Ein eigener Plan hat sie geschenkt.
 - **Keine Zahl ohne Messung.** Wenn ein Hebel auf diesem Gerät nichts bringt, steht das an
   ihm dran. Der CPU-Deckel bringt im Leerlauf nichts, und das ist der häufigste Zustand.
 
+## Umgesetzt in 0.5.7
+
+Gebaut wie oben unter **A** vorgeschlagen, und am Gerät durchprobiert.
+
+| Teil | Wo |
+| --- | --- |
+| `PowerSchemeWriter` | `PowerDuplicateScheme`, `PowerWriteDCValueIndex`, `PowerReadDCValueIndex`, `PowerSetActiveScheme`, `PowerDeleteScheme` - jeder Schreibvorgang mit Rücklesen |
+| `BatterySaverPlan` | welche Hebel, welche Untergrenzen, und was jeder gemessen wert ist |
+| `BatterySaver` | Kopie anlegen, hineinschreiben, aktivieren; beim Ausschalten zurück und Kopie löschen |
+| `BatterySaverSettings` | gespeicherte Werte plus die Kennung einer Kopie, die ein abgestürzter Lauf hinterlassen hat |
+| Karte unter „Leistung & Akku" | Schalter, zwei Regler, und daneben was die Hebel bringen |
+
+### Was der Versuch am Gerät ergab
+
+```
+Vorher aktiv : 381b4222-...  (Ausbalanciert)
+Eingeschaltet: 2b959a6d-...  (eine Kopie)
+   30 %  ~3 W          (Bildschirm)
+   50 %  im Leerlauf nichts   (CPU-Deckel)
+Original unveraendert: CPU 100 %, Helligkeit 20 %
+Ausgeschaltet: 381b4222-...  (wieder das Original)
+```
+
+Der eigene Plan des Nutzers wird also wirklich nie angefasst.
+
+### Zwei Entscheidungen, die sich beim Bauen ergaben
+
+**Keine Automatik nötig.** Geschrieben wird ausschliesslich die Akku-Seite. Am Netz verhält
+sich das Gerät deshalb exakt wie vorher - der Schalter kann einfach anbleiben. Damit
+entfallen die Bedingung „nur im Akkubetrieb", die Gigabyte hatte, und die ganze Logik dahinter.
+
+**Beim Schliessen bleibt er an.** Das ist eine Einstellung, keine Sperre wie beim
+festgesetzten Lüfter. Ein Fenster zu schliessen darf das Gerät nicht stillschweigend auf
+einen durstigeren Plan zurücksetzen.
+
+### Aufräumen nach einem Absturz
+
+Die Kennung der angelegten Kopie steht in der Einstellungsdatei. Wird die App abgeschossen,
+während der Sparmodus läuft, findet der nächste Start den Eintrag und löscht ihn - sofern er
+nicht gerade der aktive ist. Übrig bliebe sonst ein unbenutzter Eintrag in Windows'
+Planliste: harmlos, aber unordentlich, und unordentlich ist, wie man das Vertrauen in ein
+Programm verliert, das an Systemeinstellungen schreibt.
+
 ## Offen
 
-- `PowerWriteDCValueIndex` auf einem duplizierten Plan ist noch nicht an diesem Gerät
-  ausprobiert. Schritt 1 ist genau dieser Versuch.
 - Ob die Bildschirmhelligkeit über den Energieplan mit der Helligkeitstaste des Geräts
   kollidiert, ist ungeprüft. Gigabyte hat es so gemacht, was ein Indiz ist, kein Beleg.
 - Wie viel der CPU-Deckel unter realer Last bringt, ist auf diesem Gerät nicht gemessen. Vor

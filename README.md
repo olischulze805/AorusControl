@@ -79,9 +79,14 @@ happen.
 
 ### Power &amp; battery
 
-The Windows power mode with what it actually changes written next to it, and a charge limit
-that survives a restart *and* a suspend — the controller loses it, so the app checks and puts
-it back.
+The Windows power mode, a battery saver, and a charge limit that survives a restart *and* a
+suspend — the controller loses it, so the app checks and puts it back.
+
+The saver caps the screen and the processor on battery, and says what each is worth here: the
+panel is worth about 3 W, the processor cap nothing at idle. It works on a **copy** of your
+power plan and switches to it, so your own plans are never written to — turning it off goes
+back and deletes the copy. Only the battery side is written, so on mains the machine behaves
+exactly as before and the switch can simply stay on.
 
 <img src="docs/screenshots/power.png" width="820" alt="Power and battery: Windows power mode and the charge limit">
 

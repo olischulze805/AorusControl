@@ -634,7 +634,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
             IReadOnlyList<FanCurvePoint>? saved = _curveStore.Load();
             PopulateCurveRows(saved ?? liveCurve);
             CurveStatus = saved is null
-                ? "Aktuelle Firmware-Kurve geladen. Noch keine eigene Kurve gespeichert."
+                ? Strings.Current["Fan_CurveFromFirmwareNone"]
                 : Strings.Current["Curve_SavedLoaded"];
         }
         catch (Exception exception)
@@ -682,7 +682,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         FixedFanRaw = state.FixedSpeedRaw is >= 57 and <= 229 ? checked((byte)state.FixedSpeedRaw) : FixedFanRaw;
         ActiveProfile = DescribeFanProfileKey(state);
         foreach (string derived in CurveView) OnPropertyChanged(derived);
-        Status = $"Aktiv: {profile}";
+        Status = Strings.Current.Format("Common_Active", profile);
         StatusDetail = $"EC-Statusbits · Fixed {state.FixedStatusRaw} · Step {state.StepStatusRaw} · " +
             $"Auto {state.AutoStatusRaw} · Thermal {state.NvidiaThermalTargetRaw}";
         OnPropertyChanged(nameof(Summary));
