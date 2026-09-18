@@ -86,7 +86,7 @@ static void RenderMainWindow(string output)
     // 720 is the narrowest the window can be dragged to; 1600 is a maximised 1080p screen.
     foreach (int width in new[] { 720, 1000, 1600 })
     {
-        foreach (string section in new[] { "Dashboard", "Cooling", "Lighting", "Power", "About" })
+        foreach (string section in new[] { "Dashboard", "Cooling", "Lighting", "Power", "Graphics", "About" })
         {
             vm.SelectedSection = section;
             // Tall enough that a section fits without scrolling: the point is to see the
@@ -118,11 +118,11 @@ static void RenderGraphicsPage(string output)
     var window = new MainWindow(vm);
     var content = (FrameworkElement)window.Content;
     content.DataContext = vm;
-    vm.SelectedSection = "Power";
+    vm.SelectedSection = "Graphics";
     foreach (int width in new[] { 720, 1600 })
     {
         Layout(content, width, 1900);
-        Save(content, output, $"main-power-filled-{width}.png", width, 1900);
+        Save(content, output, $"main-graphics-filled-{width}.png", width, 1900);
     }
 }
 

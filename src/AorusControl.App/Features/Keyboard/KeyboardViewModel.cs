@@ -32,7 +32,7 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
     private KeyboardBrightnessLevel? _pendingBrightness;
     private bool _drainingBrightness;
     private bool _busy, _initialized, _closing, _disposed, _visible;
-    private string _brightnessEventStatus = "Fn+Space-Ereignisleser nicht gestartet";
+    private string _brightnessEventStatus = string.Empty;
     private bool _controlsEnabled, _powerOn, _modeIsEffect, _linkZones, _effectRunning;
     private KeyboardBrightnessLevel _brightness = KeyboardBrightnessLevel.High;
     private KeyboardEffectSpeed _speed = KeyboardEffectSpeed.Normal;
@@ -89,6 +89,12 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
     /// screen and the window is visible. An animation nobody looks at is battery drain.</summary>
     public bool IsVisible { set { _visible = value; UpdatePreviewTimer(); } }
 
+    /// <summary>
+    /// Only shown when something is wrong with the Fn+Space handover. It used to carry a
+    /// running commentary - "Ereignisleser wird gestartet", "Ereignis empfangen" - which named
+    /// an internal component at the user and stood there permanently saying that everything
+    /// was normal. Working is the normal case and needs no line.
+    /// </summary>
     public string BrightnessEventStatus { get => _brightnessEventStatus; private set => SetProperty(ref _brightnessEventStatus, value); }
     public bool ControlsEnabled { get => _controlsEnabled; private set => SetProperty(ref _controlsEnabled, value); }
     public bool PowerOn { get => _powerOn; private set => SetProperty(ref _powerOn, value); }
@@ -354,7 +360,7 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
         if (_brightnessListenerTask is not null)
         {
             await _brightnessListenerTask;
-            BrightnessEventStatus = "Fn+Space-Ereignisleser beendet.";
+            BrightnessEventStatus = string.Empty;
         }
         await _brightnessDrainTask;
     }
@@ -428,7 +434,7 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
 
     private async Task ListenForBrightnessAsync()
     {
-        BrightnessEventStatus = "Fn+Space-Ereignisleser wird gestartet; noch kein Ereignis empfangen";
+        BrightnessEventStatus = string.Empty;
         try
         {
             CancellationToken token = _brightnessCancellation.Token;
@@ -438,7 +444,7 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
             })), (error, pause) => _dispatcher.BeginInvoke(new Action(() =>
             {
                 if (!token.IsCancellationRequested && !_disposed)
-                    BrightnessEventStatus = $"Fn+Space nicht verbunden; neuer Versuch in {pause.TotalSeconds:0} s: {error.Message}";
+                    BrightnessEventStatus = $"Fn+Space wird nicht mitbekommen; neuer Versuch in {pause.TotalSeconds:0} s.";
             })), token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (_brightnessCancellation.IsCancellationRequested) { }
@@ -446,7 +452,7 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
         {
             _ = _dispatcher.BeginInvoke(new Action(() =>
             {
-                if (!_disposed) BrightnessEventStatus = "Fn+Space-Synchronisierung nicht verfügbar: " + error.Message;
+                if (!_disposed) BrightnessEventStatus = "Fn+Space wird nicht mitbekommen: " + error.Message;
             }));
         }
     }
@@ -470,19 +476,19 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
                 // Only wait while an event is pending; no idle polling.
                 while (_busy && !_closing && !_disposed) await Task.Delay(25);
                 if (_closing || _disposed) break;
-                if (!ControlsEnabled) { BrightnessEventStatus = "Fn+Space erkannt; RGB-Steuerung nicht bereit."; break; }
+                if (!ControlsEnabled) { BrightnessEventStatus = "Fn+Space erkannt, aber die Beleuchtung ist gerade nicht steuerbar."; break; }
                 var level = _pendingBrightness.Value;
                 _pendingBrightness = null;
                 if (level == Brightness)
                 {
-                    BrightnessEventStatus = "Fn+Space-Ereignis empfangen; Helligkeit bereits aktuell.";
+                    BrightnessEventStatus = string.Empty;
                     continue; // Avoid feedback writes and repeated disk saves for identical reports.
                 }
                 await ChangeAsync(s => s.WithBrightness(level));
-                BrightnessEventStatus = "Fn+Space-Ereignis verarbeitet; RGB-Ergebnis siehe Status oben.";
+                BrightnessEventStatus = string.Empty;
             }
         }
-        catch (Exception error) { BrightnessEventStatus = "Fn+Space-Übernahme fehlgeschlagen: " + error.Message; }
+        catch (Exception error) { BrightnessEventStatus = "Fn+Space konnte nicht übernommen werden: " + error.Message; }
         finally { _pendingBrightness = null; _drainingBrightness = false; }
     }
 

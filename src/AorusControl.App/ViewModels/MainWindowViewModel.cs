@@ -400,7 +400,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         ClearPowerDisplay();
         Keyboard.IsVisible = _dashboardVisible && SelectedSection == "Lighting";
-        Graphics.IsVisible = _dashboardVisible && SelectedSection == "Power";
+        Graphics.IsVisible = _dashboardVisible && SelectedSection == "Graphics";
         _timer.Interval = TimeSpan.FromSeconds(_dashboardVisible && SelectedSection == "Cooling" ? 1 : 2);
     }
 

@@ -390,7 +390,7 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
                 ? "Noch keine Programme ausgewählt."
                 : _source == LaptopPowerSource.Unknown
                     ? "Windows meldet die Stromquelle nicht; es wurde nichts geändert."
-                    : $"{reason} · {written} von {_managed.Count} umgestellt. Wirkt beim nächsten Start des Programms.";
+                    : $"{reason} · {written} von {_managed.Count} umgestellt · wirkt beim nächsten Programmstart";
         }
         finally { _busy = false; Show(); }
     }
@@ -493,13 +493,13 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
             {
                 null when entry is { IsManageable: false } => "feste Grafikkarte in Windows gewählt",
                 null => "keine Einstellung in Windows",
-                { } set => $"steht auf {GpuChoice.Name(set)}"
+                { } set => $"jetzt {GpuChoice.Name(set)}"
             };
             // What the rules would give it right now. A value somewhere else than that, which
             // this app did not put there, was somebody's own decision and stays.
             if (entry?.Preference is { } now && _source != LaptopPowerSource.Unknown
                 && now != program.For(_source) && _automatic)
-                state += " · von Hand geändert, wird nicht überschrieben";
+                state += " · von Hand geändert, bleibt so";
             Programs.Add(new GpuProgramViewModel(program, state,
                 (onAc, onBattery) => ChangeRulesAsync(program, onAc, onBattery)));
         }

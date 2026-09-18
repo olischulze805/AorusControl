@@ -23,6 +23,7 @@
         <infra:ActiveOpacityConverter x:Key="ActiveOpacity" />
         <infra:TemperatureBrushConverter x:Key="TemperatureBrush" />
         <infra:PowerFlowAccentConverter x:Key="FlowAccent" />
+        <infra:TextVisibilityConverter x:Key="TextVisible" />
     </ui:FluentWindow.Resources>
 
     <Grid>
@@ -55,6 +56,9 @@
                 </ui:NavigationViewItem>
             </ui:NavigationView.MenuItems>
             <ui:NavigationView.FooterMenuItems>
+                <ui:NavigationViewItem Content="Grafik" TargetPageTag="Graphics" TargetPageType="{x:Type ctrl:GraphicsPage}">
+                    <ui:NavigationViewItem.Icon><ui:SymbolIcon Symbol="Desktop24" /></ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
                 <ui:NavigationViewItem Content="Info &amp; Updates" TargetPageTag="About" TargetPageType="{x:Type ctrl:AboutPage}">
                     <ui:NavigationViewItem.Icon><ui:SymbolIcon Symbol="Info24" /></ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
@@ -188,6 +192,7 @@
                                              keine hergibt, statt eine alte stehenzulassen. -->
                                         <TextBlock Text="{Binding PowerFlowRuntime}" Style="{StaticResource TileValueSmall}"
                                                    Margin="0,6,0,0"
+                                                   Visibility="{Binding PowerFlowRuntime, Converter={StaticResource TextVisible}}"
                                                    ToolTip="Gerechnet aus der verbleibenden Kapazität und dem Mittel der letzten drei Minuten - nicht aus der Momentanrate, die zwischen ruhendem Bildschirm und scrollender Seite um das Doppelte springt. Windows' eigene Schätzung meldet dieses Gerät als unbekannt. Beim Laden zählt die Zeit bis zum eingestellten Ladelimit, nicht bis 100 %." />
                                     </StackPanel>
                                     <!-- Gedeckelt, aber ohne eigene Ausrichtung: eine 900 Pixel
@@ -203,7 +208,8 @@
                                                     ToolTip="Die letzten drei Minuten, Skala 0 bis 90 W. Beim Wechsel zwischen Laden und Entladen fängt die Linie neu an - es sind zwei verschiedene Messungen." />
                                 </Grid>
                                 <Grid Margin="0,16,0,0">
-                                    <TextBlock Text="{Binding PowerFlowNote}" Style="{StaticResource TileLine}" />
+                                    <TextBlock Text="{Binding PowerFlowNote}" Style="{StaticResource TileLine}"
+                                               Visibility="{Binding PowerFlowNote, Converter={StaticResource TextVisible}}" />
                                     <TextBlock Text="{Binding Battery.ActivePolicy}" Style="{StaticResource TileSubLine}"
                                                HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" />
                                 </Grid>
@@ -585,7 +591,8 @@
                                         </ctrl:SliderScale>
                                     </StackPanel>
                                 </Grid>
-                                <TextBlock Text="{Binding Keyboard.BrightnessEventStatus}" Style="{StaticResource Hint}" Margin="0,14,0,0" />
+                                <TextBlock Text="{Binding Keyboard.BrightnessEventStatus}" Style="{StaticResource Hint}" Margin="0,14,0,0"
+                                           Visibility="{Binding Keyboard.BrightnessEventStatus, Converter={StaticResource TextVisible}}" />
                                 <TextBlock Text="{Binding Keyboard.Status}" Style="{StaticResource Hint}" Margin="0,4,0,0" />
                             </StackPanel>
                         </Border>
@@ -806,6 +813,61 @@
                             </StackPanel>
                         </Border>
 
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Akku" Style="{StaticResource CardTitle}" />
+                                    <ui:SymbolIcon Style="{StaticResource InfoDot}"
+                                                   ToolTip="Aus lädt das Gerät so, wie die Firmware es vorsieht. Ein hält bei der eingestellten Marke an, was den Akku schont, wenn der Laptop meist am Netz hängt. Der Regler übernimmt sich selbst, kurz nachdem er zur Ruhe kommt; das Ergebnis wird zurückgelesen und darunter bestätigt." />
+                                </StackPanel>
+                                <TextBlock Text="{Binding Battery.ActivePolicy}" Style="{StaticResource Hint}" />
+                                <!-- Zwei sich ausschließende Zustände, die sofort gelten: ein
+                                     Schalter. Vorher war es ein Knopf „Standardladen", der nur
+                                     in eine Richtung führte - zurück kam man nur, indem man am
+                                     Regler wackelte, bis die App es merkte. -->
+                                <ui:ToggleSwitch Margin="0,16,0,0" Content="Ladelimit"
+                                                 IsEnabled="{Binding Battery.CanAdjust}"
+                                                 IsChecked="{Binding Battery.IsLimitEnabled, Mode=TwoWay}" />
+                                <Grid Margin="0,20,0,0" IsEnabled="{Binding Battery.CanAdjustLimit}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource SliderReadout}"
+                                               Text="{Binding Battery.SelectedLimit, StringFormat={}{0} %}" />
+                                    <StackPanel Grid.Column="1" Margin="22,0,0,0">
+                                        <Slider Style="{StaticResource ValueSlider}" MinWidth="170"
+                                                Minimum="60" Maximum="100" TickFrequency="10"
+                                                IsSnapToTickEnabled="False"
+                                                Value="{Binding Battery.SelectedLimit, Mode=TwoWay}" />
+                                        <ctrl:SliderScale Minimum="60" Maximum="100" Margin="0,2,0,0"
+                                                          Ticks="60,70,80,90,100"
+                                                          TickBrush="{StaticResource TickBrush}">
+                                            <TextBlock Style="{StaticResource SliderEndLabel}" Text="60 %" />
+                                            <TextBlock Style="{StaticResource SliderEndLabel}" Text="80 %" />
+                                            <TextBlock Style="{StaticResource SliderEndLabel}" Text="100 %" />
+                                        </ctrl:SliderScale>
+                                    </StackPanel>
+                                </Grid>
+                                <WrapPanel Margin="0,20,0,-10">
+                                    <!-- „Erneut lesen" bleibt ein Knopf: Das ist keine
+                                         Einstellung, sondern eine Handlung. -->
+                                    <ui:Button Style="{StaticResource SecondaryButton}" Content="Erneut lesen"
+                                               Command="{Binding Battery.RefreshCommand}"
+                                               IsEnabled="{Binding Battery.CanRefresh}" Margin="0,0,10,10">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowClockwise24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                </WrapPanel>
+                                <TextBlock Text="{Binding Battery.Status}" Style="{StaticResource StatusText}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ===================== Grafik ===================== -->
+                <ScrollViewer Style="{StaticResource SectionPage}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="28"
+                              Visibility="{Binding SelectedSection, Converter={StaticResource SectionVisible}, ConverterParameter=Graphics}">
+                    <StackPanel MaxWidth="880">
                         <!-- Die Beobachtung vor der Einstellung: Die Karte darunter zeigt
                              gespeicherte Wünsche, diese hier zeigt den Ist-Zustand. Ohne sie
                              muss man raten, welche Programme überhaupt interessant sind. -->
@@ -877,7 +939,8 @@
                                                     <StackPanel Grid.Column="1" Margin="12,0,0,0">
                                                         <TextBlock Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold" />
                                                         <TextBlock Text="{Binding Detail}" Style="{StaticResource Hint}" Margin="0,3,0,0"
-                                                                   TextTrimming="CharacterEllipsis" ToolTip="{Binding Path}" />
+                                                                   TextTrimming="CharacterEllipsis" ToolTip="{Binding Path}"
+                                                                   Visibility="{Binding Detail, Converter={StaticResource TextVisible}}" />
                                                     </StackPanel>
                                                     <StackPanel Grid.Column="2" Orientation="Horizontal"
                                                                 VerticalAlignment="Center" Margin="14,0,0,0">
@@ -911,9 +974,6 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Grafikumschaltung: gehört auf diese Seite, weil sie an derselben
-                             Frage hängt wie alles andere hier - was passiert, wenn das Netzteil
-                             ab ist. -->
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
                                 <Grid>
@@ -961,10 +1021,9 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                                <TextBlock Text="{Binding Graphics.LeftoverNote}" Style="{StaticResource Hint}" />
+                                <TextBlock Text="{Binding Graphics.LeftoverNote}" Style="{StaticResource Hint}"
+                                           Visibility="{Binding Graphics.LeftoverNote, Converter={StaticResource TextVisible}}" />
 
-                                <TextBlock Style="{StaticResource SubLabel}" Margin="0,10,0,0" Text="Wird umgeschaltet"
-                                           Visibility="{Binding Graphics.HasPrograms, Converter={StaticResource BoolVisible}}" />
                                 <ItemsControl ItemsSource="{Binding Graphics.Programs}" Margin="0,14,0,0"
                                               Visibility="{Binding Graphics.HasPrograms, Converter={StaticResource BoolVisible}}">
                                     <ItemsControl.ItemTemplate>
@@ -986,18 +1045,23 @@
                                                              Pixeln bleibt neben dem Entfernen-Knopf keine Breite
                                                              für zwei Felder, und eines abgeschnitten ist
                                                              schlimmer als zwei untereinander. -->
-                                                        <WrapPanel Margin="0,10,0,-10"
+                                                        <WrapPanel Margin="0,10,0,-8"
                                                                    Visibility="{Binding HasRules, Converter={StaticResource BoolVisible}}">
-                                                            <StackPanel Margin="0,0,14,10">
-                                                                <TextBlock Text="AM NETZ" Style="{StaticResource TileLabel}" />
-                                                                <ComboBox Margin="0,4,0,0" MinWidth="150"
+                                                            <!-- Beschriftung neben dem Feld statt darüber: spart je
+                                                                 Zeile eine Textzeile, und "Netz"/"Akku" sind kurz
+                                                                 genug, dass daneben Platz bleibt. -->
+                                                            <StackPanel Orientation="Horizontal" Margin="0,0,16,8">
+                                                                <TextBlock Text="NETZ" Style="{StaticResource TileLabel}" Width="38"
+                                                                           VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                                <ComboBox MinWidth="146"
                                                                           ItemsSource="{Binding Choices}"
                                                                           DisplayMemberPath="Text" SelectedValuePath="Value"
                                                                           SelectedValue="{Binding OnAc, Mode=TwoWay}" />
                                                             </StackPanel>
-                                                            <StackPanel Margin="0,0,0,10">
-                                                                <TextBlock Text="AM AKKU" Style="{StaticResource TileLabel}" />
-                                                                <ComboBox Margin="0,4,0,0" MinWidth="150"
+                                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                                <TextBlock Text="AKKU" Style="{StaticResource TileLabel}" Width="38"
+                                                                           VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                                <ComboBox MinWidth="146"
                                                                           ItemsSource="{Binding Choices}"
                                                                           DisplayMemberPath="Text" SelectedValuePath="Value"
                                                                           SelectedValue="{Binding OnBattery, Mode=TwoWay}" />
@@ -1026,55 +1090,6 @@
                                     </ui:Button>
                                 </WrapPanel>
                                 <TextBlock Text="{Binding Graphics.Status}" Style="{StaticResource StatusText}" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border Style="{StaticResource Card}">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Akku" Style="{StaticResource CardTitle}" />
-                                    <ui:SymbolIcon Style="{StaticResource InfoDot}"
-                                                   ToolTip="Aus lädt das Gerät so, wie die Firmware es vorsieht. Ein hält bei der eingestellten Marke an, was den Akku schont, wenn der Laptop meist am Netz hängt. Der Regler übernimmt sich selbst, kurz nachdem er zur Ruhe kommt; das Ergebnis wird zurückgelesen und darunter bestätigt." />
-                                </StackPanel>
-                                <TextBlock Text="{Binding Battery.ActivePolicy}" Style="{StaticResource Hint}" />
-                                <!-- Zwei sich ausschließende Zustände, die sofort gelten: ein
-                                     Schalter. Vorher war es ein Knopf „Standardladen", der nur
-                                     in eine Richtung führte - zurück kam man nur, indem man am
-                                     Regler wackelte, bis die App es merkte. -->
-                                <ui:ToggleSwitch Margin="0,16,0,0" Content="Ladelimit"
-                                                 IsEnabled="{Binding Battery.CanAdjust}"
-                                                 IsChecked="{Binding Battery.IsLimitEnabled, Mode=TwoWay}" />
-                                <Grid Margin="0,20,0,0" IsEnabled="{Binding Battery.CanAdjustLimit}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Style="{StaticResource SliderReadout}"
-                                               Text="{Binding Battery.SelectedLimit, StringFormat={}{0} %}" />
-                                    <StackPanel Grid.Column="1" Margin="22,0,0,0">
-                                        <Slider Style="{StaticResource ValueSlider}" MinWidth="170"
-                                                Minimum="60" Maximum="100" TickFrequency="10"
-                                                IsSnapToTickEnabled="False"
-                                                Value="{Binding Battery.SelectedLimit, Mode=TwoWay}" />
-                                        <ctrl:SliderScale Minimum="60" Maximum="100" Margin="0,2,0,0"
-                                                          Ticks="60,70,80,90,100"
-                                                          TickBrush="{StaticResource TickBrush}">
-                                            <TextBlock Style="{StaticResource SliderEndLabel}" Text="60 %" />
-                                            <TextBlock Style="{StaticResource SliderEndLabel}" Text="80 %" />
-                                            <TextBlock Style="{StaticResource SliderEndLabel}" Text="100 %" />
-                                        </ctrl:SliderScale>
-                                    </StackPanel>
-                                </Grid>
-                                <WrapPanel Margin="0,20,0,-10">
-                                    <!-- „Erneut lesen" bleibt ein Knopf: Das ist keine
-                                         Einstellung, sondern eine Handlung. -->
-                                    <ui:Button Style="{StaticResource SecondaryButton}" Content="Erneut lesen"
-                                               Command="{Binding Battery.RefreshCommand}"
-                                               IsEnabled="{Binding Battery.CanRefresh}" Margin="0,0,10,10">
-                                        <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowClockwise24" /></ui:Button.Icon>
-                                    </ui:Button>
-                                </WrapPanel>
-                                <TextBlock Text="{Binding Battery.Status}" Style="{StaticResource StatusText}" />
                             </StackPanel>
                         </Border>
                     </StackPanel>
