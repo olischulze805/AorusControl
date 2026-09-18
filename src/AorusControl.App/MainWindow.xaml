@@ -1013,12 +1013,19 @@
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Akku · Ladelimit" Style="{StaticResource CardTitle}" />
+                                    <TextBlock Text="Akku" Style="{StaticResource CardTitle}" />
                                     <ui:SymbolIcon Style="{StaticResource InfoDot}"
-                                                   ToolTip="Der Regler übernimmt sich selbst, kurz nachdem er zur Ruhe kommt. Das Ergebnis wird zurückgelesen und darunter bestätigt." />
+                                                   ToolTip="Aus lädt das Gerät so, wie die Firmware es vorsieht. Ein hält bei der eingestellten Marke an, was den Akku schont, wenn der Laptop meist am Netz hängt. Der Regler übernimmt sich selbst, kurz nachdem er zur Ruhe kommt; das Ergebnis wird zurückgelesen und darunter bestätigt." />
                                 </StackPanel>
                                 <TextBlock Text="{Binding Battery.ActivePolicy}" Style="{StaticResource Hint}" />
-                                <Grid Margin="0,20,0,0" IsEnabled="{Binding Battery.CanAdjust}">
+                                <!-- Zwei sich ausschließende Zustände, die sofort gelten: ein
+                                     Schalter. Vorher war es ein Knopf „Standardladen", der nur
+                                     in eine Richtung führte - zurück kam man nur, indem man am
+                                     Regler wackelte, bis die App es merkte. -->
+                                <ui:ToggleSwitch Margin="0,16,0,0" Content="Ladelimit"
+                                                 IsEnabled="{Binding Battery.CanAdjust}"
+                                                 IsChecked="{Binding Battery.IsLimitEnabled, Mode=TwoWay}" />
+                                <Grid Margin="0,20,0,0" IsEnabled="{Binding Battery.CanAdjustLimit}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
@@ -1040,11 +1047,8 @@
                                     </StackPanel>
                                 </Grid>
                                 <WrapPanel Margin="0,20,0,-10">
-                                    <ui:Button Style="{StaticResource SecondaryButton}" Content="Standardladen"
-                                               Command="{Binding Battery.ApplyStandardCommand}"
-                                               IsEnabled="{Binding Battery.CanApply}" Margin="0,0,10,10">
-                                        <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowCounterclockwise24" /></ui:Button.Icon>
-                                    </ui:Button>
+                                    <!-- „Erneut lesen" bleibt ein Knopf: Das ist keine
+                                         Einstellung, sondern eine Handlung. -->
                                     <ui:Button Style="{StaticResource SecondaryButton}" Content="Erneut lesen"
                                                Command="{Binding Battery.RefreshCommand}"
                                                IsEnabled="{Binding Battery.CanRefresh}" Margin="0,0,10,10">

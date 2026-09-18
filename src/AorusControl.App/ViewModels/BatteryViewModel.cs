@@ -40,8 +40,47 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
     /// instead of dropping it, and so tests need not wait on a real clock.</summary>
     internal Debouncer PendingLimitWrite => _applyLimit;
 
-    public bool IsBusy { get => _busy; private set { SetProperty(ref _busy, value); OnPropertyChanged(nameof(CanApply)); OnPropertyChanged(nameof(CanRefresh)); OnPropertyChanged(nameof(CanAdjust)); } }
+    public bool IsBusy
+    {
+        get => _busy;
+        private set
+        {
+            SetProperty(ref _busy, value);
+            OnPropertyChanged(nameof(CanApply));
+            OnPropertyChanged(nameof(CanRefresh));
+            OnPropertyChanged(nameof(CanAdjust));
+            OnPropertyChanged(nameof(CanAdjustLimit));
+        }
+    }
     public bool CanApply => _supported && !IsBusy && !_disposed;
+
+    /// <summary>
+    /// Whether a charge limit is in force at all - the switch above the slider.
+    ///
+    /// Two mutually exclusive states that take effect at once is the definition of a switch.
+    /// It used to be a button marked "Standardladen", which could only travel in one
+    /// direction: getting the limit back meant nudging the slider until the app noticed, and
+    /// which of the two states was active could only be read out of a line of prose.
+    /// </summary>
+    public bool IsLimitEnabled
+    {
+        get => _limitEnabled;
+        set
+        {
+            if (!SetProperty(ref _limitEnabled, value)) return;
+            OnPropertyChanged(nameof(CanAdjustLimit));
+            // Not while a readback is populating the card - that would write back the state
+            // the device has just reported.
+            if (_applyingDeviceState) return;
+            Status = value ? $"Ladelimit {SelectedLimit} % wird gesetzt …" : "Standardladen wird gesetzt …";
+            _ = value ? ApplyLimitAsync() : ApplyStandardAsync();
+        }
+    }
+
+    /// <summary>The slider belongs to the switch above it: with standard charging in force
+    /// there is no limit for it to set, and a live control that changes nothing is worse
+    /// than one that is visibly unavailable.</summary>
+    public bool CanAdjustLimit => CanAdjust && _limitEnabled;
 
     /// <summary>The slider stays usable while a write is in flight. Since the limit now
     /// applies itself, gating it on <see cref="IsBusy"/> would make it go dead under the
@@ -64,6 +103,7 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
     }
 
     private bool _applyingDeviceState;
+    private bool _limitEnabled = true;
     private bool _deviceIsStandard, _deviceIsCustom;
     private int _deviceLimit;
     public IReadOnlyList<int> LimitChoices { get; } = Enumerable.Range(60, 41).ToArray();
@@ -188,18 +228,22 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
     private void ShowState(BatteryChargeState state)
     {
         _supported = (state.IsStandardMode || state.IsCustomMode) && state.StoredStopPercent is >= 60 and <= 100;
+        OnPropertyChanged(nameof(CanAdjust));
+        OnPropertyChanged(nameof(CanAdjustLimit));
         _deviceIsStandard = state.IsStandardMode;
         _deviceIsCustom = state.IsCustomMode;
         _deviceLimit = state.StoredStopPercent;
         OnPropertyChanged(nameof(StopPercent));
-        // Start the slider where the device actually is. It used to keep its own default,
-        // which read as a claim about the hardware next to the large percentage readout.
-        if (state.StoredStopPercent is >= 60 and <= 100)
+        // Start the slider and the switch where the device actually is. The slider used to
+        // keep its own default, which read as a claim about the hardware next to the large
+        // percentage readout.
+        _applyingDeviceState = true;
+        try
         {
-            _applyingDeviceState = true;
-            try { SelectedLimit = state.StoredStopPercent; }
-            finally { _applyingDeviceState = false; }
+            if (state.StoredStopPercent is >= 60 and <= 100) SelectedLimit = state.StoredStopPercent;
+            if (state.IsStandardMode || state.IsCustomMode) IsLimitEnabled = state.IsCustomMode;
         }
+        finally { _applyingDeviceState = false; }
         ActivePolicy = state.IsCustomMode
             ? $"Aktiv: Ladelimit {state.StoredStopPercent} %"
             : state.IsStandardMode ? "Aktiv: Standardladen (BIOS-gesteuert)"

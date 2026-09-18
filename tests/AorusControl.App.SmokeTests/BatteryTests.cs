@@ -21,6 +21,20 @@ internal static class BatteryTests
         await vm.ApplyStandardAsync();
         Check(controller.State == new BatteryChargeState(0, 100), "standard is a distinct policy");
 
+        // The switch above the slider, which replaced a one-way "Standardladen" button.
+        Check(!vm.IsLimitEnabled, "standard charging shows the switch off");
+        Check(!vm.CanAdjustLimit && vm.CanAdjust,
+            "and the slider under it goes unavailable rather than staying live with nothing to set");
+        vm.IsLimitEnabled = true;
+        await vm.PendingLimitWrite.FlushAsync();
+        Check(controller.State.StoredStopPercent == vm.SelectedLimit && vm.CanAdjustLimit,
+            "switching it back on puts the slider's own value in force - no nudging required");
+        vm.IsLimitEnabled = false;
+        await vm.PendingLimitWrite.FlushAsync();
+        Check(controller.State == new BatteryChargeState(0, 100), "and off goes back to standard charging");
+        await vm.RefreshAsync();
+        Check(!vm.IsLimitEnabled, "a readback leaves the switch where the device is");
+
         controller.FailWrite = true;
         vm.SelectedLimit = 60;
         await vm.ApplyLimitAsync();
