@@ -52,6 +52,79 @@ Ergebnis: 199 Programme, davon 42 aus dem Store, Dauer rund 2 Sekunden - deshalb
 
 Noch offen: der End-to-End-Nachweis, dass ein umgeschaltetes Programm tatsächlich auf dem anderen Chip startet. Der unten vorgeschlagene DXGI-Test steht weiterhin aus.
 
+## Wer benutzt gerade welchen Chip (2026-09-18)
+
+Bis hierher zeigte die Karte nur **gespeicherte Präferenzen** - also Wünsche. Welches Programm
+tatsächlich auf welchem Chip rechnet, stand nirgends, und damit war auch nicht zu erkennen,
+welche Programme überhaupt interessant sind.
+
+### Woher die Antwort kommt
+
+Windows führt pro Prozess, Adapter und Engine eine Leistungsindikator-Instanz:
+
+```
+pid_1692_luid_0x00000000_0x0001232e_phys_0_eng_0_engtype_3d
+```
+
+Der **Name allein** trägt Prozess-ID und Adapter-LUID. Es muss also kein einziger Zählerwert
+abgetastet werden - und das ist wichtig: Ein Programm, das mit null Prozent Last auf der RTX
+sitzt, hält sie trotzdem wach. Die Anwesenheit ist das Signal, nicht die Auslastung.
+
+Die LUIDs werden über **D3DKMT** (`D3DKMTEnumAdapters2` + `KMTQAITYPE_ADAPTERREGISTRYINFO`)
+zu Namen aufgelöst - dieselben Aufrufe, die hinter der Grafikspalte des Task-Managers stehen.
+Es wird kein Gerät erzeugt und der NVIDIA-Treiber nicht angefasst. Ergebnis auf diesem Gerät:
+
+| LUID | Name |
+| --- | --- |
+| `0x1232e` | NVIDIA GeForce RTX 3070 Laptop GPU |
+| `0x12066` | Intel(R) Iris(R) Xe Graphics |
+
+**Noch offen:** Ob die D3DKMT-Abfrage eine *schlafende* Karte weckt, ist nicht belegt - beim
+Test war sie bereits in D0. Die Aufrufe lesen eine Kernel-Liste und erzeugen kein Gerät, was
+dagegen spricht; ein Beleg ist das nicht. Zu prüfen bei schlafender Karte: Gerätezustand vor
+und nach `GraphicsAdapters.Enumerate()` vergleichen. Die Adapterliste wird ohnehin nur einmal
+je Programmlauf abgefragt und zwischengespeichert.
+
+### Warum gefiltert wird
+
+Der Rohbestand war unbrauchbar: **29 Zeilen**, davon 21 Windows' eigene Shell und Kernel -
+`csrss`, `dwm`, `System`, der Sperrbildschirm, der Texteingabe-Host. Keines davon lässt sich
+einer Grafikkarte zuweisen, und keines ist der Grund, warum die Karte wach ist.
+
+`GpuActivitySummary.From` fasst deshalb zusammen und wirft weg:
+
+1. Einträge ohne lesbaren Pfad (geschützte Prozesse),
+2. alles unterhalb des Windows-Verzeichnisses,
+3. mehrere Prozesse eines Programms werden zu einer Zeile (Electron-Apps, Browser),
+4. ein Programm auf **beiden** Chips gilt als auf der RTX - das ist der Zustand, der zählt.
+
+Übrig blieben 6 Zeilen, davon 3 auf der RTX: `Claude`, `IGCC` und `WindowsTerminal`. Genau
+das war die Antwort auf die Frage, warum die Karte an diesem Nachmittag wach war.
+
+### Grenze: Store-Apps
+
+Windows führt die Grafikpräferenz einer Store-App unter ihrer Paketkennung, nicht unter dem
+Pfad unter `WindowsApps`. Für solche Einträge wird deshalb **kein** Übernehmen-Knopf angeboten,
+sondern auf die Programmsuche verwiesen, die die Kennungen kennt. Ein Schreiben des Pfades
+würde einen Eintrag hinterlassen, den nie jemand liest.
+
+## Regeln pro Programm statt einer festen Kopplung (2026-09-18)
+
+`GpuSwitchPlan.For(source)` war fest verdrahtet: am Netz die RTX, am Akku die Intel-Grafik,
+für alles auf der Liste. Das ist die richtige Voreinstellung und das falsche Gesetz - ein
+Browser gehört auch am Netz auf die Intel-Grafik, ein Spiel auch am Akku auf die RTX.
+
+`ManagedProgram` trägt die beiden Werte jetzt selbst (`OnAc`, `OnBattery`), voreingestellt
+genau auf die bisherige Regel. In der Oberfläche sind das zwei Auswahlfelder je Zeile.
+
+Die Einstellungsdatei steht damit auf **Version 2**. Eine Datei der Version 1 wird weiterhin
+gelesen; ihre Einträge bekommen die Voreinstellungen, also exakt das Verhalten dieser Version.
+Ein Update, das die Liste stillschweigend leert, wäre schlimmer als eines, das sich beschwert.
+
+Beim Ändern einer Regel wird das Programm aus `lastWritten` entfernt: Der Wert in der
+Registry ist dann kein Beleg mehr dafür, dass ihn jemand von Hand gesetzt hat - die Frage,
+die er beantwortet hat, ist eine andere geworden.
+
 ## Lokale Belege
 
 HKCU\Software\Microsoft\DirectX\UserGpuPreferences existiert. Beispielsweise theHunter: GpuPreference=2; mehrere Anwendungen: GpuPreference=1; Chrome: GpuPreference=0. VLC nutzt bereits eine explizite Adapterzuordnung: SpecificAdapter=10DE&249D&15461458 zusammen mit GpuPreference=1073741824 und weiteren Grafikoptionen. Netflix verwendet eine Paket-/App-ID statt eines EXE-Pfads.

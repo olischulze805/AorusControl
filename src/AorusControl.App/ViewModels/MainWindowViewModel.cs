@@ -388,12 +388,6 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Blanks the two dashboard power lines - and gives the NVIDIA library back while doing
-    /// it. Every path that lands here means no one is looking at the dashboard any more, and
-    /// the app then sits in the tray for hours; holding a driver handle through that would
-    /// undo the point of letting the card sleep.
-    /// </summary>
-    /// <summary>
     /// Turns one battery reading into the card's three lines, and keeps the trend.
     ///
     /// The series is thrown away whenever the direction changes: a line running from "40 W
@@ -451,6 +445,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             { } until => $"voll in ca. {until.Text}"
         };
 
+    /// <summary>
+    /// Blanks the dashboard's power lines - and gives the NVIDIA library back while doing it.
+    /// Every path that lands here means no one is looking at the dashboard any more, and the
+    /// app then sits in the tray for hours; holding a driver handle through that would undo
+    /// the point of letting the card sleep.
+    /// </summary>
     private void ClearPowerDisplay()
     {
         CpuPower = "– W";
@@ -463,7 +463,4 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         PowerFlowIsLive = false;
         _releasePower?.Invoke();
     }
-
-
-
 }

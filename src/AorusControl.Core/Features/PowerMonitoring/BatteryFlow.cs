@@ -120,9 +120,24 @@ public sealed class BatteryFlowReader
     private bool _capacityRead;
     private BatteryFlow? _lastGood;
     private long _lastGoodAt;
+    private BatteryFlow? _cached;
+    private long _cachedAt;
+
+    /// <summary>
+    /// How long one answer stands before the pack is asked again.
+    ///
+    /// The dashboard ticks every two seconds, and this query costs 6 ms of the 7 ms such a
+    /// tick takes in total - measured 2026-09-18. But the pack only refreshes its rate every
+    /// 8 to 16 seconds, so three of every four of those queries went to fetch a number that
+    /// had not changed. Five seconds is short enough to stay well inside the instrument's own
+    /// interval and long enough that most ticks cost nothing at all.
+    /// </summary>
+    public static readonly TimeSpan MinimumInterval = TimeSpan.FromSeconds(5);
 
     public BatteryFlow Read()
     {
+        if (_cached is { } fresh && Stopwatch.GetElapsedTime(_cachedAt, Stopwatch.GetTimestamp()) < MinimumInterval)
+            return fresh;
         try
         {
             if (!_capacityRead)
@@ -151,12 +166,21 @@ public sealed class BatteryFlowReader
                         _lastGood = flow;
                         _lastGoodAt = Stopwatch.GetTimestamp();
                     }
-                    return flow;
+                    return Keep(flow);
                 }
             }
         }
         catch { /* A missing battery is a state, not a failure. */ }
-        return BatteryFlow.Unknown;
+        // Also held: a machine without a readable pack should not be asked twice a second
+        // for an answer it has already refused.
+        return Keep(BatteryFlow.Unknown);
+    }
+
+    private BatteryFlow Keep(BatteryFlow flow)
+    {
+        _cached = flow;
+        _cachedAt = Stopwatch.GetTimestamp();
+        return flow;
     }
 
     /// <summary>Milliwatt-hours, or 0 when the pack does not report it.</summary>

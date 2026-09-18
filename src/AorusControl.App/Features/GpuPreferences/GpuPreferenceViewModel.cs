@@ -402,6 +402,11 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
     private void Show()
     {
         IReadOnlyList<GpuPreferenceProgram> all = SafeList();
+        // The whole key was just read; asking the registry again for each managed program
+        // would be one more round trip per row for an answer already in hand.
+        Dictionary<string, GpuPreferenceProgram> byName =
+            all.ToDictionary(program => program.Name, StringComparer.OrdinalIgnoreCase);
+
         Suggestions.Clear();
         GpuSuggestionResult found = GpuSuggestions.From(all, _managed, GpuSuggestions.StillInstalled);
         _missing = found.MissingPrograms;
@@ -411,7 +416,7 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
         Programs.Clear();
         foreach (ManagedProgram program in _managed.OrderBy(entry => entry.DisplayName, StringComparer.CurrentCultureIgnoreCase))
         {
-            GpuPreferenceProgram? entry = _registry.Find(program.Name);
+            byName.TryGetValue(program.Name, out GpuPreferenceProgram? entry);
             string state = entry?.Preference switch
             {
                 null when entry is { IsManageable: false } => "feste Grafikkarte in Windows gewählt",

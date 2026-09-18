@@ -110,6 +110,81 @@ Die WMI-Abfrage läuft im selben Hintergrund-Tick wie die übrigen Dashboardwert
 7-20 ms gegenüber 0,6-1,2 ms vorher (`runs/dashboard-power-20260915-191630.md`). Auf dem
 Hintergrundthread, die Oberfläche merkt davon nichts.
 
+## Restlaufzeit statt nur Watt (2026-09-18)
+
+Die Kachel STROMFLUSS zeigt jetzt neben den Watt auch, wie lange sie reichen.
+
+### Windows kann es auf diesem Gerät nicht
+
+Beide Wege, auf denen Windows eine Laufzeitschätzung anbietet, liefern hier nur ihren
+Platzhalter für „unbekannt":
+
+| Quelle | Wert am 2026-09-18 |
+| --- | --- |
+| `root\WMI:BatteryRuntime.EstimatedRuntime` | `4294967295` (= `0xFFFFFFFF`) |
+| `Win32_Battery.EstimatedRunTime` | `71582788` (derselbe Platzhalter in Minuten) |
+
+### Selbst gerechnet
+
+Beide Zutaten liest das Dashboard ohnehin schon für seine Wattanzeige:
+
+```
+Restkapazität (Wh)  ÷  Rate (W)  =  verbleibende Stunden
+```
+
+Bei den am 2026-09-15 gemessenen 24,4 W im Leerlauf und 79,2 Wh Rest ergibt das 3 h 15 min.
+
+Zwei Entscheidungen machen daraus eine brauchbare Anzeige statt einer springenden Zahl:
+
+- **Geglättet über drei Minuten.** Die Momentanrate ändert sich zwischen ruhendem Bildschirm
+  und scrollender Seite um das Doppelte. `MovingAverage` mittelt über ein Zeitfenster, nicht
+  über eine Anzahl Messwerte - der Akku meldet alle 8 bis 16 Sekunden, das Dashboard fragt
+  alle 2, und ein Mittel über „die letzten n Messungen" würde ein langsames Instrument danach
+  gewichten, wie oft eine schnelle Uhr es zufällig angesehen hat.
+- **Beim Laden zählt die Zeit bis zum Ladelimit**, nicht bis 100 %. Bei Limit 80 % hört das
+  Gerät dort auf; eine Anzeige „voll in 40 Minuten" wäre ein Versprechen, das das Limit bricht.
+
+Über 24 Stunden wird keine Zahl mehr angezeigt. Restkapazität geteilt durch eine sehr kleine
+Rate ergibt „zwei Tage" und bedeutet „die Rate ist Rauschen".
+
+## Akkutemperatur: auf diesem Gerät nicht lesbar (2026-09-18)
+
+Geprüft, weil danach gefragt wurde. Zwei unabhängige Wege, beide negativ:
+
+| Weg | Ergebnis |
+| --- | --- |
+| ACPI `root\WMI:BatteryTemperature` | Klasse vorhanden, **keine Instanz** |
+| Gigabyte-WMI `GetBatteryTemperature` | auf FB0F abgewiesen („Ungültiges Objekt"), bereits am 2026-09-03 dokumentiert |
+
+Eine Temperaturkachel wurde deshalb **nicht** gebaut. Was der Pack sonst noch meldet und was
+davon brauchbar ist:
+
+| Feld | Wert | Brauchbar? |
+| --- | ---: | --- |
+| `FullChargedCapacity` | 99.013 mWh | ja, Grundlage der Restzeit |
+| `Voltage` | 16.152 mV | ja, aber ohne Aussagekraft für den Nutzer |
+| `DesignCapacity` (aus `powercfg /batteryreport`) | 99.013 mWh | **identisch mit der Ladekapazität** |
+| `CycleCount` | 0 | wird nicht gemeldet |
+
+Die letzten beiden schließen eine „Akkugesundheit"-Anzeige aus: Sie stünde dauerhaft auf
+100 % und wäre damit keine Messung, sondern eine Behauptung.
+
+## Messung des Dashboard-Ticks (2026-09-18)
+
+Zehn Durchläufe, der erste verworfen:
+
+| Teil | Dauer |
+| --- | ---: |
+| `Energy Meter` `ReadCategory` (CPU-Watt) | < 1 ms |
+| `BatteryFlowReader.Read` (WMI) | **6 ms** |
+| ganzer `DashboardPowerReader.Read` | 7 ms |
+
+Die WMI-Abfrage des Akkus war also fast der gesamte Aufwand eines Ticks - und drei von vier
+dieser Abfragen holten eine Zahl, die sich seit der letzten nicht geändert hatte, weil der
+Pack nur alle 8 bis 16 Sekunden aktualisiert. `BatteryFlowReader` hält eine Antwort jetzt
+5 Sekunden lang; das liegt sicher innerhalb des Intervalls des Instruments und spart rund zwei
+Drittel der Abfragen. Gelesen wird ohnehin nur, solange das Dashboard sichtbar ist.
+
 ## Quellen
 
 - Microsoft, Windows setzt PowerData und liefert CM_POWER_DATA: https://learn.microsoft.com/en-us/windows-hardware/drivers/install/devpkey-device-powerdata
