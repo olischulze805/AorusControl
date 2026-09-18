@@ -24,14 +24,36 @@ internal static class GpuPreferenceTests
         LaptopPowerSource source = LaptopPowerSource.Ac;
         var settings = new FakeGpuPreferenceSettings();
 
-        using var module = new GpuPreferenceViewModel(registry, settings, () => source);
+        var running = new FakeGpuActivity(
+            new GpuUser("game", game, IsNvidia: true, Processes: 1),
+            new GpuUser("editor", @"C:\App\editor.exe", IsNvidia: false, Processes: 2));
+        using var module = new GpuPreferenceViewModel(registry, settings, () => source, running);
         await module.StartAsync();
         await module.StartAsync();
         Check(settings.Loads == 1, "a second start does not register power events or reload managed programs again");
         Check(registry.Writes == 0, "an empty list writes nothing at startup");
 
+        // The running list is not read until the page is on screen: reading the graphics
+        // counters costs half a second, and nobody is looking while the app sits in the tray.
+        Check(running.Reads == 0, "the running list stays unread while the page is hidden");
+        await module.RefreshRunningCommand.ExecuteAsync();
+        Check(module.Running.Count == 2 && module.HasRunning, "both running programs are listed");
+        Check(module.Running[0].IsNvidia && module.RunningSummary.Contains("hält die RTX wach"),
+            "the summary counts the one program on the discrete card");
+        Check(module.Running[0].CanAdd, "an unmanaged, non-Store program can be taken over from here");
+        Check(module.Running[1].Detail.Contains("2 Prozesse"), "several processes of one program are said once");
+
         await module.AddAsync(game);
         Check(registry.Find(game)!.Preference == GpuPreference.Nvidia, "a program added on mains goes to the RTX");
+        Check(!module.Running[0].CanAdd && module.Running[0].Detail.Contains("verwaltet"),
+            "and the running entry says so instead of offering the button again");
+
+        running.Unreadable = true;
+        await module.RefreshRunningCommand.ExecuteAsync();
+        Check(module.Running.Count == 0 && module.RunningSummary.Contains("nichts her"),
+            "an unreadable counter set says so rather than claiming nothing is on the card");
+        running.Unreadable = false;
+        await module.RefreshRunningCommand.ExecuteAsync();
         Check(registry.Find(game)!.Raw.StartsWith("AutoHDREnable=1;", StringComparison.Ordinal),
             "and its other Windows settings survive");
         Check(module.Programs.Count == 1 && module.Programs[0].State.Contains("RTX"), "the list says where it stands");

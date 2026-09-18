@@ -803,6 +803,92 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Die Beobachtung vor der Einstellung: Die Karte darunter zeigt
+                             gespeicherte Wünsche, diese hier zeigt den Ist-Zustand. Ohne sie
+                             muss man raten, welche Programme überhaupt interessant sind. -->
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Wer benutzt gerade welche Grafikkarte" Style="{StaticResource CardTitle}" />
+                                        <ui:SymbolIcon Style="{StaticResource InfoDot}"
+                                                       ToolTip="Gelesen aus den Leistungsindikatoren des Grafikkerns, nicht aus dem NVIDIA-Treiber - eine schlafende Karte bleibt dabei schlafen. Ein Programm steht hier, sobald es einen Grafikkontext auf einem Chip hält; auf der RTX hält es sie damit wach, auch bei null Prozent Last. Windows' eigene Komponenten sind ausgeblendet, weil ihnen keine Grafikkarte zugewiesen werden kann." />
+                                    </StackPanel>
+                                    <ui:Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Content="Aktualisieren"
+                                               VerticalAlignment="Center"
+                                               Command="{Binding Graphics.RefreshRunningCommand}">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowSync24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                </Grid>
+                                <TextBlock Text="{Binding Graphics.RunningSummary}" Style="{StaticResource Hint}" />
+
+                                <ItemsControl ItemsSource="{Binding Graphics.Running}" Margin="0,14,0,-8"
+                                              Visibility="{Binding Graphics.HasRunning, Converter={StaticResource BoolVisible}}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <DataTemplate.Resources>
+                                                <!-- Die RTX hebt sich ab, die Intel-Grafik nicht: Die eine ist
+                                                     der Grund, warum man hier nachsieht, die andere der
+                                                     Normalfall. -->
+                                                <Style x:Key="ChipPill" TargetType="Border">
+                                                    <Setter Property="Background" Value="{StaticResource SubtleFillBrush}" />
+                                                    <Setter Property="CornerRadius" Value="6" />
+                                                    <Setter Property="Padding" Value="9,3" />
+                                                    <Setter Property="VerticalAlignment" Value="Center" />
+                                                    <Setter Property="MinWidth" Value="86" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsNvidia}" Value="True">
+                                                            <Setter Property="Background" Value="{StaticResource AccentSoftStrongBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                                <Style x:Key="ChipText" TargetType="TextBlock">
+                                                    <Setter Property="FontSize" Value="11.5" />
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                    <Setter Property="HorizontalAlignment" Value="Center" />
+                                                    <Setter Property="Foreground" Value="{StaticResource TextTertiaryBrush}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsNvidia}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </DataTemplate.Resources>
+                                            <Border Style="{StaticResource InnerPanel}" Margin="0,0,0,8" Padding="14,10">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Style="{StaticResource ChipPill}">
+                                                        <TextBlock Text="{Binding Chip}" Style="{StaticResource ChipText}" />
+                                                    </Border>
+                                                    <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                                                        <TextBlock Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold" />
+                                                        <TextBlock Text="{Binding Detail}" Style="{StaticResource Hint}" Margin="0,3,0,0"
+                                                                   TextTrimming="CharacterEllipsis" ToolTip="{Binding Path}" />
+                                                    </StackPanel>
+                                                    <ui:Button Grid.Column="2" Style="{StaticResource SecondaryButton}" Content="Übernehmen"
+                                                               VerticalAlignment="Center" Margin="14,0,0,0"
+                                                               Visibility="{Binding CanAdd, Converter={StaticResource BoolVisible}}"
+                                                               Command="{Binding DataContext.Graphics.AddRunningCommand,
+                                                                                 RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                               CommandParameter="{Binding}">
+                                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Add24" /></ui:Button.Icon>
+                                                    </ui:Button>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
                         <!-- Grafikumschaltung: gehört auf diese Seite, weil sie an derselben
                              Frage hängt wie alles andere hier - was passiert, wenn das Netzteil
                              ab ist. -->

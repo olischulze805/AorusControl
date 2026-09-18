@@ -17,6 +17,28 @@ public sealed class GpuProgramViewModel(string name, string state) : ObservableO
     public string State { get => _state; set => SetProperty(ref _state, value); }
 }
 
+/// <summary>One program that is using a graphics chip right now.</summary>
+public sealed class GpuUsageViewModel(GpuUser user, bool managed)
+{
+    public string Name { get; } = user.Program;
+    public string Path { get; } = user.Path;
+    public bool IsNvidia { get; } = user.IsNvidia;
+    public string Chip { get; } = user.IsNvidia ? "RTX 3070" : "Intel-Grafik";
+
+    public string Detail { get; } = string.Join(" · ", new[]
+    {
+        user.Processes > 1 ? $"{user.Processes} Prozesse" : null,
+        managed ? "wird schon verwaltet" : null,
+        // The registry keeps a Store app's preference under its package id, so writing this
+        // path would leave an entry nothing ever reads. The program search knows the ids.
+        user.IsStoreApp && !managed ? "Store-App · über „Programm suchen“ hinzufügen" : null,
+        user.Path
+    }.Where(part => part is { Length: > 0 }));
+
+    /// <summary>Only a program that can actually be assigned gets the button.</summary>
+    public bool CanAdd { get; } = !managed && !user.IsStoreApp;
+}
+
 /// <summary>
 /// Keeps chosen programs on the RTX while the laptop is plugged in and on the Intel chip while
 /// it runs on battery.
@@ -36,9 +58,11 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
     private readonly IGpuPreferenceStore _registry;
     private readonly IGpuPreferenceSettingsStore _settings;
     private readonly Func<LaptopPowerSource> _readPowerSource;
+    private readonly IGpuActivityReader _activity;
+    private bool _visible;
     private readonly Dictionary<string, GpuPreference> _lastWritten = [];
     private readonly List<ManagedProgram> _managed = [];
-    private bool _busy, _disposed, _started, _automatic = true;
+    private bool _busy, _disposed, _started, _automatic = true, _runningRead, _runningReadable, _runningBusy;
     private int _missing;
     private string _status = "Noch nicht geprüft";
     private LaptopPowerSource _source = LaptopPowerSource.Unknown;
@@ -46,15 +70,33 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
     public GpuPreferenceViewModel(
         IGpuPreferenceStore registry,
         IGpuPreferenceSettingsStore settings,
-        Func<LaptopPowerSource> readPowerSource)
+        Func<LaptopPowerSource> readPowerSource,
+        IGpuActivityReader? activity = null)
     {
         _registry = registry;
         _settings = settings;
         _readPowerSource = readPowerSource;
+        _activity = activity ?? new WindowsGpuActivityReader();
         RemoveCommand = new AsyncRelayCommand<GpuProgramViewModel>(RemoveAsync);
         AddSuggestionCommand = new AsyncRelayCommand<GpuProgramViewModel>(
             suggestion => suggestion is null ? Task.CompletedTask : AddAsync(suggestion.Name));
+        AddRunningCommand = new AsyncRelayCommand<GpuUsageViewModel>(
+            running => running is null ? Task.CompletedTask : AddAsync(running.Path));
+        RefreshRunningCommand = new AsyncRelayCommand(RefreshRunningAsync);
         ApplyNowCommand = new AsyncRelayCommand(() => ApplyAsync("Von Hand angewendet"));
+    }
+
+    /// <summary>Set by the shell when the page is on screen. Reading the graphics counters
+    /// costs half a second and answers a question nobody is asking while the app sits in the
+    /// notification area.</summary>
+    public bool IsVisible
+    {
+        get => _visible;
+        set
+        {
+            if (!SetProperty(ref _visible, value) || !value) return;
+            _ = RefreshRunningAsync();
+        }
     }
 
     public ObservableCollection<GpuProgramViewModel> Programs { get; } = [];
@@ -63,14 +105,41 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
     /// switch changes how a program starts, and that stays the user's decision.</summary>
     public ObservableCollection<GpuProgramViewModel> Suggestions { get; } = [];
 
+    /// <summary>
+    /// What is on which chip at this moment - the one thing the rest of this card cannot
+    /// show. Everything else here is a stored preference, which is a wish; this is the
+    /// answer. On battery an entry on the RTX is exactly why the card is awake.
+    /// </summary>
+    public ObservableCollection<GpuUsageViewModel> Running { get; } = [];
+
     public AsyncRelayCommand<GpuProgramViewModel> RemoveCommand { get; }
     public AsyncRelayCommand<GpuProgramViewModel> AddSuggestionCommand { get; }
+    public AsyncRelayCommand<GpuUsageViewModel> AddRunningCommand { get; }
+    public AsyncRelayCommand RefreshRunningCommand { get; }
     public AsyncRelayCommand ApplyNowCommand { get; }
 
     public bool IsBusy => _busy;
     public string Status { get => _status; private set => SetProperty(ref _status, value); }
     public bool HasPrograms => Programs.Count > 0;
     public bool HasSuggestions => Suggestions.Count > 0;
+    public bool HasRunning => Running.Count > 0;
+
+    /// <summary>The headline over the running list: how many programs are holding the RTX.
+    /// That number, and not the list, is what a glance is for.</summary>
+    public string RunningSummary
+    {
+        get
+        {
+            if (!_runningRead) return "Noch nicht gelesen.";
+            if (!_runningReadable) return "Die Grafikzähler von Windows geben hier nichts her.";
+            int onNvidia = Running.Count(program => program.IsNvidia);
+            return Running.Count == 0
+                ? "Kein Programm außerhalb von Windows benutzt gerade eine Grafikkarte."
+                : onNvidia == 0
+                    ? "Nichts auf der RTX - sie kann schlafen."
+                    : $"{onNvidia} {(onNvidia == 1 ? "Programm hält" : "Programme halten")} die RTX wach.";
+        }
+    }
 
     /// <summary>Entries Windows still keeps for programs that are no longer installed. Not
     /// worth a cleanup button on its own, worth saying once.</summary>
@@ -138,7 +207,13 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
         _managed.Add(new ManagedProgram(executablePath, existing?.Preference));
         Persist();
         await ApplyAsync($"{System.IO.Path.GetFileName(executablePath)} hinzugefügt");
+        await MarkRunningAsync();
     }
+
+    /// <summary>Brings the running list's "already managed" marks back in line after the
+    /// managed list changed. Only when that list has been read at all - otherwise adding a
+    /// program from the search dialog would start a counter read nobody asked for.</summary>
+    private Task MarkRunningAsync() => _runningRead ? RefreshRunningAsync() : Task.CompletedTask;
 
     private async Task RemoveAsync(GpuProgramViewModel? program)
     {
@@ -170,6 +245,7 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
             Status = $"Entfernen fehlgeschlagen: {exception.Message}";
         }
         finally { _busy = false; Show(); }
+        await MarkRunningAsync();
     }
 
     /// <summary>Brings every managed program in line with the current power source.</summary>
@@ -209,6 +285,38 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
                     : $"{reason} · {written} von {_managed.Count} umgestellt. Wirkt beim nächsten Start des Programms.";
         }
         finally { _busy = false; Show(); }
+    }
+
+    /// <summary>
+    /// Reads who is on which chip. Off the UI thread: enumerating the graphics counters and
+    /// opening every process behind them took 0,6 s on this machine, which is nothing for a
+    /// button and far too much for a redraw.
+    /// </summary>
+    private async Task RefreshRunningAsync()
+    {
+        // Opening the page starts one of these, and pressing the button starts another. Both
+        // end in Clear-then-Add on the same collection, and two of those interleaving is how
+        // a list ends up half rebuilt. The second caller has nothing to add anyway: it would
+        // read the same counters a moment later.
+        if (_disposed || _runningBusy) return;
+        _runningBusy = true;
+        try { await ReadRunningAsync(); }
+        finally { _runningBusy = false; }
+    }
+
+    private async Task ReadRunningAsync()
+    {
+        IReadOnlyList<GpuUser>? users = await Task.Run(_activity.Read);
+        if (_disposed) return;
+
+        _runningReadable = users is not null;
+        Running.Clear();
+        foreach (GpuUser user in users ?? [])
+            Running.Add(new GpuUsageViewModel(user,
+                _managed.Any(program => program.Name.Equals(user.Path, StringComparison.OrdinalIgnoreCase))));
+        _runningRead = true;
+        OnPropertyChanged(nameof(HasRunning));
+        OnPropertyChanged(nameof(RunningSummary));
     }
 
     /// <summary>Rebuilds the list from what the registry actually says, not from what was

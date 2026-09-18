@@ -38,3 +38,20 @@ internal sealed class FakeGpuPreferenceSettings : IGpuPreferenceSettingsStore
     }
     public void Save(IReadOnlyList<ManagedProgram> programs) => _programs = programs.ToArray();
 }
+
+/// <summary>A fixed answer to "who is on which chip". The real reader enumerates the graphics
+/// counters of the machine the tests run on, which is neither repeatable nor the point.</summary>
+internal sealed class FakeGpuActivity(params GpuUser[] users) : IGpuActivityReader
+{
+    public int Reads { get; private set; }
+
+    /// <summary>Set to make the reader say it could not read at all, which is a different
+    /// thing from finding nothing.</summary>
+    public bool Unreadable { get; set; }
+
+    public IReadOnlyList<GpuUser>? Read()
+    {
+        Reads++;
+        return Unreadable ? null : users;
+    }
+}
