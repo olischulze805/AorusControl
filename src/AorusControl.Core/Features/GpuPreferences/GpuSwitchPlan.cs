@@ -2,24 +2,37 @@ using AorusControl.Core.Features.PowerProfiles;
 
 namespace AorusControl.Core.Features.GpuPreferences;
 
-/// <summary>A program this app switches between the two graphics chips, and what Windows had
-/// set for it before we first touched it.</summary>
+/// <summary>A program this app assigns a graphics chip to, and what Windows had set for it
+/// before this app first touched it.</summary>
 /// <param name="Name">The registry value name - full path, or a Store app's id.</param>
 /// <param name="Original">The preference found on adoption, so it can be handed back.</param>
-public sealed record ManagedProgram(string Name, GpuPreference? Original)
+/// <param name="OnAc">What it gets while the laptop is plugged in.</param>
+/// <param name="OnBattery">What it gets while it runs on battery.</param>
+public sealed record ManagedProgram(
+    string Name,
+    GpuPreference? Original,
+    GpuPreference OnAc = GpuPreference.Nvidia,
+    GpuPreference OnBattery = GpuPreference.Integrated)
 {
     public string DisplayName => Name.Contains('\\') ? Path.GetFileName(Name) : Name;
+
+    /// <summary>What this program should be set to under the given supply.</summary>
+    public GpuPreference For(LaptopPowerSource source) =>
+        source == LaptopPowerSource.Ac ? OnAc : OnBattery;
 }
 
 /// <summary>One intended write.</summary>
 public sealed record GpuSwitchStep(string Name, GpuPreference Target);
 
 /// <summary>
-/// What to write when the power source changes: the RTX on mains, the Intel chip on battery.
+/// What to write when the power source changes.
 ///
-/// The point of the whole feature is the battery case. A program that never asks for the RTX
-/// lets it stay in its sleep state, and a sleeping RTX is the single biggest thing this app
-/// can do for battery life. On mains there is no reason to hold it back.
+/// The defaults are the RTX on mains and the Intel chip on battery, and the battery half is
+/// the point of the whole feature: a program that never asks for the RTX lets it stay in its
+/// sleep state, which is worth more to battery life than anything else this app can do. But
+/// they are only defaults. A browser is better off on the Intel chip even on mains, and a
+/// game the user wants fast is better off on the RTX even without one - so each program
+/// carries its own pair rather than the rule being wired into this class.
 ///
 /// Deciding is separate from writing because the interesting rules are all decisions: an
 /// unknown power source must change nothing (better a stale preference than a wrong one), a
@@ -28,8 +41,10 @@ public sealed record GpuSwitchStep(string Name, GpuPreference Target);
 /// </summary>
 public static class GpuSwitchPlan
 {
-    public static GpuPreference For(LaptopPowerSource source) =>
-        source == LaptopPowerSource.Ac ? GpuPreference.Nvidia : GpuPreference.Integrated;
+    /// <summary>The preferences a program can be given, in the order the interface offers
+    /// them. Kept here so the two lists in the UI cannot drift apart from the rules.</summary>
+    public static IReadOnlyList<GpuPreference> Choices { get; } =
+        [GpuPreference.Nvidia, GpuPreference.Integrated, GpuPreference.WindowsDecides];
 
     /// <summary>
     /// The writes needed to bring the managed programs in line with the power source.
@@ -51,13 +66,13 @@ public static class GpuSwitchPlan
         ArgumentNullException.ThrowIfNull(lastWritten);
         if (source == LaptopPowerSource.Unknown) return [];
 
-        GpuPreference target = For(source);
         var steps = new List<GpuSwitchStep>();
         foreach (ManagedProgram program in managed)
         {
             current.TryGetValue(program.Name, out GpuPreferenceProgram? entry);
             if (entry is { IsManageable: false }) continue;
 
+            GpuPreference target = program.For(source);
             GpuPreference? now = entry?.Preference;
             if (now == target) continue;
             if (lastWritten.TryGetValue(program.Name, out GpuPreference ours) && now is not null && now != ours) continue;

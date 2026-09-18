@@ -16,6 +16,10 @@ public interface IGpuPreferenceSettingsStore
 /// That second half is the whole reason this file exists rather than just a list of paths:
 /// taking a program off the list has to be able to hand its original setting back, and after
 /// a restart the app would otherwise have nothing to hand back.
+///
+/// Version 2 added the per-program pair of preferences. A version 1 file is still read: its
+/// entries get the defaults, which are exactly the fixed rule that version applied to
+/// everything, so nobody's assignments change by upgrading.
 /// </summary>
 public sealed class GpuPreferenceSettingsStore(string filePath) : IGpuPreferenceSettingsStore
 {
@@ -35,16 +39,22 @@ public sealed class GpuPreferenceSettingsStore(string filePath) : IGpuPreference
             using var stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.Read);
             if (stream.Length > 64 * 1024) throw new InvalidDataException("Die Datei mit den Grafikzuordnungen ist zu groß.");
             Envelope? envelope = JsonSerializer.Deserialize<Envelope>(stream, Options);
-            if (envelope is null || envelope.Version != 1 || envelope.Programs is null)
+            if (envelope is null || envelope.Version is < 1 or > Version || envelope.Programs is null)
                 throw new InvalidDataException("Dateiversion der Grafikzuordnungen wird nicht unterstützt.");
             foreach (Entry entry in envelope.Programs)
             {
                 if (string.IsNullOrWhiteSpace(entry.Name) || !GpuPreferenceText.IsProgramEntry(entry.Name))
                     throw new InvalidDataException("Die Datei enthält einen ungültigen Programmeintrag.");
-                if (entry.Original is { } original && !Enum.IsDefined(original))
-                    throw new InvalidDataException("Die Datei enthält eine unbekannte Grafikeinstellung.");
+                foreach (GpuPreference? preference in (GpuPreference?[])[entry.Original, entry.OnAc, entry.OnBattery])
+                    if (preference is { } value && !Enum.IsDefined(value))
+                        throw new InvalidDataException("Die Datei enthält eine unbekannte Grafikeinstellung.");
             }
-            return envelope.Programs.Select(entry => new ManagedProgram(entry.Name, entry.Original)).ToArray();
+            // A version 1 entry has no pair; the defaults below are what that version did.
+            return envelope.Programs
+                .Select(entry => entry.OnAc is { } onAc && entry.OnBattery is { } onBattery
+                    ? new ManagedProgram(entry.Name, entry.Original, onAc, onBattery)
+                    : new ManagedProgram(entry.Name, entry.Original))
+                .ToArray();
         }
         catch (JsonException exception)
         {
@@ -63,7 +73,9 @@ public sealed class GpuPreferenceSettingsStore(string filePath) : IGpuPreference
             using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
                 JsonSerializer.Serialize(stream,
-                    new Envelope(1, programs.Select(program => new Entry(program.Name, program.Original)).ToArray()), Options);
+                    new Envelope(Version, programs
+                        .Select(program => new Entry(program.Name, program.Original, program.OnAc, program.OnBattery))
+                        .ToArray()), Options);
                 stream.Flush(flushToDisk: true);
             }
             if (File.Exists(_path)) File.Replace(temporary, _path, _path + ".bak");
@@ -75,6 +87,10 @@ public sealed class GpuPreferenceSettingsStore(string filePath) : IGpuPreference
         }
     }
 
-    private sealed record Entry(string Name, GpuPreference? Original);
+    /// <summary>The current file version. Version 1 had no <see cref="Entry.OnAc"/> pair.</summary>
+    private const int Version = 2;
+
+    private sealed record Entry(string Name, GpuPreference? Original,
+        GpuPreference? OnAc = null, GpuPreference? OnBattery = null);
     private sealed record Envelope(int Version, IReadOnlyList<Entry>? Programs);
 }

@@ -1,3 +1,4 @@
+using System.IO;
 using Microsoft.Win32;
 using AorusControl.App.Features.GpuPreferences;
 using AorusControl.Core.Features.GpuPreferences;
@@ -9,11 +10,12 @@ internal static class GpuPreferenceTests
     {
         Text();
         Store();
+        Migrate();
         Plan();
         Suggest();
         Picker();
         await Module();
-        Console.WriteLine("PASS: GPU preference parsing, foreign settings kept, registry round trip, AC/battery plan, suggestions, program search and the module");
+        Console.WriteLine("PASS: GPU preference parsing, foreign settings kept, registry round trip, per-program rules, file migration, suggestions, program search and the module");
     }
 
     private static async Task Module()
@@ -235,6 +237,33 @@ internal static class GpuPreferenceTests
         }
     }
 
+    /// <summary>The settings file gained a per-program pair in version 2. A file written by
+    /// an older build still has to load, or an update would quietly empty the list.</summary>
+    private static void Migrate()
+    {
+        string path = Path.Combine(Path.GetTempPath(), "aorus-gpu-" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            File.WriteAllText(path,
+                """{"Version":1,"Programs":[{"Name":"C:\\App\\game.exe","Original":2}]}""");
+            IReadOnlyList<ManagedProgram> loaded = new GpuPreferenceSettingsStore(path).Load();
+            Check(loaded.Count == 1 && loaded[0].Original == GpuPreference.Nvidia, "a version 1 file still loads");
+            Check(loaded[0].OnAc == GpuPreference.Nvidia && loaded[0].OnBattery == GpuPreference.Integrated,
+                "and its entries get exactly the fixed rule that version applied");
+
+            var store = new GpuPreferenceSettingsStore(path);
+            store.Save([loaded[0] with { OnAc = GpuPreference.Integrated }]);
+            Check(store.Load()[0].OnAc == GpuPreference.Integrated, "a changed rule survives the round trip");
+            Check(File.ReadAllText(path).Contains("\"Version\": 2", StringComparison.Ordinal),
+                "and is written back in the new version");
+        }
+        finally
+        {
+            File.Delete(path);
+            File.Delete(path + ".bak");
+        }
+    }
+
     private static void Plan()
     {
         var game = new ManagedProgram(@"C:\App\game.exe", GpuPreference.WindowsDecides);
@@ -267,6 +296,21 @@ internal static class GpuPreferenceTests
             new Dictionary<string, GpuPreference> { [game.Name] = GpuPreference.Integrated });
         Check(afterManualChange.Count == 1 && afterManualChange[0].Name == editor.Name,
             "a manually changed program is skipped, the others still follow");
+
+        // A program with its own rules: a browser belongs on the Intel chip on mains too.
+        var browser = new ManagedProgram(@"C:\Approwser.exe", null,
+            OnAc: GpuPreference.Integrated, OnBattery: GpuPreference.Integrated);
+        var withOwnRule = GpuSwitchPlan.Steps(LaptopPowerSource.Ac, [browser],
+            Current((browser.Name, "GpuPreference=2;")), new Dictionary<string, GpuPreference>());
+        Check(withOwnRule.Count == 1 && withOwnRule[0].Target == GpuPreference.Integrated,
+            "its own rule beats the default, on mains as well");
+        Check(GpuSwitchPlan.Steps(LaptopPowerSource.Battery, [browser],
+            Current((browser.Name, "GpuPreference=1;")), new Dictionary<string, GpuPreference>()).Count == 0,
+            "and a program whose two rules agree is written once, not on every change of supply");
+        Check(browser.For(LaptopPowerSource.Ac) == GpuPreference.Integrated
+            && game.For(LaptopPowerSource.Ac) == GpuPreference.Nvidia
+            && game.For(LaptopPowerSource.Battery) == GpuPreference.Integrated,
+            "the defaults are still the rule that used to be wired in");
 
         var pinned = GpuSwitchPlan.Steps(LaptopPowerSource.Battery, [game],
             Current((game.Name, "SpecificAdapter=10DE&249D;GpuPreference=1073741824;")), new Dictionary<string, GpuPreference>());

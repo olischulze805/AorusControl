@@ -902,7 +902,7 @@
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="Grafikkarte je nach Stromquelle" Style="{StaticResource CardTitle}" />
                                         <ui:SymbolIcon Style="{StaticResource InfoDot}"
-                                                       ToolTip="Setzt für die ausgewählten Programme dieselbe Windows-Einstellung wie Einstellungen › Bildschirm › Grafik: am Netz die RTX, im Akkubetrieb die Intel-Grafik, damit die RTX schlafen bleibt. Wirkt erst beim nächsten Start des Programms und bewegt kein laufendes. Programme, die ihre Grafikkarte selbst fest wählen, bleiben unangetastet." />
+                                                       ToolTip="Setzt für die ausgewählten Programme dieselbe Windows-Einstellung wie Einstellungen › Bildschirm › Grafik. Jedes Programm hat zwei eigene Regeln - eine für Netz-, eine für Akkubetrieb; voreingestellt sind RTX am Netz und Intel-Grafik am Akku, damit die Karte dort schlafen bleibt. Wirkt erst beim nächsten Start des Programms und bewegt kein laufendes. Programme, die ihre Grafikkarte selbst fest wählen, bleiben unangetastet." />
                                     </StackPanel>
                                     <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
                                                      IsChecked="{Binding Graphics.IsAutomatic, Mode=TwoWay}"
@@ -957,9 +957,29 @@
                                                         <TextBlock Text="{Binding DisplayName}" FontSize="13.5" FontWeight="SemiBold"
                                                                    ToolTip="{Binding Path}" />
                                                         <TextBlock Text="{Binding State}" Style="{StaticResource Hint}" Margin="0,3,0,0" />
+                                                        <!-- Zwei Regeln pro Programm: ein Browser gehört auch am Netz
+                                                             auf die Intel-Grafik, ein Spiel auch am Akku auf die RTX.
+                                                             Die feste Kopplung konnte beides nicht. -->
+                                                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0"
+                                                                    Visibility="{Binding HasRules, Converter={StaticResource BoolVisible}}">
+                                                            <StackPanel Margin="0,0,14,0">
+                                                                <TextBlock Text="AM NETZ" Style="{StaticResource TileLabel}" />
+                                                                <ComboBox Margin="0,4,0,0" MinWidth="160"
+                                                                          ItemsSource="{Binding Choices}"
+                                                                          DisplayMemberPath="Text" SelectedValuePath="Value"
+                                                                          SelectedValue="{Binding OnAc, Mode=TwoWay}" />
+                                                            </StackPanel>
+                                                            <StackPanel>
+                                                                <TextBlock Text="AM AKKU" Style="{StaticResource TileLabel}" />
+                                                                <ComboBox Margin="0,4,0,0" MinWidth="160"
+                                                                          ItemsSource="{Binding Choices}"
+                                                                          DisplayMemberPath="Text" SelectedValuePath="Value"
+                                                                          SelectedValue="{Binding OnBattery, Mode=TwoWay}" />
+                                                            </StackPanel>
+                                                        </StackPanel>
                                                     </StackPanel>
                                                     <ui:Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Content="Entfernen"
-                                                               VerticalAlignment="Center" Margin="14,0,0,0"
+                                                               VerticalAlignment="Top" Margin="14,0,0,0"
                                                                Command="{Binding DataContext.Graphics.RemoveCommand,
                                                                                  RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                                CommandParameter="{Binding}" />

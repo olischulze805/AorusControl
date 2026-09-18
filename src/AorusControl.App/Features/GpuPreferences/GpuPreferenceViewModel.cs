@@ -7,14 +7,70 @@ using AorusControl.Core.Features.PowerProfiles;
 
 namespace AorusControl.App.Features.GpuPreferences;
 
-/// <summary>One managed program, as the list shows it.</summary>
-public sealed class GpuProgramViewModel(string name, string state) : ObservableObject
+/// <summary>One of the three settings, as the drop-down offers it.</summary>
+public sealed record GpuChoice(GpuPreference Value, string Text)
 {
-    private string _state = state;
-    public string Name { get; } = name;
+    public static IReadOnlyList<GpuChoice> All { get; } =
+        GpuSwitchPlan.Choices.Select(value => new GpuChoice(value, Name(value))).ToArray();
+
+    /// <summary>The one place the three settings are put into words. Both the drop-downs and
+    /// the line under each program read from here, so they cannot come to disagree.</summary>
+    public static string Name(GpuPreference preference) => preference switch
+    {
+        GpuPreference.Nvidia => "RTX 3070",
+        GpuPreference.Integrated => "Intel-Grafik",
+        _ => "Windows entscheidet"
+    };
+}
+
+/// <summary>One managed program, as the list shows it.</summary>
+public sealed class GpuProgramViewModel : ObservableObject
+{
+    private readonly Func<GpuPreference, GpuPreference, Task>? _change;
+    private GpuPreference _onAc, _onBattery;
+    private string _state;
+
+    /// <summary>A row without rules: a suggestion, which nothing manages yet.</summary>
+    public GpuProgramViewModel(string name, string state)
+    {
+        Name = name;
+        _state = state;
+    }
+
+    /// <param name="change">Called when the user picks a different chip for one of the two
+    /// supplies. The current values are taken in through the constructor rather than through
+    /// the setters, so building a row cannot look like a change and write one.</param>
+    public GpuProgramViewModel(ManagedProgram program, string state,
+        Func<GpuPreference, GpuPreference, Task> change)
+        : this(program.Name, state)
+    {
+        _onAc = program.OnAc;
+        _onBattery = program.OnBattery;
+        _change = change;
+    }
+
+    public string Name { get; }
     public string DisplayName => Name.Contains('\\') ? System.IO.Path.GetFileName(Name) : Name;
     public string Path => Name;
     public string State { get => _state; set => SetProperty(ref _state, value); }
+
+    /// <summary>False for a suggestion, which has nothing to configure yet.</summary>
+    public bool HasRules => _change is not null;
+    public IReadOnlyList<GpuChoice> Choices => GpuChoice.All;
+
+    public GpuPreference OnAc
+    {
+        get => _onAc;
+        set { if (SetProperty(ref _onAc, value)) Changed(); }
+    }
+
+    public GpuPreference OnBattery
+    {
+        get => _onBattery;
+        set { if (SetProperty(ref _onBattery, value)) Changed(); }
+    }
+
+    private void Changed() => _ = _change?.Invoke(_onAc, _onBattery);
 }
 
 /// <summary>One program that is using a graphics chip right now.</summary>
@@ -160,11 +216,13 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
         }
     }
 
-    /// <summary>What the rule would set right now, in words, for the card's caption.</summary>
+    /// <summary>Which of each program's two rules is the one in force, for the card's
+    /// caption. Since the rules are per program, this says which column counts rather than
+    /// naming a chip it can no longer speak for.</summary>
     public string SourceText => _source switch
     {
-        LaptopPowerSource.Ac => "Netzbetrieb · ausgewählte Programme laufen auf der RTX",
-        LaptopPowerSource.Battery => "Akkubetrieb · ausgewählte Programme laufen auf der Intel-Grafik",
+        LaptopPowerSource.Ac => "Netzbetrieb · es gilt die linke Spalte",
+        LaptopPowerSource.Battery => "Akkubetrieb · es gilt die rechte Spalte",
         _ => "Stromquelle unbekannt · es wird nichts umgestellt"
     };
 
@@ -208,6 +266,26 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
         Persist();
         await ApplyAsync($"{System.IO.Path.GetFileName(executablePath)} hinzugefügt");
         await MarkRunningAsync();
+    }
+
+    /// <summary>
+    /// Takes a new pair of rules for one program and puts it into effect.
+    ///
+    /// Only the one entry is replaced - the list is rebuilt from it afterwards, and a row that
+    /// rebuilt itself from a stale copy would undo the change the user just made.
+    /// </summary>
+    private async Task ChangeRulesAsync(ManagedProgram program, GpuPreference onAc, GpuPreference onBattery)
+    {
+        int index = _managed.FindIndex(entry => entry.Name == program.Name);
+        if (index < 0 || _disposed) return;
+        if (_managed[index] is { } existing && existing.OnAc == onAc && existing.OnBattery == onBattery) return;
+
+        _managed[index] = _managed[index] with { OnAc = onAc, OnBattery = onBattery };
+        // The app owns this value again from here on: the rule changed, so the value the
+        // registry holds is no longer evidence that somebody else set it by hand.
+        _lastWritten.Remove(program.Name);
+        Persist();
+        await ApplyAsync($"Regel für {program.DisplayName} geändert");
     }
 
     /// <summary>Brings the running list's "already managed" marks back in line after the
@@ -331,7 +409,6 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
             Suggestions.Add(new GpuProgramViewModel(suggestion.Name, suggestion.Reason));
 
         Programs.Clear();
-        GpuPreference target = GpuSwitchPlan.For(_source);
         foreach (ManagedProgram program in _managed.OrderBy(entry => entry.DisplayName, StringComparer.CurrentCultureIgnoreCase))
         {
             GpuPreferenceProgram? entry = _registry.Find(program.Name);
@@ -339,13 +416,15 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
             {
                 null when entry is { IsManageable: false } => "feste Grafikkarte in Windows gewählt",
                 null => "keine Einstellung in Windows",
-                GpuPreference.Nvidia => "RTX 3070",
-                GpuPreference.Integrated => "Intel-Grafik",
-                _ => "Windows entscheidet"
+                { } set => $"steht auf {GpuChoice.Name(set)}"
             };
-            if (entry?.Preference is { } now && _source != LaptopPowerSource.Unknown && now != target && _automatic)
+            // What the rules would give it right now. A value somewhere else than that, which
+            // this app did not put there, was somebody's own decision and stays.
+            if (entry?.Preference is { } now && _source != LaptopPowerSource.Unknown
+                && now != program.For(_source) && _automatic)
                 state += " · von Hand geändert, wird nicht überschrieben";
-            Programs.Add(new GpuProgramViewModel(program.Name, state));
+            Programs.Add(new GpuProgramViewModel(program, state,
+                (onAc, onBattery) => ChangeRulesAsync(program, onAc, onBattery)));
         }
         OnPropertyChanged(nameof(HasPrograms));
         OnPropertyChanged(nameof(HasSuggestions));
