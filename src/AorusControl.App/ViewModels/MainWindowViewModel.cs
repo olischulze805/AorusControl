@@ -30,7 +30,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private bool _isReading;
     private bool _isRunning;
     private bool _dashboardVisible = true;
-    private string _status = "Bereit";
+    private string _status = Strings.Current["Common_Ready"];
     private string _lastUpdated = Strings.Current["Shell_NoReadingYet"];
     private string _toggleButtonText = Strings.Current["Shell_StartMonitoring"];
     private bool _closing;

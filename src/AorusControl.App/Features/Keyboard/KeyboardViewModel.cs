@@ -102,7 +102,7 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
     public string PowerButtonText => PowerOn ? "Ausschalten" : "Einschalten";
 
     /// <summary>The state itself, for places that report rather than offer to change it.</summary>
-    public string PowerStateText => PowerOn ? "Ein" : "Aus";
+    public string PowerStateText => PowerOn ? Strings.Current["Common_On"] : Strings.Current["Common_Off"];
     public KeyboardBrightnessLevel Brightness { get => _brightness; private set => SetProperty(ref _brightness, value); }
     public KeyboardEffectSpeed Speed { get => _speed; private set => SetProperty(ref _speed, value); }
     public bool LinkZones { get => _linkZones; set => SetProperty(ref _linkZones, value); }
@@ -275,10 +275,10 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
 
     public static string DescribeBrightness(KeyboardBrightnessLevel level) => level switch
     {
-        KeyboardBrightnessLevel.Off => "Aus",
-        KeyboardBrightnessLevel.Low => "Niedrig",
-        KeyboardBrightnessLevel.Medium => "Mittel",
-        _ => "Hell"
+        KeyboardBrightnessLevel.Off => Strings.Current["Common_Off"],
+        KeyboardBrightnessLevel.Low => Strings.Current["Key_Low"],
+        KeyboardBrightnessLevel.Medium => Strings.Current["Key_Medium"],
+        _ => Strings.Current["Key_Bright"]
     };
 
     private static string GetEffectName(KeyboardRgbEffect effect) => effect switch

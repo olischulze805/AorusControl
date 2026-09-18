@@ -283,5 +283,12 @@ internal static class GermanStrings
             ["Tray_Open"] = "Öffnen",
             ["Tray_ToggleLighting"] = "Beleuchtung umschalten",
             ["Tray_UpdateBalloon"] = "Version {0} ist verfügbar. Zum Herunterladen hier klicken.",
+            ["Common_On"] = "Ein",
+            ["Common_Ready"] = "Bereit",
+            ["Live_Duty"] = "{0} % Leistung",
+            ["Live_NoDuty"] = "– % Leistung",
+            ["Live_NoRpm"] = "– U/min",
+            ["Live_Rpm"] = "{0} U/min",
+            ["Live_Stopped"] = "steht",
         };
 }

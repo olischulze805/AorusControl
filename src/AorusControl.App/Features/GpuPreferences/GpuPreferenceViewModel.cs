@@ -11,7 +11,10 @@ namespace AorusControl.App.Features.GpuPreferences;
 /// <summary>One of the three settings, as the drop-down offers it.</summary>
 public sealed record GpuChoice(GpuPreference Value, string Text)
 {
-    public static IReadOnlyList<GpuChoice> All { get; } =
+    /// <summary>Built fresh on every read rather than held in a static: the three names are
+    /// translated, and a list made once at class load would still say "Intel-Grafik" in an
+    /// English window. Three strings per read is not worth a cache.</summary>
+    public static IReadOnlyList<GpuChoice> All =>
         GpuSwitchPlan.Choices.Select(value => new GpuChoice(value, Name(value))).ToArray();
 
     /// <summary>The one place the three settings are put into words. Both the drop-downs and
@@ -86,7 +89,7 @@ public sealed class GpuUsageViewModel(GpuUser user, bool managed)
     /// Intel chip is not what is keeping the RTX awake, so ending it buys nothing and only
     /// risks somebody's unsaved work.</summary>
     public bool CanClose { get; } = user.IsNvidia;
-    public string Chip { get; } = user.IsNvidia ? "RTX 3070" : "Intel-Grafik";
+    public string Chip { get; } = GpuChoice.Name(user.IsNvidia ? GpuPreference.Nvidia : GpuPreference.Integrated);
 
     /// <summary>The line under the name. Deliberately without the path: a Store app's path
     /// runs to three wrapped lines at the narrowest window width and buries everything worth

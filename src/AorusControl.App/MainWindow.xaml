@@ -1052,7 +1052,7 @@
                                                                  Zeile eine Textzeile, und "Netz"/"Akku" sind kurz
                                                                  genug, dass daneben Platz bleibt. -->
                                                             <StackPanel Orientation="Horizontal" Margin="0,0,16,8">
-                                                                <TextBlock Text="{loc:T Gpu_OnMains}" Style="{StaticResource TileLabel}" Width="38"
+                                                                <TextBlock Text="{loc:T Gpu_OnMains}" Style="{StaticResource TileLabel}" MinWidth="62"
                                                                            VerticalAlignment="Center" Margin="0,0,8,0" />
                                                                 <ComboBox MinWidth="146"
                                                                           ItemsSource="{Binding Choices}"
@@ -1060,7 +1060,7 @@
                                                                           SelectedValue="{Binding OnAc, Mode=TwoWay}" />
                                                             </StackPanel>
                                                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                                                <TextBlock Text="{loc:T Dash_TileBattery}" Style="{StaticResource TileLabel}" Width="38"
+                                                                <TextBlock Text="{loc:T Dash_TileBattery}" Style="{StaticResource TileLabel}" MinWidth="62"
                                                                            VerticalAlignment="Center" Margin="0,0,8,0" />
                                                                 <ComboBox MinWidth="146"
                                                                           ItemsSource="{Binding Choices}"

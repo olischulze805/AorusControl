@@ -283,5 +283,12 @@ internal static class EnglishStrings
             ["Tray_Open"] = "Open",
             ["Tray_ToggleLighting"] = "Toggle lighting",
             ["Tray_UpdateBalloon"] = "Version {0} is available. Click here to download it.",
+            ["Common_On"] = "On",
+            ["Common_Ready"] = "Ready",
+            ["Live_Duty"] = "{0} % duty",
+            ["Live_NoDuty"] = "– % duty",
+            ["Live_NoRpm"] = "– rpm",
+            ["Live_Rpm"] = "{0} rpm",
+            ["Live_Stopped"] = "stopped",
         };
 }

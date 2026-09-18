@@ -50,18 +50,30 @@ public sealed class Strings : INotifyPropertyChanged
             ? AppLanguage.German
             : AppLanguage.English;
 
+    /// <summary>The culture the numbers are written in, which has to follow the words: a
+    /// decimal comma inside an English sentence reads as a typing mistake, and a decimal point
+    /// inside a German one reads as a thousands separator. British English rather than
+    /// American, because the rest of the panel is metric and on a 24-hour clock.</summary>
+    public CultureInfo Culture { get; private set; } = CultureInfo.CurrentCulture;
+
     public void Use(AppLanguage language)
     {
         _language = language;
         AppLanguage effective = language == AppLanguage.System ? FromWindows() : language;
         _table = effective == AppLanguage.German ? GermanStrings.Table : EnglishStrings.Table;
+        Culture = CultureInfo.GetCultureInfo(effective == AppLanguage.German ? "de-DE" : "en-GB");
+        // Set for the whole app, not just for Format: most numbers are written by ordinary
+        // interpolation at the call site, and chasing every one of them would be a worse
+        // answer than telling the thread which language it is speaking.
+        CultureInfo.DefaultThreadCurrentCulture = Culture;
+        CultureInfo.CurrentCulture = Culture;
         // The empty name is WPF's way of saying "all of them"; "Item[]" is the indexer.
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Item[]"));
     }
 
     /// <summary>A formatted string, for the places that build a sentence around a number.</summary>
     public string Format(string key, params object?[] values) =>
-        string.Format(CultureInfo.CurrentCulture, this[key], values);
+        string.Format(Culture, this[key], values);
 }
 
 /// <summary>

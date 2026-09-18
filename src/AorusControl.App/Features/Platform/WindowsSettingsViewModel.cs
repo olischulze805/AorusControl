@@ -60,10 +60,10 @@ public sealed class WindowsSettingsViewModel : ObservableObject, IFeatureModule
     /// <summary>The running mode in the same words as its chip, for the dashboard tile.</summary>
     public string ActivePowerModeLabel => _activeMode switch
     {
-        nameof(WindowsPowerOverlayMode.BestEfficiency) => "Energieeffizienz",
-        nameof(WindowsPowerOverlayMode.BestPerformance) => "Beste Leistung",
-        nameof(WindowsPowerOverlayMode.Balanced) => "Ausbalanciert",
-        _ => "Noch nicht gelesen"
+        nameof(WindowsPowerOverlayMode.BestEfficiency) => Strings.Current["Pwr_ModeEfficiency"],
+        nameof(WindowsPowerOverlayMode.BestPerformance) => Strings.Current["Pwr_ModeBestPerformance"],
+        nameof(WindowsPowerOverlayMode.Balanced) => Strings.Current["Pwr_ModeBalanced"],
+        _ => Strings.Current["Common_NotReadYet"]
     };
 
     /// <summary>

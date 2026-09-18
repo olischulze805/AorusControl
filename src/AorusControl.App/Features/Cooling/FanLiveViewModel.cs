@@ -1,3 +1,4 @@
+using AorusControl.App.Localization;
 using AorusControl.App.Infrastructure;
 using AorusControl.App.ViewModels;
 using AorusControl.Core.Features.Cooling;
@@ -105,10 +106,11 @@ public sealed class FanLiveViewModel : ObservableObject
     ];
 
     private string Speed(double rpm) =>
-        !IsLive ? "– U/min" : rpm < 1 ? "steht" : $"{rpm:N0} U/min";
+        !IsLive ? Strings.Current["Live_NoRpm"] : rpm < 1 ? Strings.Current["Live_Stopped"] : Strings.Current.Format("Live_Rpm", rpm.ToString("N0"));
 
     private string Degrees(double celsius) =>
         !IsLive || double.IsNaN(celsius) ? "– °C" : $"{celsius:N0} °C";
 
-    private string Duty(double percent) => IsLive ? $"{percent:N0} % Leistung" : "– % Leistung";
+    private string Duty(double percent) =>
+        IsLive ? Strings.Current.Format("Live_Duty", percent.ToString("N0")) : Strings.Current["Live_NoDuty"];
 }

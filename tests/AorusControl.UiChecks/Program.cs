@@ -63,6 +63,7 @@ var thread = new Thread(() =>
         RenderCoolingStates(output);
         RenderGraphicsPage(output);
         RenderEnglish(output);
+        RenderReadmeShots();
         RenderToolTip(output);
         Console.WriteLine("PASS: main window laid out at every checked width; no native window or hardware started.");
         app.Shutdown();
@@ -96,6 +97,51 @@ static void RenderMainWindow(string output)
             Layout(content, width, 1500);
             Save(content, output, $"main-{section.ToLowerInvariant()}-{width}.png", width, 1500);
         }
+    }
+}
+
+/// <summary>
+/// The pictures the README shows, in English and cropped to the panel itself.
+///
+/// Cropped on purpose: the navigation pane does not render offscreen the way it does on
+/// screen - its backdrop is drawn by the compositor, which is not running here - and a
+/// screenshot with a blank strip down the side would say something false about the app. What
+/// is inside the crop is exactly what the window shows.
+/// </summary>
+static void RenderReadmeShots()
+{
+    string shots = Path.GetFullPath("docs/screenshots");
+    Directory.CreateDirectory(shots);
+    AorusControl.App.Localization.Strings.Current.Use(AorusControl.App.Localization.AppLanguage.English);
+    try
+    {
+        var vm = new MainWindowViewModel(new StubReader(), new StubKeyboard(), new StubFan(), new WindowsPowerOverlayController(),
+            batteryController: new StubBattery(), fanCurveStore: new StubCurveStore(), startupManager: new StubStartup(),
+            gpuPreferenceStore: new StubGpuRegistry(), gpuPreferenceSettings: new StubGpuSettings(),
+            readPowerSource: () => AorusControl.Core.Features.PowerProfiles.LaptopPowerSource.Battery,
+            gpuActivity: new StubGpuActivity());
+        vm.Cooling.StartAsync().GetAwaiter().GetResult();
+        vm.Graphics.StartAsync().GetAwaiter().GetResult();
+        vm.Graphics.RefreshRunningCommand.ExecuteAsync().GetAwaiter().GetResult();
+        FeedDashboard(vm);
+
+        var window = new MainWindow(vm);
+        var content = (FrameworkElement)window.Content;
+        content.DataContext = vm;
+
+        // One height per section: a picture padded out with empty background reads as an
+        // empty app.
+        foreach ((string section, int height) in new[]
+                 { ("Dashboard", 770), ("Cooling", 1400), ("Lighting", 1180), ("Graphics", 800), ("Power", 640) })
+        {
+            vm.SelectedSection = section;
+            Layout(content, 1180, height);
+            Crop(content, shots, $"{section.ToLowerInvariant()}.png", 1180, height, 222, 42);
+        }
+    }
+    finally
+    {
+        AorusControl.App.Localization.Strings.Current.Use(AorusControl.App.Localization.AppLanguage.German);
     }
 }
 
@@ -300,6 +346,44 @@ static void Layout(FrameworkElement content, int width, int height)
     content.UpdateLayout();
     Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.Loaded);
     content.UpdateLayout();
+}
+
+/// <summary>Puts a load curve and a battery reading into the dashboard, so the README shows
+/// an app with numbers in it rather than one that has never measured anything.</summary>
+static void FeedDashboard(MainWindowViewModel vm)
+{
+    for (int index = 0; index < 90; index++)
+    {
+        double share = index / 89.0;
+        double cpu = 46 + 38 * Math.Min(1, share * 1.9) - 6 * Math.Sin(share * 9);
+        double gpu = 41 + 26 * Math.Min(1, share * 1.6) - 4 * Math.Sin(share * 7);
+        vm.Cooling.Live.Update(new TelemetrySnapshot(DateTimeOffset.Now, (ushort)cpu, (ushort)gpu,
+            (ushort)(2200 + share * 2600), (ushort)(2000 + share * 2300),
+            (ushort)(70 + share * 140), (ushort)(64 + share * 120)));
+    }
+    Publish(vm, "CpuPower", "32.4 W");
+    Publish(vm, "GpuPower", "78.5 W");
+    Publish(vm, "GpuPowerStatus", "Awake · Windows D0");
+
+    var publishFlow = typeof(MainWindowViewModel).GetMethod("PublishBatteryFlow",
+        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+    for (int index = 0; index < 90; index++)
+    {
+        uint milliwatts = (uint)(24_000 + 14_000 * Math.Sin(index / 11.0) + index * 60);
+        publishFlow.Invoke(vm, [BatteryFlowMath.From(false, 0, milliwatts, 71_500, 99_013)]);
+    }
+}
+
+/// <summary>Renders and keeps only the panel, dropping the navigation strip and the title bar.</summary>
+static void Crop(FrameworkElement content, string output, string filename, int width, int height, int left, int top)
+{
+    var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+    bitmap.Render(content);
+    var cropped = new CroppedBitmap(bitmap, new Int32Rect(left, top, width - left, height - top));
+    var encoder = new PngBitmapEncoder();
+    encoder.Frames.Add(BitmapFrame.Create(cropped));
+    using var file = File.Create(Path.Combine(output, filename));
+    encoder.Save(file);
 }
 
 static void Save(FrameworkElement content, string output, string filename, int width, int height)
