@@ -68,8 +68,8 @@ public partial class MainWindow : FluentWindow
     {
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
-            Title = "Lüfterkurve speichern", Filter = "AORUS-Lüfterkurve (*.json)|*.json",
-            DefaultExt = ".json", FileName = "Meine Lüfterkurve.json", AddExtension = true, OverwritePrompt = true
+            Title = Localization.Strings.Current["Dlg_SaveCurve"], Filter = Localization.Strings.Current["Dlg_CurveFilter"],
+            DefaultExt = ".json", FileName = Localization.Strings.Current["Dlg_CurveFileName"], AddExtension = true, OverwritePrompt = true
         };
         if (dialog.ShowDialog(this) == true)
             await _viewModel.Cooling.SaveCurveFileAsync(new AorusControl.Core.Features.Cooling.FanCurveStore(dialog.FileName));
@@ -79,11 +79,11 @@ public partial class MainWindow : FluentWindow
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            Title = "Lüfterkurve laden", Filter = "AORUS-Lüfterkurve (*.json)|*.json", CheckFileExists = true
+            Title = Localization.Strings.Current["Dlg_OpenCurve"], Filter = Localization.Strings.Current["Dlg_CurveFilter"], CheckFileExists = true
         };
         if (dialog.ShowDialog(this) != true) return;
         if (_viewModel.Cooling.HasUnsavedCurve && System.Windows.MessageBox.Show(this,
-            "Die Änderungen im Kurveneditor durch die gespeicherte Kurve ersetzen?", "Kurve laden",
+            Localization.Strings.Current["Dlg_ReplaceCurve"], Localization.Strings.Current["Dlg_OpenCurve"],
             System.Windows.MessageBoxButton.YesNo, MessageBoxImage.Question, System.Windows.MessageBoxResult.No) != System.Windows.MessageBoxResult.Yes) return;
         await _viewModel.Cooling.LoadCurveFileAsync(new AorusControl.Core.Features.Cooling.FanCurveStore(dialog.FileName));
     }
@@ -107,7 +107,7 @@ public partial class MainWindow : FluentWindow
         {
             AorusControl.Core.Features.Diagnostics.AppLog.Error("ui", "Protokollordner konnte nicht geöffnet werden.", exception);
             System.Windows.MessageBox.Show(this,
-                $"Der Protokollordner konnte nicht geöffnet werden:\n{exception.Message}\n\nPfad: {AorusControl.Core.Features.Diagnostics.AppLog.Directory}",
+                Localization.Strings.Current.Format("Dlg_LogFolderFailed", exception.Message, AorusControl.Core.Features.Diagnostics.AppLog.Directory),
                 "Protokoll", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
         }
     }
@@ -149,7 +149,7 @@ public partial class MainWindow : FluentWindow
             // not coming.
             _restartForUpdate = false;
             System.Windows.MessageBox.Show(this,
-                $"Eine Hardwareoperation konnte nicht sicher beendet werden. Das Fenster bleibt geöffnet.\n{exception.Message}\nBei Lüfterproblemen tools/Start-FanNormalRestore.cmd verwenden.",
+                Localization.Strings.Current.Format("Dlg_CloseBlocked", exception.Message),
                 "Sicheres Beenden fehlgeschlagen", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
         }
         finally

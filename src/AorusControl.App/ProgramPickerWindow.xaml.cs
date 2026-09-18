@@ -47,7 +47,7 @@ public partial class ProgramPickerWindow : FluentWindow
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            Title = "Programm auswählen",
+            Title = Localization.Strings.Current["Dlg_ChooseProgram"],
             Filter = "Programme (*.exe)|*.exe",
             CheckFileExists = true
         };

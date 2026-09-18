@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using AorusControl.App.Infrastructure;
+using AorusControl.App.Localization;
 using AorusControl.App.ViewModels;
 using AorusControl.Core.Features.Diagnostics;
 using AorusControl.Core.Features.GpuPreferences;
@@ -17,9 +18,9 @@ public sealed record GpuChoice(GpuPreference Value, string Text)
     /// the line under each program read from here, so they cannot come to disagree.</summary>
     public static string Name(GpuPreference preference) => preference switch
     {
-        GpuPreference.Nvidia => "RTX 3070",
-        GpuPreference.Integrated => "Intel-Grafik",
-        _ => "Windows entscheidet"
+        GpuPreference.Nvidia => Strings.Current["Gpu_ChipNvidia"],
+        GpuPreference.Integrated => Strings.Current["Gpu_ChipIntel"],
+        _ => Strings.Current["Gpu_ChipWindows"]
     };
 }
 
@@ -92,11 +93,11 @@ public sealed class GpuUsageViewModel(GpuUser user, bool managed)
     /// reading. It is on the row's tooltip, where looking for it costs nothing.</summary>
     public string Detail { get; } = string.Join(" · ", new[]
     {
-        user.Processes > 1 ? $"{user.Processes} Prozesse" : null,
-        managed ? "wird schon verwaltet" : null,
+        user.Processes > 1 ? Strings.Current.Format("Gpu_ProcessCount", user.Processes) : null,
+        managed ? Strings.Current["Gpu_AlreadyManaged"] : null,
         // The registry keeps a Store app's preference under its package id, so writing this
         // path would leave an entry nothing ever reads. The program search knows the ids.
-        user.IsStoreApp && !managed ? "Store-App · über „Programm suchen“ hinzufügen" : null
+        user.IsStoreApp && !managed ? Strings.Current["Gpu_StoreAppHint"] : null
     }.Where(part => part is { Length: > 0 }));
 
     /// <summary>Only a program that can actually be assigned gets the button.</summary>
@@ -129,7 +130,7 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
     private readonly List<ManagedProgram> _managed = [];
     private bool _busy, _disposed, _started, _automatic = true, _runningRead, _runningReadable, _runningBusy;
     private int _missing;
-    private string _status = "Noch nicht geprüft";
+    private string _status = Strings.Current["Gpu_NotCheckedYet"];
     private LaptopPowerSource _source = LaptopPowerSource.Unknown;
 
     public GpuPreferenceViewModel(
@@ -206,13 +207,13 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
         get
         {
             if (!_runningRead) return "Noch nicht gelesen.";
-            if (!_runningReadable) return "Die Grafikzähler von Windows geben hier nichts her.";
+            if (!_runningReadable) return Strings.Current["Gpu_CountersUnreadable"];
             int onNvidia = Running.Count(program => program.IsNvidia);
             return Running.Count == 0
-                ? "Kein Programm außerhalb von Windows benutzt gerade eine Grafikkarte."
+                ? Strings.Current["Gpu_NobodyUsing"]
                 : onNvidia == 0
-                    ? "Nichts auf der RTX - sie kann schlafen."
-                    : $"{onNvidia} {(onNvidia == 1 ? "Programm hält" : "Programme halten")} die RTX wach.";
+                    ? Strings.Current["Gpu_RtxIdle"]
+                    : Strings.Current.Format(onNvidia == 1 ? "Gpu_HoldingRtxOne" : "Gpu_HoldingRtxMany", onNvidia);
         }
     }
 
@@ -220,7 +221,7 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
     /// worth a cleanup button on its own, worth saying once.</summary>
     public string LeftoverNote => _missing == 0
         ? string.Empty
-        : $"Windows hat außerdem {_missing} Einträge für Programme, die es nicht mehr gibt.";
+        : Strings.Current.Format("Gpu_LeftoverEntries", _missing);
 
     /// <summary>
     /// What the card says while the automatic is off.
@@ -230,8 +231,8 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
     /// and does nothing, and somebody watching for an effect would see none and assume the
     /// drop-down was broken.
     /// </summary>
-    private const string AutomaticOff =
-        "Automatik aus · nichts wird umgestellt. Geänderte Regeln werden gespeichert und gelten, sobald sie wieder an ist.";
+    // A property rather than a const: it has to be able to change language.
+    private static string AutomaticOff => Strings.Current["Gpu_AutomaticOff"];
 
     /// <summary>Off leaves every preference exactly where it is; the list stays, so it can be
     /// switched back on without adding everything again.</summary>
@@ -251,9 +252,9 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
     /// naming a chip it can no longer speak for.</summary>
     public string SourceText => _source switch
     {
-        LaptopPowerSource.Ac => "Netzbetrieb · es gilt die linke Spalte",
-        LaptopPowerSource.Battery => "Akkubetrieb · es gilt die rechte Spalte",
-        _ => "Stromquelle unbekannt · es wird nichts umgestellt"
+        LaptopPowerSource.Ac => Strings.Current["Gpu_SourceAc"],
+        LaptopPowerSource.Battery => Strings.Current["Gpu_SourceBattery"],
+        _ => Strings.Current["Gpu_SourceUnknownShort"]
     };
 
     public async Task StartAsync()
@@ -268,11 +269,11 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
         catch (Exception exception)
         {
             AppLog.Error("gpu", "Grafikzuordnungen nicht lesbar.", exception);
-            Status = $"Zuordnungen nicht lesbar: {exception.Message}";
+            Status = Strings.Current.Format("Gpu_SettingsUnreadable", exception.Message);
         }
 
         Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
-        await ApplyAsync("Beim Start geprüft");
+        await ApplyAsync(Strings.Current["Gpu_CheckedAtStart"]);
     }
 
     /// <summary>Adds a program to the list, remembering what Windows had set for it.</summary>
@@ -281,20 +282,20 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
         if (_busy || _disposed || string.IsNullOrWhiteSpace(executablePath)) return;
         if (_managed.Any(program => program.Name.Equals(executablePath, StringComparison.OrdinalIgnoreCase)))
         {
-            Status = $"{System.IO.Path.GetFileName(executablePath)} ist schon in der Liste.";
+            Status = Strings.Current.Format("Gpu_AlreadyListed", System.IO.Path.GetFileName(executablePath));
             return;
         }
 
         GpuPreferenceProgram? existing = _registry.Find(executablePath);
         if (existing is { IsManageable: false })
         {
-            Status = $"Für {System.IO.Path.GetFileName(executablePath)} ist in Windows eine feste Grafikkarte gewählt; das wird nicht überschrieben.";
+            Status = Strings.Current.Format("Gpu_PinnedElsewhere", System.IO.Path.GetFileName(executablePath));
             return;
         }
 
         _managed.Add(new ManagedProgram(executablePath, existing?.Preference));
         Persist();
-        await ApplyAsync($"{System.IO.Path.GetFileName(executablePath)} hinzugefügt");
+        await ApplyAsync(Strings.Current.Format("Gpu_Added", System.IO.Path.GetFileName(executablePath)));
         await MarkRunningAsync();
     }
 
@@ -314,7 +315,7 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
         // registry holds is no longer evidence that somebody else set it by hand.
         _managed[index] = _managed[index] with { OnAc = onAc, OnBattery = onBattery, LastWritten = null };
         Persist();
-        await ApplyAsync($"Regel für {program.DisplayName} geändert");
+        await ApplyAsync(Strings.Current.Format("Gpu_RuleChanged", program.DisplayName));
     }
 
     /// <summary>Brings the running list's "already managed" marks back in line after the
@@ -340,13 +341,13 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
             _managed.Remove(managed);
             Persist();
             Status = release is null
-                ? $"{program.DisplayName} entfernt."
-                : $"{program.DisplayName} entfernt und auf die ursprüngliche Einstellung zurückgesetzt.";
+                ? Strings.Current.Format("Gpu_Removed", program.DisplayName)
+                : Strings.Current.Format("Gpu_RemovedAndRestored", program.DisplayName);
         }
         catch (Exception exception)
         {
             AppLog.Error("gpu", "Programm konnte nicht freigegeben werden.", exception);
-            Status = $"Entfernen fehlgeschlagen: {exception.Message}";
+            Status = Strings.Current.Format("Gpu_RemoveFailed", exception.Message);
         }
         finally { _busy = false; Show(); }
         await MarkRunningAsync();
@@ -387,10 +388,10 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
             if (written > 0) Persist();
 
             Status = _managed.Count == 0
-                ? "Noch keine Programme ausgewählt."
+                ? Strings.Current["Gpu_NoProgramsChosen"]
                 : _source == LaptopPowerSource.Unknown
-                    ? "Windows meldet die Stromquelle nicht; es wurde nichts geändert."
-                    : $"{reason} · {written} von {_managed.Count} umgestellt · wirkt beim nächsten Programmstart";
+                    ? Strings.Current["Gpu_SourceUnknown"]
+                    : Strings.Current.Format("Gpu_Applied", reason, written, _managed.Count);
         }
         finally { _busy = false; Show(); }
     }
@@ -406,13 +407,11 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
     private async Task CloseRunningAsync(GpuUsageViewModel? program)
     {
         if (program is null || _disposed || _busy || !program.CanClose) return;
-        string many = program.ProcessIds.Count > 1 ? $" ({program.ProcessIds.Count} Prozesse)" : string.Empty;
+        string many = program.ProcessIds.Count > 1 ? " (" + Strings.Current.Format("Gpu_ProcessCount", program.ProcessIds.Count) + ")" : string.Empty;
         string question = string.Join(Environment.NewLine + Environment.NewLine,
-            $"{program.Name}{many} beenden?",
-            "Das Programm wird zuerst gebeten, sich zu schließen - hat es ein Fenster, kann es " +
-            "vorher noch nachfragen und speichern. Antwortet es nicht innerhalb weniger Sekunden, " +
-            "wird es beendet, und nicht gespeicherte Arbeit geht dabei verloren.",
-            "Dauerhaft hilft stattdessen die Regel darunter: sie greift beim nächsten Start.");
+            Strings.Current.Format("Gpu_CloseQuestion", program.Name, many),
+            Strings.Current["Gpu_CloseExplain"],
+            Strings.Current["Gpu_CloseLasting"]);
         if (!_confirm(question)) return;
 
         _busy = true;
@@ -421,17 +420,17 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
         catch (Exception exception)
         {
             AppLog.Error("gpu", $"{program.Name} konnte nicht beendet werden.", exception);
-            Status = $"{program.Name} konnte nicht beendet werden: {exception.Message}";
+            Status = Strings.Current.Format("Gpu_CloseFailed", program.Name, exception.Message);
             return;
         }
         finally { _busy = false; }
 
         Status = outcome switch
         {
-            { Closed: 0 } => $"{program.Name} ließ sich nicht beenden - keine Rechte, oder es hat abgelehnt.",
-            { Refused: > 0 } => $"{program.Name}: {outcome.Closed} beendet, {outcome.Refused} laufen weiter.",
-            { Forced: > 0 } => $"{program.Name} beendet - {outcome.Forced} davon erzwungen, weil nichts antwortete.",
-            _ => $"{program.Name} hat sich geschlossen."
+            { Closed: 0 } => Strings.Current.Format("Gpu_CloseRefused", program.Name),
+            { Refused: > 0 } => Strings.Current.Format("Gpu_ClosePartly", program.Name, outcome.Closed, outcome.Refused),
+            { Forced: > 0 } => Strings.Current.Format("Gpu_CloseForced", program.Name, outcome.Forced),
+            _ => Strings.Current.Format("Gpu_Closed", program.Name)
         };
         AppLog.Info("gpu", Status);
         await RefreshRunningAsync();
@@ -491,15 +490,15 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
             byName.TryGetValue(program.Name, out GpuPreferenceProgram? entry);
             string state = entry?.Preference switch
             {
-                null when entry is { IsManageable: false } => "feste Grafikkarte in Windows gewählt",
-                null => "keine Einstellung in Windows",
-                { } set => $"jetzt {GpuChoice.Name(set)}"
+                null when entry is { IsManageable: false } => Strings.Current["Gpu_PinnedInWindows"],
+                null => Strings.Current["Gpu_NoSettingInWindows"],
+                { } set => Strings.Current.Format("Gpu_NowOn", GpuChoice.Name(set))
             };
             // What the rules would give it right now. A value somewhere else than that, which
             // this app did not put there, was somebody's own decision and stays.
             if (entry?.Preference is { } now && _source != LaptopPowerSource.Unknown
                 && now != program.For(_source) && _automatic)
-                state += " · von Hand geändert, bleibt so";
+                state += " · " + Strings.Current["Gpu_ChangedByHand"];
             Programs.Add(new GpuProgramViewModel(program, state,
                 (onAc, onBattery) => ChangeRulesAsync(program, onAc, onBattery)));
         }
@@ -533,7 +532,7 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
         catch (Exception exception)
         {
             AppLog.Error("gpu", "Grafikzuordnungen nicht gespeichert.", exception);
-            Status = $"Speichern fehlgeschlagen: {exception.Message}";
+            Status = Strings.Current.Format("Common_SaveFailed", exception.Message);
         }
     }
 

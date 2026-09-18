@@ -58,12 +58,12 @@ public partial class App : System.Windows.Application
             {
                 using var controller = new AorusControl.Core.Services.GigabyteWmiFanController();
                 await controller.SetNormalAsync();
-                System.Windows.MessageBox.Show("Lüfter auf Normal zurückgestellt und rückgelesen.", "AORUS Control");
+                System.Windows.MessageBox.Show(Localization.Strings.Current["App_FansRestored"], "AORUS Control");
             }
             catch (Exception exception)
             {
                 exitCode = 1;
-                System.Windows.MessageBox.Show($"Rückstellung fehlgeschlagen: {exception.Message}", "AORUS Control");
+                System.Windows.MessageBox.Show(Localization.Strings.Current.Format("App_RestoreFailed", exception.Message), "AORUS Control");
             }
             Shutdown(exitCode);
             return;
@@ -87,14 +87,14 @@ public partial class App : System.Windows.Application
             // firmware control, and switch the lighting off. Both are things you want at the
             // moment the window is the last thing you feel like looking for.
             _trayMenu = new System.Windows.Forms.ContextMenuStrip();
-            _trayMenu.Items.Add("Öffnen", null, (_, _) => ShowWindow());
+            _trayMenu.Items.Add(Localization.Strings.Current["Tray_Open"], null, (_, _) => ShowWindow());
             _trayMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-            _trayMenu.Items.Add("Lüfter auf Normal", null, (_, _) =>
+            _trayMenu.Items.Add(Localization.Strings.Current["Tray_FansNormal"], null, (_, _) =>
                 _ = window.ViewModel.Cooling.SetProfileCommand.ExecuteAsync("Normal"));
-            _trayMenu.Items.Add("Beleuchtung umschalten", null, (_, _) =>
+            _trayMenu.Items.Add(Localization.Strings.Current["Tray_ToggleLighting"], null, (_, _) =>
                 _ = window.ViewModel.Keyboard.TogglePowerCommand.ExecuteAsync());
             _trayMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-            _trayMenu.Items.Add("Beenden", null, (_, _) => { ShowWindow(); window.RequestExit(); });
+            _trayMenu.Items.Add(Localization.Strings.Current["Tray_Exit"], null, (_, _) => { ShowWindow(); window.RequestExit(); });
             _tray = new System.Windows.Forms.NotifyIcon
             {
                 // Reuses the same icon embedded into the exe via <ApplicationIcon> rather
@@ -128,7 +128,7 @@ public partial class App : System.Windows.Application
                 string version = window.ViewModel.Updates.AvailableVersion ?? "neu";
                 AppLog.Info("update", $"Version {version} verfügbar; Hinweis im Infobereich gezeigt.");
                 _tray?.ShowBalloonTip(10_000, "AORUS Control",
-                    $"Version {version} ist verfügbar. Zum Herunterladen hier klicken.",
+                    Localization.Strings.Current.Format("Tray_UpdateBalloon", version),
                     System.Windows.Forms.ToolTipIcon.Info);
             }));
             // Windows shutdown and logoff never reach the window's own close path, so

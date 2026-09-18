@@ -1,3 +1,4 @@
+using AorusControl.App.Localization;
 using AorusControl.App.Infrastructure;
 using AorusControl.Core.Features.Battery;
 using AorusControl.Core.Features.Diagnostics;
@@ -14,8 +15,8 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
     private bool _supported;
     private bool _disposed;
     private int _selectedLimit = 80;
-    private string _status = "Ladelimit wird gelesen …";
-    private string _activePolicy = "Noch nicht gelesen";
+    private string _status = Strings.Current["Bat_Reading"];
+    private string _activePolicy = Strings.Current["Common_NotReadYet"];
 
     private readonly IBatterySettingsStore? _store;
     private readonly bool _watchingResume;
@@ -58,14 +59,14 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
     public bool CanApply => _supported && !IsBusy && !_disposed;
 
     /// <summary>Whether the device answered about its charge policy at all. The tray text
-    /// needs it: "Standardladen" on a machine that never replied would be a claim.</summary>
+    /// needs it: Strings.Current["Bat_StandardCharging"] on a machine that never replied would be a claim.</summary>
     public bool IsSupported => _supported;
 
     /// <summary>
     /// Whether a charge limit is in force at all - the switch above the slider.
     ///
     /// Two mutually exclusive states that take effect at once is the definition of a switch.
-    /// It used to be a button marked "Standardladen", which could only travel in one
+    /// It used to be a button marked Strings.Current["Bat_StandardCharging"], which could only travel in one
     /// direction: getting the limit back meant nudging the slider until the app noticed, and
     /// which of the two states was active could only be read out of a line of prose.
     /// </summary>
@@ -79,7 +80,7 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
             // Not while a readback is populating the card - that would write back the state
             // the device has just reported.
             if (_applyingDeviceState) return;
-            Status = value ? $"Ladelimit {SelectedLimit} % wird gesetzt …" : "Standardladen wird gesetzt …";
+            Status = value ? Strings.Current.Format("Bat_SettingLimit", SelectedLimit) : Strings.Current["Bat_SettingStandard"];
             // Through the same queue as the slider. Called directly, a flick of the switch
             // while a read was still running was simply dropped - and the switch then showed
             // a state the device was never asked for, until the next readback corrected it.
@@ -108,7 +109,7 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
             // Not while the readback is populating the slider - that would write back the
             // value the device just reported.
             if (_applyingDeviceState) return;
-            Status = $"{value} % wird übernommen …";
+            Status = Strings.Current.Format("Bat_Applying", value);
             // Moving the slider is a request for a limit, whatever the switch did last.
             _pendingStandard = false;
             _applyLimit.Schedule();
@@ -151,12 +152,12 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
         try
         {
             DeviceCompatibility compatibility = await Task.Run(controller.CheckCompatibility);
-            if (!compatibility.IsSupported) { ActivePolicy = "Gerät nicht freigegeben"; Status = compatibility.Message; return; }
+            if (!compatibility.IsSupported) { ActivePolicy = Strings.Current["Bat_DeviceNotApproved"]; Status = compatibility.Message; return; }
             ShowState(await controller.ReadAsync());
-            Status = "Bereit. Der Regler übernimmt sich kurz nach dem Loslassen von selbst.";
+            Status = Strings.Current["Bat_Ready"];
             if (restoreSaved) restore = PendingRestore();
         }
-        catch (Exception exception) { ActivePolicy = "Nicht verfügbar"; Status = $"Lesen fehlgeschlagen: {exception.Message}"; }
+        catch (Exception exception) { ActivePolicy = Strings.Current["Common_Unavailable"]; Status = Strings.Current.Format("Bat_ReadFailed", exception.Message); }
         finally { IsBusy = false; }
 
         // Outside the busy block on purpose: the write below goes through the same guard as a
@@ -180,10 +181,10 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
 
     private async Task RestoreAsync(BatterySettings saved)
     {
-        string wanted = saved.StandardMode ? "Standardladen" : $"Ladelimit {saved.Limit} %";
+        string wanted = saved.StandardMode ? Strings.Current["Bat_StandardCharging"] : Strings.Current.Format("Bat_LimitNamed", saved.Limit);
         AppLog.Info("battery", $"{wanted} wird nach dem Start wiederhergestellt.");
         await ChangeAsync(saved.StandardMode ? null : saved.Limit, remember: false);
-        if (_supported) Status = $"{wanted} war nach dem Neustart nicht mehr gesetzt und wurde wiederhergestellt.";
+        if (_supported) Status = Strings.Current.Format("Bat_Restored", wanted);
     }
 
     public Task ApplyLimitAsync() => ChangeAsync(SelectedLimit);
@@ -204,7 +205,7 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
     private async Task ChangeAsync(int? limit, bool remember = true)
     {
         if (!CanApply) return;
-        if (limit is < 60 or > 100) { Status = "Bitte ein Limit von 60 bis 100 % wählen."; return; }
+        if (limit is < 60 or > 100) { Status = Strings.Current["Bat_RangeHint"]; return; }
         IsBusy = true;
         try
         {
@@ -215,15 +216,15 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
             // Saved only after the read-back confirmed it, so the file always describes a
             // setting that really took effect rather than one that was merely asked for.
             if (remember) Remember(limit);
-            Status = "Einstellung übernommen und rückgelesen. Bleibt nach dem Schließen aktiv - auch über einen Neustart.";
+            Status = Strings.Current["Bat_Confirmed"];
         }
         catch (Exception exception)
         {
             _supported = false;
-            ActivePolicy = "Nach Fehler noch nicht bestätigt";
+            ActivePolicy = Strings.Current["Bat_UnconfirmedAfterError"];
             try { ShowState(await controller.ReadAsync()); }
             catch { /* Preserve unknown state and the original error; require refresh. */ }
-            Status = $"Änderung fehlgeschlagen: {exception.Message}";
+            Status = Strings.Current.Format("Bat_ChangeFailed", exception.Message);
         }
         finally { IsBusy = false; }
     }
@@ -238,7 +239,7 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
         catch (Exception exception)
         {
             AppLog.Error("battery", "Ladelimit konnte nicht gespeichert werden.", exception);
-            Status += " Konnte aber nicht gespeichert werden - nach einem Neustart steht wieder, was das Gerät meldet.";
+            Status += " " + Strings.Current["Bat_NotSaved"];
         }
     }
 
@@ -262,10 +263,10 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
         }
         finally { _applyingDeviceState = false; }
         ActivePolicy = state.IsCustomMode
-            ? $"Aktiv: Ladelimit {state.StoredStopPercent} %"
-            : state.IsStandardMode ? "Aktiv: Standardladen (BIOS-gesteuert)"
-            : $"Unbekannter Modus {state.PolicyRaw} · gespeicherter Wert {state.StoredStopPercent}";
-        if (!_supported) ActivePolicy += " · Schreiben gesperrt";
+            ? Strings.Current.Format("Bat_ActiveLimit", state.StoredStopPercent)
+            : state.IsStandardMode ? Strings.Current["Bat_ActiveStandard"]
+            : Strings.Current.Format("Bat_UnknownMode", state.PolicyRaw, state.StoredStopPercent);
+        if (!_supported) ActivePolicy += " · " + Strings.Current["Bat_WritingBlocked"];
     }
 
     /// <summary>

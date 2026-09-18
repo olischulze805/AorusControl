@@ -25,8 +25,8 @@ public static class TrayStatus
         string[] parts =
         [
             Name,
-            string.IsNullOrWhiteSpace(fanProfile) ? null! : $"Lüfter {fanProfile.Trim()}",
-            !batteryKnown ? null! : chargeLimitPercent is { } limit ? $"Limit {limit} %" : "Standardladen"
+            string.IsNullOrWhiteSpace(fanProfile) ? null! : Localization.Strings.Current.Format("Tray_Fans", fanProfile.Trim()),
+            !batteryKnown ? null! : chargeLimitPercent is { } limit ? Localization.Strings.Current.Format("Tray_Limit", limit) : Localization.Strings.Current["Bat_StandardCharging"]
         ];
 
         string text = string.Join(" · ", parts.Where(part => !string.IsNullOrEmpty(part)));

@@ -1,3 +1,4 @@
+using AorusControl.App.Localization;
 using System.Reflection;
 using AorusControl.App.Infrastructure;
 using AorusControl.Core.Features.Diagnostics;
@@ -26,13 +27,13 @@ public sealed class UpdateViewModel : ObservableObject
     private readonly UpdateManager? _updates;
     private readonly Func<TimeSpan, CancellationToken, Task> _wait;
     private readonly CancellationTokenSource _closing = new();
-    private const string NotAnInstallation =
-        "Diese Version läuft nicht aus einer Installation - Updates gelten nur für die per Setup installierte App.";
+    // A property rather than a const: it has to be able to change language.
+    private static string NotAnInstallation => Strings.Current["Upd_NotInstalled"];
 
     private readonly string _unavailableReason;
     private UpdateInfo? _available;
     private bool _busy, _downloaded, _notInstalled;
-    private string _status = "Noch nicht geprüft.";
+    private string _status = Strings.Current["Upd_NotCheckedYet"];
 
     public UpdateViewModel(IUpdateSource? source = null, Func<TimeSpan, CancellationToken, Task>? wait = null)
     {
@@ -156,8 +157,8 @@ public sealed class UpdateViewModel : ObservableObject
         {
             _available = await _updates!.CheckForUpdatesAsync();
             Status = _available is null
-                ? $"Version {CurrentVersion} ist aktuell."
-                : $"Version {AvailableVersion} verfügbar.";
+                ? Strings.Current.Format("Upd_UpToDate", CurrentVersion)
+                : Strings.Current.Format("Upd_Available", AvailableVersion);
         }
         catch (NotInstalledException)
         {
@@ -170,7 +171,7 @@ public sealed class UpdateViewModel : ObservableObject
         catch (Exception error)
         {
             AppLog.Error("update", "Update-Prüfung fehlgeschlagen.", error);
-            if (announceFailure) Status = "Update-Prüfung fehlgeschlagen: " + error.Message;
+            if (announceFailure) Status = Strings.Current.Format("Upd_CheckFailed", error.Message);
         }
         finally { IsBusy = false; Raise(); }
     }
@@ -187,7 +188,7 @@ public sealed class UpdateViewModel : ObservableObject
         {
             await _updates!.DownloadUpdatesAsync(_available!, progress => Status = $"Update wird geladen … {progress} %");
             IsDownloaded = true;
-            Status = $"Version {AvailableVersion} ist bereit - jetzt neu starten oder beim nächsten Start übernehmen.";
+            Status = Strings.Current.Format("Upd_Ready", AvailableVersion);
         }
         catch (Exception error)
         {

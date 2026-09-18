@@ -31,8 +31,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private bool _isRunning;
     private bool _dashboardVisible = true;
     private string _status = "Bereit";
-    private string _lastUpdated = "Noch keine Messung";
-    private string _toggleButtonText = "Überwachung starten";
+    private string _lastUpdated = Strings.Current["Shell_NoReadingYet"];
+    private string _toggleButtonText = Strings.Current["Shell_StartMonitoring"];
     private bool _closing;
     private bool _starting;
     private readonly Func<DashboardPowerReading>? _readPower;
@@ -44,7 +44,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private string _cpuPower = "– W";
     private string _gpuPower = "– W";
     private string _flowValue = "– W";
-    private string _flowLabel = "Noch nicht gelesen";
+    private string _flowLabel = Strings.Current["Common_NotReadYet"];
     private string _flowNote = string.Empty;
     private double _batteryCharge;
     private bool _flowIsCharging;
@@ -56,7 +56,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     // enough that putting the machine to work is visible in it within a page of reading.
     private readonly MovingAverage _flowAverage = new(TimeSpan.FromMinutes(3));
     private BatteryFlowDirection _flowDirection = BatteryFlowDirection.Unknown;
-    private string _gpuPowerStatus = "Status unbekannt";
+    private string _gpuPowerStatus = Strings.Current["Gpu_StateUnknown"];
     public string CpuPower { get => _cpuPower; private set => SetProperty(ref _cpuPower, value); }
     public string GpuPower { get => _gpuPower; private set => SetProperty(ref _gpuPower, value); }
 
@@ -153,6 +153,15 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         Language = new LanguageViewModel();
         // The tray text is derived, so it has to be told when either half moves. Both
         // modules already raise these; nothing new is polled for it.
+        // A language change reaches bound text by itself; the sentences these modules compute
+        // have to be asked to say themselves again. One subscription for all of them, from the
+        // object that owns them and outlives none of them.
+        Localization.Strings.Current.PropertyChanged += (_, _) =>
+        {
+            RefreshAllProperties();
+            foreach (IFeatureModule module in Modules)
+                if (module is ObservableObject observable) observable.RefreshAllProperties();
+        };
         Cooling.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName is nameof(CoolingViewModel.ActiveProfile)) OnPropertyChanged(nameof(TrayText));
@@ -238,8 +247,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             }
 
             _isRunning = true;
-            ToggleButtonText = "Überwachung stoppen";
-            Status = "Live-Telemetrie verbunden";
+            ToggleButtonText = Strings.Current["Shell_StopMonitoring"];
+            Status = Strings.Current["Shell_LiveConnected"];
             await RefreshAsync();
             if (_isRunning && (_dashboardVisible || Cooling.IsFixedActive)) _timer.Start();
         }
@@ -301,7 +310,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private void StartMonitoring()
     {
         _isRunning = true;
-        ToggleButtonText = "Überwachung stoppen";
+        ToggleButtonText = Strings.Current["Shell_StopMonitoring"];
         _timer.Start();
     }
 
@@ -317,15 +326,15 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             {
                 // Stopping the clock while a fixed value is held would remove the very
                 // supervision that makes holding it safe, so the value goes first.
-                await Cooling.AbandonFixedAsync("Überwachung wird beendet");
+                await Cooling.AbandonFixedAsync(Strings.Current["Shell_MonitoringEnding"]);
                 if (Cooling.IsFixedActive) return;
             }
             _timer.Stop();
             _isRunning = false;
             Cooling.Live.MarkStale();
             ClearPowerDisplay();
-            ToggleButtonText = "Überwachung starten";
-            Status = "Überwachung angehalten";
+            ToggleButtonText = Strings.Current["Shell_StartMonitoring"];
+            Status = Strings.Current["Shell_MonitoringPaused"];
             return;
         }
 
@@ -347,8 +356,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             // which is also the only thing that knows whether they are still current.
             Cooling.Live.Update(snapshot);
             Windows.RefreshPowerSource();
-            LastUpdated = $"Letzte Messung: {snapshot.CapturedAt.ToLocalTime():HH:mm:ss}";
-            Status = "Live-Telemetrie verbunden";
+            LastUpdated = Strings.Current.Format("Shell_LastReading", snapshot.CapturedAt.ToLocalTime().ToString("HH:mm:ss"));
+            Status = Strings.Current["Shell_LiveConnected"];
             // The worker's own lease re-validates temperature on every renewal, using its
             // own independent telemetry read; a failure there already means it has
             // restored Normal by itself before this call returns.
@@ -376,12 +385,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             // afford.
             Cooling.Live.MarkStale();
             ClearPowerDisplay();
-            if (Cooling.IsFixedActive) await Cooling.AbandonFixedAsync("Temperaturmessung ausgefallen");
+            if (Cooling.IsFixedActive) await Cooling.AbandonFixedAsync(Strings.Current["Shell_TelemetryLost"]);
             // Keep retrying the safety restoration if WMI temporarily fails.
             if (!Cooling.IsFixedActive) _timer.Stop();
             _isRunning = Cooling.IsFixedActive;
-            ToggleButtonText = "Erneut versuchen";
-            Status = $"Messfehler: {exception.Message}";
+            ToggleButtonText = Strings.Current["Shell_TryAgain"];
+            Status = Strings.Current.Format("Shell_ReadingError", exception.Message);
         }
         finally
         {
@@ -437,20 +446,20 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         PowerFlowValue = battery.Watts is { } value ? $"{value:F1} W" : battery.Direction switch
         {
-            BatteryFlowDirection.Resting => "Netzbetrieb",
+            BatteryFlowDirection.Resting => Strings.Current["Flow_OnMains"],
             _ => "– W"
         };
         PowerFlowLabel = battery.Direction switch
         {
-            BatteryFlowDirection.Discharging => "Gesamtverbrauch aus dem Akku",
-            BatteryFlowDirection.Charging => "geht in den Akku",
-            BatteryFlowDirection.Resting => "Akku ruht · das Netzteil trägt das Gerät",
-            _ => "Kein Akkuwert"
+            BatteryFlowDirection.Discharging => Strings.Current["Flow_Discharging"],
+            BatteryFlowDirection.Charging => Strings.Current["Flow_Charging"],
+            BatteryFlowDirection.Resting => Strings.Current["Flow_Resting"],
+            _ => Strings.Current["Flow_NoReading"]
         };
         BatteryCharge = battery.Percent ?? 0;
         PowerFlowNote = battery.Percent is { } percent && battery.RemainingWattHours is { } remaining && battery.FullWattHours is { } full
-            ? $"Akku {percent:F0} % · {remaining:F1} von {full:F1} Wh"
-            : battery.Percent is { } onlyPercent ? $"Akku {onlyPercent:F0} %" : string.Empty;
+            ? Strings.Current.Format("Flow_Note", percent.ToString("F0"), remaining.ToString("F1"), full.ToString("F1"))
+            : battery.Percent is { } onlyPercent ? Strings.Current.Format("Flow_NoteShort", onlyPercent.ToString("F0")) : string.Empty;
     }
 
     /// <summary>
@@ -463,9 +472,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         BatteryRuntimeMath.From(battery, averageWatts, Battery.StopPercent) switch
         {
             null => string.Empty,
-            { UntilCharged: false } left => $"noch ca. {left.Text}",
-            { } until when Battery.StopPercent is { } stop => $"bis {stop} % in ca. {until.Text}",
-            { } until => $"voll in ca. {until.Text}"
+            { UntilCharged: false } left => Strings.Current.Format("Flow_RemainingApprox", left.Text),
+            { } until when Battery.StopPercent is { } stop => Strings.Current.Format("Flow_ToLimitApprox", stop, until.Text),
+            { } until => Strings.Current.Format("Flow_ToFullApprox", until.Text)
         };
 
     /// <summary>
@@ -478,9 +487,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         CpuPower = "– W";
         GpuPower = "– W";
-        GpuPowerStatus = "Status unbekannt";
+        GpuPowerStatus = Strings.Current["Gpu_StateUnknown"];
         PowerFlowValue = "– W";
-        PowerFlowLabel = "Noch nicht gelesen";
+        PowerFlowLabel = Strings.Current["Common_NotReadYet"];
         PowerFlowNote = string.Empty;
         PowerFlowRuntime = string.Empty;
         PowerFlowIsLive = false;

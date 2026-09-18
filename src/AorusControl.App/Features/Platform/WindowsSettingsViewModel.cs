@@ -1,3 +1,4 @@
+using AorusControl.App.Localization;
 using AorusControl.App.Infrastructure;
 using AorusControl.Core.Features.Diagnostics;
 using AorusControl.Core.Features.Startup;
@@ -16,9 +17,9 @@ public sealed class WindowsSettingsViewModel : ObservableObject, IFeatureModule
     private readonly IStartupManager _startup;
 
     private bool _powerBusy, _powerControlsEnabled, _startupBusy, _startWithWindows;
-    private string _powerStatus = "Windows-Leistungsmodus wird gelesen …";
-    private string _startupStatus = "Autostart wird geprüft …";
-    private string _powerSource = "Stromquelle wird gelesen …";
+    private string _powerStatus = Strings.Current["Win_ModeReading"];
+    private string _startupStatus = Strings.Current["Win_StartupChecking"];
+    private string _powerSource = Strings.Current["Win_SourceReading"];
     private string? _activeMode;
 
     public WindowsSettingsViewModel(WindowsPowerOverlayController overlay, IStartupManager startup)
@@ -73,13 +74,13 @@ public sealed class WindowsSettingsViewModel : ObservableObject, IFeatureModule
     public string PowerModeEffect => _activeMode switch
     {
         nameof(WindowsPowerOverlayMode.BestEfficiency) =>
-            "Niedrigerer Takt, Last bevorzugt auf sparsamen Kernen. Weniger Abwärme, dadurch drehen die Lüfter meist niedriger.",
+            Strings.Current["Win_EffectEfficiency"],
         nameof(WindowsPowerOverlayMode.BestPerformance) =>
-            "Boost länger erlaubt, Taktziele hoch. Mehr Abwärme, dadurch erreicht die Kurve ihre höheren Stufen früher.",
+            Strings.Current["Win_EffectPerformance"],
         nameof(WindowsPowerOverlayMode.Balanced) =>
-            "Takt und Boost nach Last. Die Lüfter folgen nur der Temperatur, die sich daraus ergibt.",
-        _ => "Noch kein Modus gelesen."
-    } + " Die Lüfterkurve bleibt unverändert.";
+            Strings.Current["Win_EffectBalanced"],
+        _ => Strings.Current["Win_EffectUnknown"]
+    } + " " + Strings.Current["Win_EffectCurveUnchanged"];
 
     /// <summary>
     /// What this app does NOT claim about the power mode, shown at the section's info dot.
@@ -90,11 +91,10 @@ public sealed class WindowsSettingsViewModel : ObservableObject, IFeatureModule
     /// exactly the kind of sentence that quietly disappears in a layout change.
     /// </summary>
     public string PowerModeScope =>
-        "Unabhängig vom Lüfterprofil und nur für den getesteten Netzbetrieb. " +
-        "GPU-Limits und EC-Einstellungen fasst Windows dabei nicht an.";
+        Strings.Current["Win_ModeScope"];
 
     public bool StartWithWindows { get => _startWithWindows; private set => SetProperty(ref _startWithWindows, value); }
-    public string StartWithWindowsButtonText => StartWithWindows ? "Autostart deaktivieren" : "Autostart aktivieren";
+    public string StartWithWindowsButtonText => StartWithWindows ? Strings.Current["Win_StartupDisable"] : Strings.Current["Win_StartupEnable"];
     public string StartupStatus { get => _startupStatus; private set => SetProperty(ref _startupStatus, value); }
 
     /// <summary>Where the log files are, so "look in the log" is an actionable instruction
@@ -121,13 +121,13 @@ public sealed class WindowsSettingsViewModel : ObservableObject, IFeatureModule
         try
         {
             if (!_overlay.IsOnAcPower())
-                throw new InvalidOperationException("Bitte zuerst das Netzteil anschließen.");
+                throw new InvalidOperationException(Strings.Current["Win_PlugInFirst"]);
             await Task.Run(() => _overlay.Set(mode));
             if (!_overlay.IsOnAcPower())
-                throw new InvalidOperationException("Stromquelle während der Änderung gewechselt. Aktuellen Modus erneut prüfen.");
+                throw new InvalidOperationException(Strings.Current["Win_SourceChanged"]);
             Guid actual = await Task.Run(_overlay.ReadActiveForCurrentPowerSource);
             if (actual != GuidFor(mode))
-                throw new InvalidOperationException($"Windows-Rücklesen stimmt nicht überein: {actual}.");
+                throw new InvalidOperationException(Strings.Current.Format("Win_ReadbackMismatch", actual));
             ActivePowerMode = mode.ToString();
             PowerStatus = $"Aktiv: {Describe(mode)} (Netzbetrieb)";
         }
@@ -173,7 +173,7 @@ public sealed class WindowsSettingsViewModel : ObservableObject, IFeatureModule
         catch (Exception exception)
         {
             AppLog.Error("startup", "Autostart-Änderung fehlgeschlagen.", exception);
-            StartupStatus = $"Autostart-Änderung fehlgeschlagen: {exception.Message}";
+            StartupStatus = Strings.Current.Format("Win_StartupFailed", exception.Message);
         }
         finally { _startupBusy = false; }
     }
@@ -198,7 +198,7 @@ public sealed class WindowsSettingsViewModel : ObservableObject, IFeatureModule
         catch (Exception exception)
         {
             AppLog.Error("power", "Windows-Leistungsmodus nicht verfügbar.", exception);
-            PowerStatus = $"Windows-Leistungsmodus nicht verfügbar: {exception.Message}";
+            PowerStatus = Strings.Current.Format("Win_ModeUnavailable", exception.Message);
         }
     }
 
@@ -227,8 +227,8 @@ public sealed class WindowsSettingsViewModel : ObservableObject, IFeatureModule
         StartWithWindows = await _startup.IsEnabledAsync();
         OnPropertyChanged(nameof(StartWithWindowsButtonText));
         StartupStatus = StartWithWindows
-            ? "Startet automatisch mit Windows (angemeldet, erhöhte Rechte, kein Bestätigungsdialog nötig)."
-            : "Startet aktuell nicht automatisch mit Windows.";
+            ? Strings.Current["Win_StartupOn"]
+            : Strings.Current["Win_StartupOff"];
     }
 
     private static Guid GuidFor(WindowsPowerOverlayMode mode) => mode switch
@@ -240,9 +240,9 @@ public sealed class WindowsSettingsViewModel : ObservableObject, IFeatureModule
 
     private static string Describe(WindowsPowerOverlayMode mode) => mode switch
     {
-        WindowsPowerOverlayMode.BestEfficiency => "Beste Energieeffizienz",
-        WindowsPowerOverlayMode.BestPerformance => "Beste Leistung",
-        _ => "Ausbalanciert"
+        WindowsPowerOverlayMode.BestEfficiency => Strings.Current["Pwr_ModeEfficiency"],
+        WindowsPowerOverlayMode.BestPerformance => Strings.Current["Pwr_ModeBestPerformance"],
+        _ => Strings.Current["Pwr_ModeBalanced"]
     };
 
     private static string? KeyFor(Guid guid) =>

@@ -1,3 +1,4 @@
+using AorusControl.App.Localization;
 using System.Collections.ObjectModel;
 using AorusControl.App.Infrastructure;
 using AorusControl.App.ViewModels;
@@ -32,7 +33,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     private bool _busy, _closing, _disposed, _controlsEnabled, _restoreNormalOnExit, _fixedActive, _unsavedCurve;
     private Guid? _fixedLease;
     private byte _fixedRaw = 114;
-    private string _status = "Lüftersteuerung wird geprüft …";
+    private string _status = Strings.Current["Fan_Checking"];
     private string _statusDetail = "";
     private string _curveStatus = "Kurve wird gelesen …";
     private string _activeProfile = "Normal";
@@ -135,10 +136,10 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     /// part Windows does not control.</summary>
     public string Summary => ActiveProfile switch
     {
-        "Fixed" when _fixedRaw == 0 => "Lüfter aus · der Worker stellt bei 65 °C selbsttätig auf Normal zurück.",
-        "Fixed" => $"Fester Wert {FanSpeedPercent.ToPercent(_fixedRaw)} % · die Kurve unten ist gespeichert, aber gerade außer Kraft.",
-        "Maximum" => "Maximum · Lüfter laufen unabhängig von der Kurve auf voller Stufe.",
-        "Dynamic" => "Dynamic · die Kurve unten regelt die Lüfter.",
+        "Fixed" when _fixedRaw == 0 => Strings.Current["Fan_SummaryOff"],
+        "Fixed" => Strings.Current.Format("Fan_SummaryFixed", FanSpeedPercent.ToPercent(_fixedRaw)),
+        "Maximum" => Strings.Current["Fan_SummaryMaximum"],
+        "Dynamic" => Strings.Current["Fan_SummaryDynamic"],
         "Quiet" => "Quiet · Firmware-Regelung, leiser als die Kurve unten.",
         "Gaming" => "Gaming · Firmware-Regelung, aggressiver als die Kurve unten.",
         _ => "Normal · Firmware-Standardregelung, nicht die Kurve unten."
@@ -243,10 +244,10 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     /// </summary>
     public string CurveNote => ActiveProfile switch
     {
-        "Dynamic" => "Die eigene Kurve regelt die Lüfter. Änderungen gelten erst nach \"Kurve übernehmen\".",
-        "Maximum" => "Volle Stufe, unabhängig von jeder Kurve.",
-        "Fixed" when _fixedRaw == 0 => "Lüfter stehen. Bei 65 °C stellt der Worker von sich aus auf Normal zurück.",
-        "Fixed" => $"Fester Wert {FanSpeedPercent.ToPercent(_fixedRaw)} % - die waagerechte Linie. Die eigene Kurve liegt grau darunter, gespeichert, aber außer Kraft.",
+        "Dynamic" => Strings.Current["Fan_NoteDynamic"],
+        "Maximum" => Strings.Current["Fan_NoteMaximum"],
+        "Fixed" when _fixedRaw == 0 => Strings.Current["Fan_NoteStopped"],
+        "Fixed" => Strings.Current.Format("Fan_NoteFixed", FanSpeedPercent.ToPercent(_fixedRaw)),
         _ => $"{ActiveProfile} regelt in der Firmware. Grau darunter liegt die eigene Kurve: gespeichert, aber gerade ohne Wirkung."
     };
 
@@ -279,7 +280,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         catch (Exception exception)
         {
             AppLog.Error("fan", "Lüftersteuerung nicht verfügbar.", exception);
-            Status = $"Lüftersteuerung nicht verfügbar: {exception.Message}";
+            Status = Strings.Current.Format("Fan_Unavailable", exception.Message);
             CurveStatus = Status;
         }
     }
@@ -290,7 +291,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
 
         _busy = true;
         ControlsEnabled = false;
-        Status = $"{profile} wird gesetzt und geprüft …";
+        Status = Strings.Current.Format("Fan_SettingProfile", profile);
         try
         {
             // Best effort: releasing already restores Normal through the worker, so
@@ -313,7 +314,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         catch (Exception exception)
         {
             AppLog.Error("fan", $"Profil {profile} fehlgeschlagen.", exception);
-            Status = $"Lüfteränderung fehlgeschlagen: {exception.Message}";
+            Status = Strings.Current.Format("Fan_ChangeFailed", exception.Message);
             await AppendReadbackAsync();
         }
         finally
@@ -331,7 +332,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
 
         _busy = true;
         ControlsEnabled = false;
-        Status = $"Fixed {FixedFanRaw} wird gesetzt und geprüft …";
+        Status = Strings.Current.Format("Fan_SettingFixed", FixedFanRaw);
         try
         {
             // The lease client validates telemetry itself before writing; Fixed mode is
@@ -378,7 +379,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         try { points = FanCurveShape.ToFirmwareCurve(ReadHandles()); }
         catch (Exception exception)
         {
-            CurveStatus = $"Ungültige Kurve: {exception.Message}";
+            CurveStatus = Strings.Current.Format("Curve_Invalid", exception.Message);
             return;
         }
 
@@ -394,7 +395,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
             Show(activated.VerifiedState, "Eigene Kurve (Dynamic)");
             _curveStore.Save(points);
             HasUnsavedCurve = false;
-            CurveStatus = $"Übernommen, aktiv und gespeichert · {CurveRows.Count} Punkte.";
+            CurveStatus = Strings.Current.Format("Curve_Applied", CurveRows.Count);
             await _refreshTelemetry();
         }
         catch (Exception exception)
@@ -425,7 +426,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         {
             var points = FanCurveShape.ToFirmwareCurve(ReadHandles());
             await Task.Run(() => file.Save(points));
-            CurveStatus = "Kurvendatei gespeichert. Zum Aktivieren „Kurve übernehmen“ verwenden.";
+            CurveStatus = Strings.Current["Curve_FileSaved"];
             // Saving a file must not mark the draft as applied to the EC.
         }
         catch (Exception exception) { CurveStatus = $"Speichern fehlgeschlagen: {exception.Message}"; }
@@ -443,7 +444,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
             FanCurveValidation.Validate(points);
             PopulateCurveRows(points);
             HasUnsavedCurve = true;
-            CurveStatus = "Kurve geladen · noch nicht aktiv. Mit „Kurve übernehmen“ aktivieren.";
+            CurveStatus = Strings.Current["Curve_FileLoaded"];
         }
         catch (Exception exception) { CurveStatus = $"Laden fehlgeschlagen: {exception.Message}"; }
         finally { _busy = false; ControlsEnabled = true; OnPropertyChanged(nameof(CanApplyCurve)); }
@@ -454,7 +455,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         if (_closing || _disposed || !IsCurveEditable) return;
         PopulateCurveRows(GigabyteReferenceCurve.ForThisFirmware());
         HasUnsavedCurve = true;
-        CurveStatus = "Gigabytes Kurve geladen, an die Grenzen dieser Firmware angepasst · noch nicht übernommen.";
+        CurveStatus = Strings.Current["Curve_GigabyteLoaded"];
     }
 
     /// <summary>
@@ -465,7 +466,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     {
         if (_closing || _disposed || !IsCurveEditable) return;
         HasUnsavedCurve = true;
-        CurveStatus = $"{CurveRows.Count} Punkte · noch nicht übernommen.";
+        CurveStatus = Strings.Current.Format("Curve_Pending", CurveRows.Count);
     }
 
     /// <summary>Discards edits and re-reads whatever curve is on the EC - an escape hatch
@@ -478,7 +479,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         {
             FanControlState state = await _fan.ReadAsync();
             PopulateCurveRows(state.Curve);
-            CurveStatus = $"Firmware-Kurve gelesen · {CurveRows.Count} Punkte, unverändert.";
+            CurveStatus = Strings.Current.Format("Curve_FromFirmware", CurveRows.Count);
         }
         catch (Exception exception)
         {
@@ -536,7 +537,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
             }
 
             Status = releaseFailure is null
-                ? $"{Status} · Sicherheitsrückstellung: {reason}"
+                ? Status + " · " + Strings.Current.Format("Fan_SafetyRestore", reason)
                 : $"{Status} · {releaseFailure}";
         }
         finally
@@ -634,7 +635,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
             PopulateCurveRows(saved ?? liveCurve);
             CurveStatus = saved is null
                 ? "Aktuelle Firmware-Kurve geladen. Noch keine eigene Kurve gespeichert."
-                : "Gespeicherte eigene Kurve geladen (erst nach Übernehmen aktiv).";
+                : Strings.Current["Curve_SavedLoaded"];
         }
         catch (Exception exception)
         {
@@ -668,7 +669,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         try
         {
             FanControlState state = await _fan.ReadAsync();
-            Status += $" · Rückgelesen: {DescribeFanState(state)}";
+            Status += " · " + Strings.Current.Format("Fan_ReadBack", DescribeFanState(state));
         }
         catch
         {

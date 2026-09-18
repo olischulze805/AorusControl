@@ -31,7 +31,9 @@ internal static class LocalizationTests
         string[] sameOnPurpose =
         [
             "Nav_Dashboard", "Cool_Normal", "Cool_Gaming", "Cool_Live", "Pwr_ModeBalanced",
-            "About_Version", "About_Updates", "About_Log", "Key_EffectManual"
+            "About_Version", "About_Updates", "About_Log", "Key_EffectManual",
+            // A product name and a word English borrowed unchanged.
+            "Gpu_ChipNvidia", "Tray_Limit"
         ];
         string[] suspicious = german
             .Where(pair => english[pair.Key] == pair.Value && !sameOnPurpose.Contains(pair.Key))

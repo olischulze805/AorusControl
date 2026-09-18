@@ -489,7 +489,7 @@ public sealed class FanCurveChart : Canvas
             ToolTip = !IsEditable
                 ? $"{handles[index].TemperatureNumber:0} °C / {handles[index].Percent} % · gespeicherte Kurve, unter diesem Modus nur zur Ansicht"
                 : locked
-                ? $"Fest: {handles[index].TemperatureNumber:0} °C / {handles[index].Percent} % - die Firmware verlangt volle Drehzahl spätestens hier"
+                ? Localization.Strings.Current.Format("Curve_LockedPoint", handles[index].TemperatureNumber.ToString("0"), handles[index].Percent)
                 : $"{handles[index].TemperatureNumber:0} °C / {handles[index].Percent} % · Ziehen, Pfeiltasten verschieben, Rechtsklick entfernt"
         };
         SetLeft(dot, center.X - radius);

@@ -21,4 +21,14 @@ public abstract class ObservableObject : INotifyPropertyChanged
 
     protected void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
+    /// <summary>
+    /// Announces every property at once - WPF's meaning for the empty name.
+    ///
+    /// Used when the language changes: sentences the view model computes rather than stores,
+    /// like "Fans on Normal", are not bound through the string table and would otherwise keep
+    /// the old language until something else happened to touch them.
+    /// </summary>
+    internal void RefreshAllProperties() =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(null));
 }

@@ -1,3 +1,4 @@
+using AorusControl.App.Localization;
 using System.Windows.Threading;
 using MediaBrush = System.Windows.Media.Brush;
 using AorusControl.App.Infrastructure;
@@ -40,7 +41,7 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
     private KeyboardRgbEffect _selectedEffect = KeyboardRgbEffect.Breathing;
     private KeyboardRgbColor _zone1 = new(0, 255, 0), _zone2 = new(0, 255, 0), _zone3 = new(0, 255, 0);
     private string _paletteHint = "Gespeicherte manuelle Farben";
-    private string _status = "Tastatur wird geprüft …";
+    private string _status = Strings.Current["Key_Checking"];
     private MediaBrush _previewZone1 = CreateBrush(new(0, 0, 0));
     private MediaBrush _previewZone2 = CreateBrush(new(0, 0, 0));
     private MediaBrush _previewZone3 = CreateBrush(new(0, 0, 0));
@@ -233,7 +234,9 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
     };
 
     public string PreviewCaption => PowerOn
-        ? $"Läuft: {(_activeEffect is { } effect ? GetEffectName(effect) : "Manuelle Zonenfarben")} · Tempo {DescribeSpeed(Speed)} · Helligkeit {DescribeBrightness(Brightness)}"
+        ? Strings.Current.Format("Key_Running",
+            _activeEffect is { } effect ? GetEffectName(effect) : Strings.Current["Key_ManualZoneColours"],
+            DescribeSpeed(Speed), DescribeBrightness(Brightness))
         : "Beleuchtung aus · Auswahl bleibt gespeichert";
 
     public KeyboardRgbColor GetZoneColor(int zone) => zone switch
@@ -334,7 +337,7 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
                 catch (Exception exception) { warning = $"Gespeicherte RGB-Auswahl nicht geladen: {exception.Message}"; }
             }
             Show(saved is null ? await _session.ReadSettingsAsync() : await _session.ChangeAsync(_ => saved));
-            if (warning is not null) Status = warning + " · Aktueller Gerätezustand gelesen, nichts automatisch überschrieben.";
+            if (warning is not null) Status = warning + " · " + Strings.Current["Key_StateReadOnly"];
             _initialized = true;
             ControlsEnabled = true;
             if (_brightnessListener is not null && _brightnessListenerTask is null)
@@ -344,7 +347,7 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
         catch (Exception exception)
         {
             AppLog.Error("keyboard", "Tastatur nicht verfügbar.", exception);
-            Status = $"Tastatur nicht verfügbar: {exception.Message}";
+            Status = Strings.Current.Format("Key_Unavailable", exception.Message);
             return false;
         }
         finally { _busy = false; }
@@ -401,7 +404,7 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
         if (_closing || _disposed || _busy || !ControlsEnabled) return;
         _busy = true;
         ControlsEnabled = false;
-        Status = "Einstellung wird übernommen …";
+        Status = Strings.Current["Key_Applying"];
         try
         {
             KeyboardLightingSettings state = forceWrite ? await _session.ReapplyAsync() : await _session.ChangeAsync(change);
@@ -418,7 +421,7 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
             EffectRunning = false;
             _rgbTimer.Stop();
             AppLog.Error("keyboard", "RGB-Änderung fehlgeschlagen.", exception);
-            Status = $"RGB-Änderung fehlgeschlagen: {exception.Message}. Auswahl erneut anwenden.";
+            Status = Strings.Current.Format("Key_ChangeFailed", exception.Message);
         }
         finally
         {
@@ -444,7 +447,7 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
             })), (error, pause) => _dispatcher.BeginInvoke(new Action(() =>
             {
                 if (!token.IsCancellationRequested && !_disposed)
-                    BrightnessEventStatus = $"Fn+Space wird nicht mitbekommen; neuer Versuch in {pause.TotalSeconds:0} s.";
+                    BrightnessEventStatus = Strings.Current.Format("Key_FnSpaceRetry", pause.TotalSeconds.ToString("0"));
             })), token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (_brightnessCancellation.IsCancellationRequested) { }
@@ -452,7 +455,7 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
         {
             _ = _dispatcher.BeginInvoke(new Action(() =>
             {
-                if (!_disposed) BrightnessEventStatus = "Fn+Space wird nicht mitbekommen: " + error.Message;
+                if (!_disposed) BrightnessEventStatus = Strings.Current.Format("Key_FnSpaceLost", error.Message);
             }));
         }
     }
@@ -476,7 +479,7 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
                 // Only wait while an event is pending; no idle polling.
                 while (_busy && !_closing && !_disposed) await Task.Delay(25);
                 if (_closing || _disposed) break;
-                if (!ControlsEnabled) { BrightnessEventStatus = "Fn+Space erkannt, aber die Beleuchtung ist gerade nicht steuerbar."; break; }
+                if (!ControlsEnabled) { BrightnessEventStatus = Strings.Current["Key_FnSpaceNotReady"]; break; }
                 var level = _pendingBrightness.Value;
                 _pendingBrightness = null;
                 if (level == Brightness)
@@ -488,7 +491,7 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
                 BrightnessEventStatus = string.Empty;
             }
         }
-        catch (Exception error) { BrightnessEventStatus = "Fn+Space konnte nicht übernommen werden: " + error.Message; }
+        catch (Exception error) { BrightnessEventStatus = Strings.Current.Format("Key_FnSpaceFailed", error.Message); }
         finally { _pendingBrightness = null; _drainingBrightness = false; }
     }
 
@@ -567,7 +570,7 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
         {
             EffectRunning = false;
             _rgbTimer.Stop();
-            Status = $"Effekt beendet: {exception.Message}. Effekt erneut anwenden oder Manuell wählen.";
+            Status = Strings.Current.Format("Key_EffectStopped", exception.Message);
         }
         finally { _busy = false; }
     }
@@ -592,12 +595,12 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
         if (running is null) _effectClock.Reset();
         ActiveEffect = running;
         Status = $"{(state.Enabled ? "Ein" : "Aus · Auswahl gespeichert")} · " +
-            (state.Effect is { } effect ? GetEffectName(effect) : "Manuelle Zonenfarben");
+            (state.Effect is { } effect ? GetEffectName(effect) : Strings.Current["Key_ManualZoneColours"]);
         PaletteHint = KeyboardEffectFrames.ColorUsage(running) switch
         {
             KeyboardEffectColorUsage.AllZones => "Alle drei gespeicherten Farben werden direkt angezeigt.",
             KeyboardEffectColorUsage.BaseColorOnly =>
-                "Zone 1 färbt alle drei Zonen. Zone 2 und 3 bleiben gespeichert.",
+                Strings.Current["Key_ZoneOneDrivesAll"],
             _ => "Eigene Palette des Effekts; die gespeicherten Farben bleiben erhalten."
         };
         if (EffectRunning && !_closing) _rgbTimer.Start(); else _rgbTimer.Stop();
