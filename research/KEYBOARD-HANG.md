@@ -621,6 +621,53 @@ dem 17.09. mit. Dann der Reihe nach und jeweils ein paar Sekunden halten:
 Piept es reproduzierbar nach einer bestimmten Stelle, ist die Stelle gefunden - und damit auch
 die Antwort, ob sich ein erneutes Öffnen lohnt.
 
+## Warum sie nie von selbst zurückkommt - und was das verrät
+
+Der Einwand des Nutzers: Bei einem Wackelkontakt müsste sie doch auch mal von allein
+wiederkommen. Sie ist aber in vierzehn Vorfällen **kein einziges Mal** im laufenden Betrieb
+zurückgekehrt.
+
+Der Einwand stimmt, und die Prüfung bestätigt ihn: Jede Wiederkehr im Protokoll war ausgelöst -
+durch einen Systemstart oder durch ein erzwungenes Neu-Aufzählen. Die Ankunft am 17.09. um
+18:36:12, die zunächst spontan aussah, trägt die Instanzkennungen aus dem Hub-Zyklus
+(`6&6986dbd&3&...`), stammt also vom Wiedereinschalten des Root-Hubs.
+
+### Die Auflösung steckt im USB-Mitschnitt
+
+Als sie ausfiel, meldete der Anschluss **kein Disconnect**. Das Gerät blieb für den Hub
+angeschlossen, es antwortete nur nicht mehr. Windows versuchte viermal, es aufzuzählen, legte
+danach den Platzhalter mit Code 43 an - und hörte auf.
+
+Ab da gibt es **keinen Anlass mehr, es noch einmal zu versuchen**. Eine Neu-Aufzählung wird
+durch ein Anstecken ausgelöst. Da das Gerät elektrisch nie abgesteckt war, kommt nie ein
+Anstecken - auch dann nicht, wenn der Kontakt eine Millisekunde später wieder trägt. Es fragt
+schlicht niemand mehr.
+
+Das erklärt alle drei Beobachtungen auf einmal:
+
+- **Von selbst kommt sie nicht zurück** - kein Auslöser, nicht etwa ein dauerhaft offener
+  Kontakt.
+- **Ein Neustart hilft** - die Aufzählung beginnt von vorn.
+- **Der Hub-Zyklus hilft** - er erzwingt genau diese Aufzählung.
+
+Dass ein Ausschalten überhaupt hilft, beweist zugleich: Der Kontakt trägt danach wieder. Der
+Fehler ist also vorübergehend - nur fragt Windows nicht nach.
+
+### Und damit lässt sich die Leitung benennen
+
+Bei voller Geschwindigkeit hängt der Anschlusswiderstand, an dem der Hub ein Gerät überhaupt
+erkennt, an **D+**. Daraus folgt:
+
+| Bricht | Hub sieht | Verhalten |
+| --- | --- | --- |
+| **D+** | Gerät weg | Disconnect, und beim nächsten Kontakt automatisch neu aufgezählt - **sie käme von selbst zurück** |
+| **D-** | Gerät weiterhin da | keine Übertragung mehr möglich, kein Disconnect, **kein erneuter Versuch** |
+
+Beobachtet wird die zweite Zeile, in jedem einzelnen Vorfall. Der Einwand des Nutzers ist damit
+kein Gegenargument, sondern das genaueste Indiz, das diese Untersuchung hervorgebracht hat:
+Der Fehler sitzt auf **D-** beziehungsweise in der Signalintegrität des Datenpaars, nicht auf
+der Leitung mit dem Anschlusswiderstand.
+
 ## Was ausgeschlossen ist
 
 - Keine Herstellersoftware, die um dasselbe Gerät konkurriert: GCC ist deinstalliert, kein
