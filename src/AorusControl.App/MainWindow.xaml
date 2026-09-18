@@ -432,19 +432,27 @@
                                      Antwort auf dieselbe Frage, nämlich wie die Lüfter gerade laufen
                                      sollen - nur eine, die die Kurve außer Kraft setzt. -->
                                 <Border Height="1" Background="{StaticResource CardBorderBrush}" Margin="0,24,0,20" />
+                                <!-- Ein Schalter, kein Knopf: Festgesetzte Lüfter sind der Zustand
+                                     dieser App, der am dringendsten ablesbar und von dort aus
+                                     wieder verlassbar sein muss. Vorher führte der Knopf nur
+                                     hinein - heraus kam man nur, wenn man wusste, dass ein
+                                     Profil-Chip weiter oben die Sperre nebenbei freigibt.
+                                     Der Schalter ist zugleich die Überschrift des Abschnitts:
+                                     zwei Beschriftungen für dieselbe Sache wären eine zu viel. -->
                                 <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
-                                    <TextBlock Text="Fester Wert" Style="{StaticResource SubLabel}" Margin="0" />
-                                    <ui:SymbolIcon Style="{StaticResource InfoDot}" FontSize="13"
-                                                   ToolTip="Hält die Lüfter unabhängig von der Temperatur, ganz links auch komplett aus - stufenlos über den ganzen Bereich der Firmware. Läuft über den absturzsicheren Hardware-Worker, der bei 65 °C von sich aus auf Normal zurückstellt. Aktivieren ist ein Knopfdruck, danach folgt der Regler von selbst." />
+                                    <ui:ToggleSwitch Content="Fester Wert" VerticalAlignment="Center"
+                                                     IsEnabled="{Binding Cooling.ControlsEnabled}"
+                                                     IsChecked="{Binding Cooling.IsFixedOn, Mode=TwoWay}" />
+                                    <ui:SymbolIcon Style="{StaticResource InfoDot}" FontSize="13" VerticalAlignment="Center"
+                                                   ToolTip="Hält die Lüfter unabhängig von der Temperatur, ganz links auch komplett aus - stufenlos über den ganzen Bereich der Firmware. Läuft über den absturzsicheren Hardware-Worker, der bei 65 °C von sich aus auf Normal zurückstellt. Ausschalten stellt auf Normal zurück. Der Regler darunter lässt sich auch vorher einstellen; solange der feste Wert gilt, folgt er sofort." />
                                 </StackPanel>
                                 <Grid Margin="0,20,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="{Binding Cooling.FixedFanPercentText}" Style="{StaticResource SliderReadout}" />
-                                    <StackPanel Grid.Column="1" Margin="22,0">
+                                    <StackPanel Grid.Column="1" Margin="22,0,0,0">
                                         <Slider Style="{StaticResource ValueSlider}" MinWidth="170"
                                                 Minimum="0" Maximum="100" SmallChange="1" LargeChange="5"
                                                 Value="{Binding Cooling.FixedFanPercent, Mode=TwoWay}" />
@@ -457,11 +465,6 @@
                                             <TextBlock Style="{StaticResource SliderEndLabel}" Text="100 %" />
                                         </ctrl:SliderScale>
                                     </StackPanel>
-                                    <ui:Button Grid.Column="2" Style="{StaticResource SecondaryButton}" Margin="0"
-                                               Content="Fixed aktivieren" Command="{Binding Cooling.SetFixedCommand}"
-                                               VerticalAlignment="Center">
-                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Flash24" /></ui:Button.Icon>
-                                    </ui:Button>
                                 </Grid>
 
                             </StackPanel>

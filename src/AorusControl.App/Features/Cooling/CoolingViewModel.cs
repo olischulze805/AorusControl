@@ -51,7 +51,6 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         _refreshTelemetry = refreshTelemetry;
         _startMonitoring = startMonitoring;
         SetProfileCommand = new AsyncRelayCommand<string>(SetProfileAsync);
-        SetFixedCommand = new AsyncRelayCommand(SetFixedAsync);
         ReloadCurveCommand = new AsyncRelayCommand(ReloadCurveFromDeviceAsync);
         ApplyCurveCommand = new AsyncRelayCommand(ApplyCurveAsync);
         LoadGigabyteCurveCommand = new RelayCommand(LoadGigabyteCurve);
@@ -66,7 +65,6 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     public FanLiveViewModel Live { get; } = new();
 
     public AsyncRelayCommand<string> SetProfileCommand { get; }
-    public AsyncRelayCommand SetFixedCommand { get; }
     public AsyncRelayCommand ReloadCurveCommand { get; }
     public AsyncRelayCommand ApplyCurveCommand { get; }
     public RelayCommand LoadGigabyteCurveCommand { get; }
@@ -81,6 +79,32 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
 
     public bool IsBusy => _busy;
     public bool IsFixedActive => _fixedActive;
+
+    /// <summary>
+    /// The same state, but settable - the switch over the Fixed slider.
+    ///
+    /// It used to be a button marked "Fixed aktivieren", and there was no way back out of the
+    /// section it belonged to: leaving a pinned fan meant knowing that picking one of the
+    /// profile chips above happens to release the lease. A pinned fan is the one state in this
+    /// app that most needs to be legible and reversible from where it was entered.
+    ///
+    /// Off goes to Normal, which is what releasing the lease restores anyway.
+    /// </summary>
+    public bool IsFixedOn
+    {
+        get => _fixedActive;
+        set
+        {
+            if (value == _fixedActive) return;
+            if (_busy || _closing || _disposed || !ControlsEnabled)
+            {
+                // Refused - put the switch back where the hardware actually is.
+                OnPropertyChanged(nameof(IsFixedOn));
+                return;
+            }
+            _ = value ? SetFixedAsync() : SetProfileAsync("Normal");
+        }
+    }
     public bool ControlsEnabled { get => _controlsEnabled; private set => SetProperty(ref _controlsEnabled, value); }
     public string Status { get => _status; private set => SetProperty(ref _status, value); }
 
@@ -317,6 +341,8 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
             // agnostic to which IFixedFanLeaseClient implementation is in use.
             _fixedLease = await _leaseClient.AcquireAsync(FixedFanRaw);
             _fixedActive = true;
+            OnPropertyChanged(nameof(IsFixedActive));
+            OnPropertyChanged(nameof(IsFixedOn));
             // A pinned fan must be watched, so holding one starts the telemetry clock even
             // if the user had stopped it.
             _startMonitoring();
@@ -495,6 +521,10 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
             }
 
             _fixedActive = false;
+
+            OnPropertyChanged(nameof(IsFixedActive));
+
+            OnPropertyChanged(nameof(IsFixedOn));
             _fixedLease = null;
             try
             {
@@ -553,6 +583,8 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
             try { _leaseClient.ReleaseAsync(lease).GetAwaiter().GetResult(); }
             catch { /* Worker's own supervisor remains responsible. */ }
             _fixedActive = false;
+            OnPropertyChanged(nameof(IsFixedActive));
+            OnPropertyChanged(nameof(IsFixedOn));
             _fixedLease = null;
         }
 
@@ -585,6 +617,8 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
         try { await _leaseClient.ReleaseAsync(lease); }
         catch { /* Worker's own supervisor remains responsible. */ }
         _fixedActive = false;
+        OnPropertyChanged(nameof(IsFixedActive));
+        OnPropertyChanged(nameof(IsFixedOn));
         _fixedLease = null;
     }
 
