@@ -7,6 +7,7 @@ using AorusControl.App.Features.Keyboard;
 using AorusControl.App.Features.Platform;
 using AorusControl.App.Features.Updates;
 using AorusControl.App.Infrastructure;
+using AorusControl.App.Localization;
 using AorusControl.Core.Models;
 using AorusControl.Core.Services;
 using AorusControl.Core.Features.Battery;
@@ -149,6 +150,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             readPowerSource ?? powerOverlay.ReadPowerSource,
             gpuActivity);
         Updates = new UpdateViewModel();
+        Language = new LanguageViewModel();
         // The tray text is derived, so it has to be told when either half moves. Both
         // modules already raise these; nothing new is polled for it.
         Cooling.PropertyChanged += (_, args) =>
@@ -198,6 +200,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     /// <summary>The Windows-side settings. Named for what it controls, not for the OS.</summary>
     public WindowsSettingsViewModel Windows { get; }
     public UpdateViewModel Updates { get; }
+
+    /// <summary>The language picker. Constructed early on purpose: it applies the stored
+    /// choice, and everything drawn afterwards reads from the table it selected.</summary>
+    public LanguageViewModel Language { get; }
 
     public string Status { get => _status; private set => SetProperty(ref _status, value); }
 

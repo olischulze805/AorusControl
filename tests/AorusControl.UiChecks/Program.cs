@@ -62,6 +62,7 @@ var thread = new Thread(() =>
         RenderDashboardLive(output);
         RenderCoolingStates(output);
         RenderGraphicsPage(output);
+        RenderEnglish(output);
         RenderToolTip(output);
         Console.WriteLine("PASS: main window laid out at every checked width; no native window or hardware started.");
         app.Shutdown();
@@ -95,6 +96,44 @@ static void RenderMainWindow(string output)
             Layout(content, width, 1500);
             Save(content, output, $"main-{section.ToLowerInvariant()}-{width}.png", width, 1500);
         }
+    }
+}
+
+/// <summary>
+/// The whole window in English.
+///
+/// A translation is not finished when the words exist - it is finished when they fit. English
+/// labels are mostly shorter than German ones, but not always ("Best power efficiency"), and
+/// a chip that grows past its row only shows up in a render.
+/// </summary>
+static void RenderEnglish(string output)
+{
+    try
+    {
+        AorusControl.App.Localization.Strings.Current.Use(AorusControl.App.Localization.AppLanguage.English);
+        var vm = new MainWindowViewModel(new StubReader(), new StubKeyboard(), new StubFan(), new WindowsPowerOverlayController(),
+            batteryController: new StubBattery(), fanCurveStore: new StubCurveStore(), startupManager: new StubStartup(),
+            gpuPreferenceStore: new StubGpuRegistry(), gpuPreferenceSettings: new StubGpuSettings(),
+            readPowerSource: () => AorusControl.Core.Features.PowerProfiles.LaptopPowerSource.Battery,
+            gpuActivity: new StubGpuActivity());
+        vm.Cooling.StartAsync().GetAwaiter().GetResult();
+        vm.Graphics.StartAsync().GetAwaiter().GetResult();
+        vm.Graphics.RefreshRunningCommand.ExecuteAsync().GetAwaiter().GetResult();
+
+        var window = new MainWindow(vm);
+        var content = (FrameworkElement)window.Content;
+        content.DataContext = vm;
+        foreach (string section in new[] { "Dashboard", "Cooling", "Lighting", "Power", "Graphics", "About" })
+        {
+            vm.SelectedSection = section;
+            Layout(content, 1000, 1700);
+            Save(content, output, $"english-{section.ToLowerInvariant()}.png", 1000, 1700);
+        }
+    }
+    finally
+    {
+        // The picker sets the language for the whole process; the other renders expect German.
+        AorusControl.App.Localization.Strings.Current.Use(AorusControl.App.Localization.AppLanguage.German);
     }
 }
 

@@ -39,6 +39,9 @@ public partial class App : System.Windows.Application
             AppLog.Error("crash", "Fehler in einem nicht abgewarteten Vorgang.", args.Exception);
             args.SetObserved();
         };
+        // Before the first window and the first view model: every sentence they produce on
+        // the way up is already in the chosen language, and none has to be rebuilt afterwards.
+        Localization.LanguageViewModel.Apply();
         // updateAccent MUST stay false: with the default (true), WPF-UI writes the user's
         // Windows accent into Application.Current.Resources at the top level, on top of
         // the accent keys App.xaml defines - so the hand-templated chips/tiles/sliders

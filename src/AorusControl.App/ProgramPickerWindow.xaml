@@ -2,7 +2,8 @@
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-                 Title="Programm suchen" Icon="Assets/app.ico" Width="560" Height="560"
+                 xmlns:loc="clr-namespace:AorusControl.App.Localization"
+                 Title="{loc:T Picker_FindProgram}" Icon="Assets/app.ico" Width="560" Height="560"
                  WindowStartupLocation="CenterOwner"
                  ExtendsContentIntoTitleBar="True"
                  WindowBackdropType="Mica"
@@ -14,10 +15,10 @@
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <ui:TitleBar Grid.Row="0" Title="Programm suchen" ShowMaximize="False" />
+        <ui:TitleBar Grid.Row="0" Title="{loc:T Picker_FindProgram}" ShowMaximize="False" />
 
         <StackPanel Grid.Row="1" Margin="20,8,20,0">
-            <ui:TextBox x:Name="SearchBox" PlaceholderText="Name oder Pfad …" FontSize="14"
+            <ui:TextBox x:Name="SearchBox" PlaceholderText="{loc:T Picker_SearchHint}" FontSize="14"
                         TextChanged="OnSearchChanged" />
             <TextBlock Text="{Binding Summary}" Style="{StaticResource Hint}" />
         </StackPanel>
@@ -42,10 +43,10 @@
         </ListBox>
 
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="20,16,20,20">
-            <ui:Button Style="{StaticResource SecondaryButton}" Content="Datei auswählen …" Click="OnBrowseClick" Margin="0,0,10,0"
-                       ToolTip="Für Programme ohne Startmenü-Eintrag, etwa Spiele aus einer Bibliothek." />
-            <ui:Button Style="{StaticResource SecondaryButton}" Content="Abbrechen" Click="OnCancelClick" Margin="0,0,10,0" />
-            <ui:Button Style="{StaticResource PrimaryButton}" Content="Hinzufügen" Click="OnAcceptClick"
+            <ui:Button Style="{StaticResource SecondaryButton}" Content="{loc:T Picker_ChooseFile}" Click="OnBrowseClick" Margin="0,0,10,0"
+                       ToolTip="{loc:T Tip_PickFile}" />
+            <ui:Button Style="{StaticResource SecondaryButton}" Content="{loc:T Common_Cancel}" Click="OnCancelClick" Margin="0,0,10,0" />
+            <ui:Button Style="{StaticResource PrimaryButton}" Content="{loc:T Common_Add}" Click="OnAcceptClick"
                        IsEnabled="{Binding HasSelection}" />
         </StackPanel>
     </Grid>
