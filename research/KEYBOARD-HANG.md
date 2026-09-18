@@ -668,6 +668,55 @@ kein Gegenargument, sondern das genaueste Indiz, das diese Untersuchung hervorge
 Der Fehler sitzt auf **D-** beziehungsweise in der Signalintegrität des Datenpaars, nicht auf
 der Leitung mit dem Anschlusswiderstand.
 
+## Der Aufbau im Gerät - und wo der Fehler danach sitzen muss
+
+Ein Foto des geöffneten Geräts (2026-09-17) zeigt den Aufbau, und er passt genau zur Diagnose:
+
+```
+Tastatur ──[breites Flachband, viele Adern]──► eigene kleine Platine mit Bauteilen
+                                                         │
+                                                         ├──[dünnes Kabel]──► Mainboard
+                                                         └──[dünnes Kabel]──► Mainboard
+```
+
+Die Tastatur hängt also **nicht** direkt am Mainboard. Dazwischen sitzt eine eigene Platine -
+dort lebt der IT8298. Das breite Band trägt die Tastenmatrix und die LED-Leitungen zu diesem
+Controller; zum Mainboard gehen nur zwei dünne Kabel.
+
+### Was daraus folgt
+
+Der USB-Anschluss des Geräts - also **D+ und D-** - kann nur in einem dieser **zwei dünnen
+Kabel** liegen. Damit ist der Fehlerort ein anderer, als bisher angenommen:
+
+| Teil | Kann das beobachtete Bild erzeugen? |
+| --- | --- |
+| Breites Tastaturband (Matrix) | **Nein.** Fällt es aus, gehen Tasten nicht mehr - aber das Gerät bliebe am USB angemeldet und die Beleuchtung liefe weiter. Kein Verschwinden vom Bus. |
+| Platine mit dem Controller | Ja, wenn der Chip selbst hängt - aber Fn+Space und die stehende Beleuchtung zeigen, dass er läuft. |
+| **Dünnes Kabel mit D+/D- und seine beiden Stecker** | **Ja, genau dieses Bild.** |
+
+Und es erklärt das Fortbestehen von Beleuchtung und Fn-Logik zwanglos: Beides passiert
+**diesseits** der gestörten Strecke, auf der Controllerplatine, die ihren Strom weiterhin
+bekommt.
+
+### Wichtig für einen nächsten Eingriff
+
+Am 2026-09-10 wurde ein Stecker neu gesetzt, und es hielt vier Tage. Falls das das **breite**
+Tastaturband war, war es der falsche - dieses Band liegt hinter dem Controller und kann das
+Symptom gar nicht verursachen.
+
+Zu prüfen sind stattdessen:
+
+1. die **zwei dünnen Kabel** zwischen Controllerplatine und Mainboard,
+2. ihre Stecker an **beiden** Enden,
+3. die Knickstellen dieser Kabel.
+
+Welches der beiden das USB-Kabel ist, lässt sich an den Adern abzählen: Der USB-Strang braucht
+**vier** (VBUS, GND, D+, D-). Das andere Kabel ist dann die Versorgung der Beleuchtung, meist
+mit weniger, dafür breiteren Leiterbahnen.
+
+Ein vierpoliges FFC ist zudem ein Normteil und für wenige Euro zu ersetzen - ungleich billiger
+als die Tastatureinheit, an der bisher die Überlegungen hängen.
+
 ## Was ausgeschlossen ist
 
 - Keine Herstellersoftware, die um dasselbe Gerät konkurriert: GCC ist deinstalliert, kein
