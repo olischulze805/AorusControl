@@ -568,6 +568,59 @@ ausschließen konnte: ein schleichend schlechter werdendes Signal, ein Wackelkon
 Fehlerhäufung, ein Stromproblem am Anschluss und einen Fehler im Windows-Treiberstapel. Der
 Stapel verhält sich vom ersten bis zum letzten Ereignis korrekt.
 
+## Im Ständer hält sie (2026-09-17, abends)
+
+Der Laptop steht jetzt zugeklappt und hochkant in einem Ständer am externen Monitor, mit
+externer Tastatur. Die interne wird nicht benutzt - und sie läuft.
+
+| | flach, aufgeklappt, in Benutzung | zugeklappt, hochkant im Ständer |
+| --- | ---: | ---: |
+| 17.09. 17:53 | 2,2 Minuten | |
+| 17.09. 18:00 | 3,3 Minuten | |
+| 17.09. 18:37 | 5,9 Minuten | |
+| 17.09. ab 21:18 | | **24 Minuten und zählt, kein einziger Abriss** |
+
+Das ist die erste Beobachtung, die zwischen den beiden verbliebenen Erklärungen wirklich
+unterscheidet. Zwischen den Zeilen dieser Tabelle liegen vier Änderungen, und alle vier sind
+mechanisch:
+
+- **Auf der Tastatur wird nicht mehr getippt.** Die Tastenplatte sitzt unmittelbar über dem
+  Flachbandkabel und seinem ZIF-Stecker; jeder Anschlag drückt darauf.
+- **Die Lage ist senkrecht statt waagerecht** - die Schwerkraft zieht anders am Gehäuse.
+- **Der Deckel ist zu**, das Gehäuse also anders verspannt.
+- **Er liegt nicht mehr auf dem Boden**, wo sich die Bodenplatte beim Tippen durchbiegt.
+
+**Eine Firmware interessiert sich für nichts davon.** Ein grenzwertiger Steckkontakt für alles
+davon.
+
+Damit fügt sich der Rest zusammen:
+
+- Das Neusetzen des Steckers am 10.09. half vier Tage - ein mechanischer Eingriff mit
+  mechanischer Wirkung.
+- Der USB-Mitschnitt zeigt einen von einem Transfer auf den nächsten vollständigen Ausfall
+  ohne vorherige Fehlerhäufung - so fällt ein Kontakt aus, nicht ein Signal, das schlechter
+  wird.
+- Fn+Space und die Beleuchtung liefen weiter - die Geräteseite bleibt versorgt, nur der
+  Datenweg stirbt.
+
+**Vorsicht bei der Freude:** 24 Minuten sind besser als jede Sitzung dieses Tages, aber am
+16.09. hielt sie auch aufgeklappt einmal 50 Minuten. Ein Beweis ist es erst, wenn es Stunden
+hält.
+
+### Der Test, der die Stelle findet
+
+`tools\Start-KeyboardWatch.cmd` laufen lassen - es piept bei jeder Änderung und schreibt seit
+dem 17.09. mit. Dann der Reihe nach und jeweils ein paar Sekunden halten:
+
+1. auf die Handballenauflage drücken,
+2. auf die Tastenmitte etwa unterhalb der F-Tasten drücken (dort liegt üblicherweise der
+   Stecker),
+3. das Gehäuse vorsichtig verwinden,
+4. den Deckel langsam öffnen und schließen.
+
+Piept es reproduzierbar nach einer bestimmten Stelle, ist die Stelle gefunden - und damit auch
+die Antwort, ob sich ein erneutes Öffnen lohnt.
+
 ## Was ausgeschlossen ist
 
 - Keine Herstellersoftware, die um dasselbe Gerät konkurriert: GCC ist deinstalliert, kein
