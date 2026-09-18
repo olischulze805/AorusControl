@@ -30,7 +30,6 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
         this.controller = controller;
         _store = store;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
-        ApplyStandardCommand = new AsyncRelayCommand(ApplyStandardAsync);
         if (watchResume) Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
         _watchingResume = watchResume;
         // Dragging the limit applies by itself once the slider comes to rest. The wait is
@@ -133,7 +132,6 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
     public string ActivePolicy { get => _activePolicy; private set => SetProperty(ref _activePolicy, value); }
 
     public AsyncRelayCommand RefreshCommand { get; }
-    public AsyncRelayCommand ApplyStandardCommand { get; }
 
     /// <summary>
     /// The module's start: read the device, and write only if it disagrees with what the user

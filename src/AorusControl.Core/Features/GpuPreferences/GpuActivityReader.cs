@@ -105,18 +105,15 @@ public sealed class WindowsGpuActivityReader(Func<IReadOnlyList<GraphicsAdapter>
             _known ??= _adapters();
             if (_known.Count == 0) return null;
 
-            var category = new PerformanceCounterCategory("GPU Engine");
-            var seen = new HashSet<(int Pid, long Luid)>();
-            var contexts = new List<GpuContext>();
-            foreach (string instance in category.GetInstanceNames())
+            IReadOnlyList<GpuContext> contexts = Collect();
+            // Not one instance matched a chip we know, yet the counters clearly had some. The
+            // LUIDs are handed out afresh when the display driver restarts, which happens after
+            // a TDR or a driver update - and a stale list would silently drop every row rather
+            // than say anything. Asked once more, then believed.
+            if (contexts.Count == 0)
             {
-                // One process has an instance per engine - 3D, copy, video. They say nothing
-                // different about which chip it is on, so the first one of each pair wins.
-                if (GpuEngineInstance.Parse(instance) is not { } engine) continue;
-                if (!seen.Add((engine.ProcessId, engine.Luid))) continue;
-                if (_known.FirstOrDefault(adapter => adapter.Luid == engine.Luid) is not { } chip) continue;
-                if (Describe(engine.ProcessId) is not { } program) continue;
-                contexts.Add(new GpuContext(engine.ProcessId, program.Name, program.Path, chip.IsNvidia));
+                _known = _adapters();
+                contexts = Collect();
             }
             return GpuActivitySummary.From(contexts);
         }
@@ -125,6 +122,24 @@ public sealed class WindowsGpuActivityReader(Func<IReadOnlyList<GraphicsAdapter>
             // No counter category, or no permission to read it. A missing answer, not a fault.
             return null;
         }
+    }
+
+    private IReadOnlyList<GpuContext> Collect()
+    {
+        var category = new PerformanceCounterCategory("GPU Engine");
+        var seen = new HashSet<(int Pid, long Luid)>();
+        var contexts = new List<GpuContext>();
+        foreach (string instance in category.GetInstanceNames())
+        {
+            // One process has an instance per engine - 3D, copy, video. They say nothing
+            // different about which chip it is on, so the first one of each pair wins.
+            if (GpuEngineInstance.Parse(instance) is not { } engine) continue;
+            if (!seen.Add((engine.ProcessId, engine.Luid))) continue;
+            if (_known!.FirstOrDefault(adapter => adapter.Luid == engine.Luid) is not { } chip) continue;
+            if (Describe(engine.ProcessId) is not { } program) continue;
+            contexts.Add(new GpuContext(engine.ProcessId, program.Name, program.Path, chip.IsNvidia));
+        }
+        return contexts;
     }
 
     /// <summary>The process behind a counter instance, or null once it has exited. The path

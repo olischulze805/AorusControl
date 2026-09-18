@@ -521,9 +521,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
             }
 
             _fixedActive = false;
-
             OnPropertyChanged(nameof(IsFixedActive));
-
             OnPropertyChanged(nameof(IsFixedOn));
             _fixedLease = null;
             try

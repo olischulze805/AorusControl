@@ -52,6 +52,10 @@ if (args.SequenceEqual(new[] { "--autostart-definition-check" }))
             "<ExecutionTimeLimit>PT0S</ExecutionTimeLimit>",
             "<Priority>5</Priority>",
             "<LogonTrigger>",
+            // Windows rewrites the settings block in its own order on the way back out, so
+            // this is read as Windows stores it rather than as we wrote it.
+            "<Count>3</Count>",
+            "<Interval>PT1M</Interval>",
             "<Arguments>--background</Arguments>"
         })
         {
