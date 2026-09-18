@@ -81,7 +81,11 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
             // the device has just reported.
             if (_applyingDeviceState) return;
             Status = value ? $"Ladelimit {SelectedLimit} % wird gesetzt …" : "Standardladen wird gesetzt …";
-            _ = value ? ApplyLimitAsync() : ApplyStandardAsync();
+            // Through the same queue as the slider. Called directly, a flick of the switch
+            // while a read was still running was simply dropped - and the switch then showed
+            // a state the device was never asked for, until the next readback corrected it.
+            _pendingStandard = !value;
+            _applyLimit.Schedule();
         }
     }
 
@@ -106,12 +110,17 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
             // value the device just reported.
             if (_applyingDeviceState) return;
             Status = $"{value} % wird übernommen …";
+            // Moving the slider is a request for a limit, whatever the switch did last.
+            _pendingStandard = false;
             _applyLimit.Schedule();
         }
     }
 
     private bool _applyingDeviceState;
     private bool _limitEnabled = true;
+    /// <summary>Which of the two the queued write means. The switch and the slider share one
+    /// queue so they cannot overtake each other, and this is how it knows which one spoke last.</summary>
+    private bool _pendingStandard;
     private bool _deviceIsStandard, _deviceIsCustom;
     private int _deviceLimit;
     public IReadOnlyList<int> LimitChoices { get; } = Enumerable.Range(60, 41).ToArray();
@@ -183,12 +192,14 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
 
     /// <summary>The debounced write. Without an apply button there is nobody left to retry
     /// a change that arrives while a read or another write holds the controller, so it
-    /// waits its turn instead of being dropped on the floor.</summary>
+    /// waits its turn instead of being dropped on the floor. It writes whichever of the two
+    /// states is currently chosen, so the switch and the slider share one queue and cannot
+    /// overtake each other.</summary>
     private Task ApplyPendingLimitAsync()
     {
         if (_disposed) return Task.CompletedTask;
         if (IsBusy) { _applyLimit.Schedule(); return Task.CompletedTask; }
-        return ApplyLimitAsync();
+        return _pendingStandard ? ApplyStandardAsync() : ApplyLimitAsync();
     }
     public Task ApplyStandardAsync() => ChangeAsync(null);
 

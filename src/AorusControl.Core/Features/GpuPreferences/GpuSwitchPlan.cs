@@ -8,11 +8,15 @@ namespace AorusControl.Core.Features.GpuPreferences;
 /// <param name="Original">The preference found on adoption, so it can be handed back.</param>
 /// <param name="OnAc">What it gets while the laptop is plugged in.</param>
 /// <param name="OnBattery">What it gets while it runs on battery.</param>
+/// <param name="LastWritten">The value this app last put there, or null if it never has.
+/// Kept with the program rather than in a dictionary beside it, because it has to survive a
+/// restart: it is the only way to tell a value somebody changed by hand from one we set.</param>
 public sealed record ManagedProgram(
     string Name,
     GpuPreference? Original,
     GpuPreference OnAc = GpuPreference.Nvidia,
-    GpuPreference OnBattery = GpuPreference.Integrated)
+    GpuPreference OnBattery = GpuPreference.Integrated,
+    GpuPreference? LastWritten = null)
 {
     public string DisplayName => Name.Contains('\\') ? Path.GetFileName(Name) : Name;
 
@@ -52,18 +56,13 @@ public static class GpuSwitchPlan
     /// <param name="source">Unknown leaves everything alone.</param>
     /// <param name="managed">The programs the user put under automatic control.</param>
     /// <param name="current">What the registry says right now, by value name.</param>
-    /// <param name="lastWritten">What this app wrote last time, by value name. A program whose
-    /// current value differs from that was changed elsewhere - by the user in Windows'
-    /// settings, or by the program's own installer - and is skipped rather than overruled.</param>
     public static IReadOnlyList<GpuSwitchStep> Steps(
         LaptopPowerSource source,
         IEnumerable<ManagedProgram> managed,
-        IReadOnlyDictionary<string, GpuPreferenceProgram> current,
-        IReadOnlyDictionary<string, GpuPreference> lastWritten)
+        IReadOnlyDictionary<string, GpuPreferenceProgram> current)
     {
         ArgumentNullException.ThrowIfNull(managed);
         ArgumentNullException.ThrowIfNull(current);
-        ArgumentNullException.ThrowIfNull(lastWritten);
         if (source == LaptopPowerSource.Unknown) return [];
 
         var steps = new List<GpuSwitchStep>();
@@ -75,7 +74,10 @@ public static class GpuSwitchPlan
             GpuPreference target = program.For(source);
             GpuPreference? now = entry?.Preference;
             if (now == target) continue;
-            if (lastWritten.TryGetValue(program.Name, out GpuPreference ours) && now is not null && now != ours) continue;
+            // Changed elsewhere since we last wrote it - by the user in Windows' settings, or
+            // by the program's own installer. That is a decision, and it is not ours to
+            // overrule. It outlives this session because it is stored with the program.
+            if (program.LastWritten is { } ours && now is not null && now != ours) continue;
 
             steps.Add(new GpuSwitchStep(program.Name, target));
         }
@@ -84,14 +86,11 @@ public static class GpuSwitchPlan
 
     /// <summary>What to write when the user stops managing a program: back to what Windows had
     /// before, and only if the value is still the one this app left there.</summary>
-    public static GpuSwitchStep? Release(
-        ManagedProgram program,
-        GpuPreferenceProgram? current,
-        GpuPreference? lastWritten)
+    public static GpuSwitchStep? Release(ManagedProgram program, GpuPreferenceProgram? current)
     {
         ArgumentNullException.ThrowIfNull(program);
         if (program.Original is not { } original) return null;
-        if (current?.Preference is { } now && lastWritten is { } ours && now != ours) return null;
+        if (current?.Preference is { } now && program.LastWritten is { } ours && now != ours) return null;
         return current?.Preference == original ? null : new GpuSwitchStep(program.Name, original);
     }
 }

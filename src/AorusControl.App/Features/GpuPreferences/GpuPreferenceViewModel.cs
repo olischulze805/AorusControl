@@ -126,7 +126,6 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
     private readonly IProgramCloser _closer;
     private readonly Func<string, bool> _confirm;
     private bool _visible;
-    private readonly Dictionary<string, GpuPreference> _lastWritten = [];
     private readonly List<ManagedProgram> _managed = [];
     private bool _busy, _disposed, _started, _automatic = true, _runningRead, _runningReadable, _runningBusy;
     private int _missing;
@@ -223,6 +222,17 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
         ? string.Empty
         : $"Windows hat außerdem {_missing} Einträge für Programme, die es nicht mehr gibt.";
 
+    /// <summary>
+    /// What the card says while the automatic is off.
+    ///
+    /// The old wording stopped after "nothing is changed", which left the obvious next
+    /// question open: a rule picked from the drop-downs while the automatic is off is saved
+    /// and does nothing, and somebody watching for an effect would see none and assume the
+    /// drop-down was broken.
+    /// </summary>
+    private const string AutomaticOff =
+        "Automatik aus · nichts wird umgestellt. Geänderte Regeln werden gespeichert und gelten, sobald sie wieder an ist.";
+
     /// <summary>Off leaves every preference exactly where it is; the list stays, so it can be
     /// switched back on without adding everything again.</summary>
     public bool IsAutomatic
@@ -232,7 +242,7 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
         {
             if (!SetProperty(ref _automatic, value)) return;
             if (value) _ = ApplyAsync("Automatik eingeschaltet");
-            else Status = "Automatik aus · die aktuellen Einstellungen bleiben stehen.";
+            else Status = AutomaticOff;
         }
     }
 
@@ -300,10 +310,9 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
         if (index < 0 || _disposed) return;
         if (_managed[index] is { } existing && existing.OnAc == onAc && existing.OnBattery == onBattery) return;
 
-        _managed[index] = _managed[index] with { OnAc = onAc, OnBattery = onBattery };
         // The app owns this value again from here on: the rule changed, so the value the
         // registry holds is no longer evidence that somebody else set it by hand.
-        _lastWritten.Remove(program.Name);
+        _managed[index] = _managed[index] with { OnAc = onAc, OnBattery = onBattery, LastWritten = null };
         Persist();
         await ApplyAsync($"Regel für {program.DisplayName} geändert");
     }
@@ -325,13 +334,10 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
             // Handing the original setting back is the polite half of taking over: what this
             // app changed, it undoes - unless somebody has changed it since, in which case
             // that decision stands.
-            _lastWritten.TryGetValue(managed.Name, out GpuPreference ours);
-            GpuSwitchStep? release = GpuSwitchPlan.Release(managed, _registry.Find(managed.Name),
-                _lastWritten.ContainsKey(managed.Name) ? ours : null);
+            GpuSwitchStep? release = GpuSwitchPlan.Release(managed, _registry.Find(managed.Name));
             if (release is not null) await Task.Run(() => _registry.Set(release.Name, release.Target));
 
             _managed.Remove(managed);
-            _lastWritten.Remove(managed.Name);
             Persist();
             Status = release is null
                 ? $"{program.DisplayName} entfernt."
@@ -355,11 +361,11 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
         {
             _source = _readPowerSource();
             OnPropertyChanged(nameof(SourceText));
-            if (!_automatic) { Status = "Automatik aus · die aktuellen Einstellungen bleiben stehen."; return; }
+            if (!_automatic) { Status = AutomaticOff; return; }
 
             Dictionary<string, GpuPreferenceProgram> current = await Task.Run(() =>
                 _registry.List().ToDictionary(program => program.Name, StringComparer.OrdinalIgnoreCase));
-            IReadOnlyList<GpuSwitchStep> steps = GpuSwitchPlan.Steps(_source, _managed, current, _lastWritten);
+            IReadOnlyList<GpuSwitchStep> steps = GpuSwitchPlan.Steps(_source, _managed, current);
 
             int written = 0;
             foreach (GpuSwitchStep step in steps)
@@ -367,7 +373,7 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
                 try
                 {
                     await Task.Run(() => _registry.Set(step.Name, step.Target));
-                    _lastWritten[step.Name] = step.Target;
+                    Remember(step.Name, step.Target);
                     written++;
                 }
                 catch (Exception exception)
@@ -375,6 +381,10 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
                     AppLog.Error("gpu", $"Grafikeinstellung für {step.Name} nicht geschrieben.", exception);
                 }
             }
+            // Only when something actually moved: the file is the record of what this app put
+            // where, and it has to survive a restart or the promise not to overrule a manual
+            // change would last exactly one session.
+            if (written > 0) Persist();
 
             Status = _managed.Count == 0
                 ? "Noch keine Programme ausgewählt."
@@ -508,6 +518,13 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
             AppLog.Error("gpu", "Grafikeinstellungen nicht lesbar.", exception);
             return [];
         }
+    }
+
+    /// <summary>Records what was just written, on the program itself.</summary>
+    private void Remember(string name, GpuPreference target)
+    {
+        int index = _managed.FindIndex(entry => entry.Name == name);
+        if (index >= 0) _managed[index] = _managed[index] with { LastWritten = target };
     }
 
     private void Persist()

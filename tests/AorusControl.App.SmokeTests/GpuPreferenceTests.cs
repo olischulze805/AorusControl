@@ -12,6 +12,7 @@ internal static class GpuPreferenceTests
         Store();
         Migrate();
         Plan();
+        await Restart();
         Suggest();
         Picker();
         await Module();
@@ -108,6 +109,40 @@ internal static class GpuPreferenceTests
         Check(module.Programs.Count == 0, "removing takes it off the list");
         Check(registry.Find(game)!.Preference == GpuPreference.Nvidia,
             "and leaves the manual choice alone rather than resetting over it");
+    }
+
+    /// <summary>
+    /// The promise "a change you make yourself in Windows is not overruled" used to last
+    /// exactly one session: what this app had written lived in a dictionary in memory, and a
+    /// restart forgot it and quietly took the program back over.
+    /// </summary>
+    private static async Task Restart()
+    {
+        const string game = @"C:\App\game.exe";
+        var registry = new FakeGpuPreferenceStore();
+        var settings = new FakeGpuPreferenceSettings();
+        LaptopPowerSource source = LaptopPowerSource.Ac;
+
+        GpuPreferenceViewModel New() => new(registry, settings, () => source,
+            new FakeGpuActivity(), new FakeProgramCloser(), confirm: _ => false);
+
+        using (var first = New())
+        {
+            await first.StartAsync();
+            await first.AddAsync(game);
+            Check(registry.Find(game)!.Preference == GpuPreference.Nvidia, "adopted and set on mains");
+        }
+
+        // The user opens Windows' own graphics settings and puts it back.
+        registry.Set(game, GpuPreference.Integrated);
+
+        using (var afterRestart = New())
+        {
+            await afterRestart.StartAsync();
+            Check(registry.Find(game)!.Preference == GpuPreference.Integrated,
+                "a freshly started app leaves that decision alone");
+            Check(afterRestart.Programs[0].State.Contains("von Hand"), "and says why it is not acting");
+        }
     }
 
     private static void Picker()
@@ -292,26 +327,24 @@ internal static class GpuPreferenceTests
             entries.ToDictionary(entry => entry.Name, entry => new GpuPreferenceProgram(entry.Name, entry.Raw));
 
         var onBattery = GpuSwitchPlan.Steps(LaptopPowerSource.Battery, managed,
-            Current((game.Name, "GpuPreference=2;"), (editor.Name, "GpuPreference=2;")), new Dictionary<string, GpuPreference>());
+            Current((game.Name, "GpuPreference=2;"), (editor.Name, "GpuPreference=2;")));
         Check(onBattery.Count == 2 && onBattery.All(step => step.Target == GpuPreference.Integrated),
             "on battery everything managed moves to the Intel chip");
 
         var onMains = GpuSwitchPlan.Steps(LaptopPowerSource.Ac, managed,
-            Current((game.Name, "GpuPreference=1;"), (editor.Name, "GpuPreference=1;")), new Dictionary<string, GpuPreference>());
+            Current((game.Name, "GpuPreference=1;"), (editor.Name, "GpuPreference=1;")));
         Check(onMains.All(step => step.Target == GpuPreference.Nvidia), "on mains they move back to the RTX");
 
-        Check(GpuSwitchPlan.Steps(LaptopPowerSource.Unknown, managed, Current((game.Name, "GpuPreference=1;")),
-            new Dictionary<string, GpuPreference>()).Count == 0, "an unknown power source changes nothing");
+        Check(GpuSwitchPlan.Steps(LaptopPowerSource.Unknown, managed, Current((game.Name, "GpuPreference=1;"))).Count == 0, "an unknown power source changes nothing");
 
         Check(GpuSwitchPlan.Steps(LaptopPowerSource.Battery, managed,
-            Current((game.Name, "GpuPreference=1;"), (editor.Name, "GpuPreference=1;")),
-            new Dictionary<string, GpuPreference>()).Count == 0, "a program already there is not rewritten");
+            Current((game.Name, "GpuPreference=1;"), (editor.Name, "GpuPreference=1;"))).Count == 0, "a program already there is not rewritten");
 
         // Somebody set the game back to the RTX by hand after we last wrote the Intel chip.
         // That is a decision, not drift, and it is left standing.
-        var afterManualChange = GpuSwitchPlan.Steps(LaptopPowerSource.Battery, managed,
-            Current((game.Name, "GpuPreference=2;"), (editor.Name, "GpuPreference=2;")),
-            new Dictionary<string, GpuPreference> { [game.Name] = GpuPreference.Integrated });
+        var afterManualChange = GpuSwitchPlan.Steps(LaptopPowerSource.Battery,
+            [game with { LastWritten = GpuPreference.Integrated }, editor],
+            Current((game.Name, "GpuPreference=2;"), (editor.Name, "GpuPreference=2;")));
         Check(afterManualChange.Count == 1 && afterManualChange[0].Name == editor.Name,
             "a manually changed program is skipped, the others still follow");
 
@@ -319,11 +352,11 @@ internal static class GpuPreferenceTests
         var browser = new ManagedProgram(@"C:\Approwser.exe", null,
             OnAc: GpuPreference.Integrated, OnBattery: GpuPreference.Integrated);
         var withOwnRule = GpuSwitchPlan.Steps(LaptopPowerSource.Ac, [browser],
-            Current((browser.Name, "GpuPreference=2;")), new Dictionary<string, GpuPreference>());
+            Current((browser.Name, "GpuPreference=2;")));
         Check(withOwnRule.Count == 1 && withOwnRule[0].Target == GpuPreference.Integrated,
             "its own rule beats the default, on mains as well");
         Check(GpuSwitchPlan.Steps(LaptopPowerSource.Battery, [browser],
-            Current((browser.Name, "GpuPreference=1;")), new Dictionary<string, GpuPreference>()).Count == 0,
+            Current((browser.Name, "GpuPreference=1;"))).Count == 0,
             "and a program whose two rules agree is written once, not on every change of supply");
         Check(browser.For(LaptopPowerSource.Ac) == GpuPreference.Integrated
             && game.For(LaptopPowerSource.Ac) == GpuPreference.Nvidia
@@ -331,14 +364,16 @@ internal static class GpuPreferenceTests
             "the defaults are still the rule that used to be wired in");
 
         var pinned = GpuSwitchPlan.Steps(LaptopPowerSource.Battery, [game],
-            Current((game.Name, "SpecificAdapter=10DE&249D;GpuPreference=1073741824;")), new Dictionary<string, GpuPreference>());
+            Current((game.Name, "SpecificAdapter=10DE&249D;GpuPreference=1073741824;")));
         Check(pinned.Count == 0, "a pinned adapter is never overruled");
 
-        Check(GpuSwitchPlan.Release(game, new GpuPreferenceProgram(game.Name, "GpuPreference=1;"), GpuPreference.Integrated)
+        ManagedProgram ours = game with { LastWritten = GpuPreference.Integrated };
+        Check(GpuSwitchPlan.Release(ours, new GpuPreferenceProgram(game.Name, "GpuPreference=1;"))
             is { Target: GpuPreference.WindowsDecides }, "releasing hands the original setting back");
-        Check(GpuSwitchPlan.Release(editor, new GpuPreferenceProgram(editor.Name, "GpuPreference=1;"), GpuPreference.Integrated) is null,
+        Check(GpuSwitchPlan.Release(editor with { LastWritten = GpuPreference.Integrated },
+            new GpuPreferenceProgram(editor.Name, "GpuPreference=1;")) is null,
             "a program that had no setting before keeps whatever it has now");
-        Check(GpuSwitchPlan.Release(game, new GpuPreferenceProgram(game.Name, "GpuPreference=2;"), GpuPreference.Integrated) is null,
+        Check(GpuSwitchPlan.Release(ours, new GpuPreferenceProgram(game.Name, "GpuPreference=2;")) is null,
             "and one changed by hand is not reset either");
     }
 

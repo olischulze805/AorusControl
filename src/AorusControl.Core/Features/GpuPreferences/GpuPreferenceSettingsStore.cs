@@ -45,14 +45,14 @@ public sealed class GpuPreferenceSettingsStore(string filePath) : IGpuPreference
             {
                 if (string.IsNullOrWhiteSpace(entry.Name) || !GpuPreferenceText.IsProgramEntry(entry.Name))
                     throw new InvalidDataException("Die Datei enthält einen ungültigen Programmeintrag.");
-                foreach (GpuPreference? preference in (GpuPreference?[])[entry.Original, entry.OnAc, entry.OnBattery])
+                foreach (GpuPreference? preference in (GpuPreference?[])[entry.Original, entry.OnAc, entry.OnBattery, entry.LastWritten])
                     if (preference is { } value && !Enum.IsDefined(value))
                         throw new InvalidDataException("Die Datei enthält eine unbekannte Grafikeinstellung.");
             }
             // A version 1 entry has no pair; the defaults below are what that version did.
             return envelope.Programs
                 .Select(entry => entry.OnAc is { } onAc && entry.OnBattery is { } onBattery
-                    ? new ManagedProgram(entry.Name, entry.Original, onAc, onBattery)
+                    ? new ManagedProgram(entry.Name, entry.Original, onAc, onBattery, entry.LastWritten)
                     : new ManagedProgram(entry.Name, entry.Original))
                 .ToArray();
         }
@@ -74,7 +74,8 @@ public sealed class GpuPreferenceSettingsStore(string filePath) : IGpuPreference
             {
                 JsonSerializer.Serialize(stream,
                     new Envelope(Version, programs
-                        .Select(program => new Entry(program.Name, program.Original, program.OnAc, program.OnBattery))
+                        .Select(program => new Entry(program.Name, program.Original, program.OnAc, program.OnBattery,
+                            program.LastWritten))
                         .ToArray()), Options);
                 stream.Flush(flushToDisk: true);
             }
@@ -91,6 +92,6 @@ public sealed class GpuPreferenceSettingsStore(string filePath) : IGpuPreference
     private const int Version = 2;
 
     private sealed record Entry(string Name, GpuPreference? Original,
-        GpuPreference? OnAc = null, GpuPreference? OnBattery = null);
+        GpuPreference? OnAc = null, GpuPreference? OnBattery = null, GpuPreference? LastWritten = null);
     private sealed record Envelope(int Version, IReadOnlyList<Entry>? Programs);
 }
