@@ -717,6 +717,42 @@ mit weniger, dafür breiteren Leiterbahnen.
 Ein vierpoliges FFC ist zudem ein Normteil und für wenige Euro zu ersetzen - ungleich billiger
 als die Tastatureinheit, an der bisher die Überlegungen hängen.
 
+## Das Kabel heisst USB2_KB2 (2026-09-18, 17:21)
+
+Ein zweites Foto des geoeffneten Geraets loest die letzte Unsicherheit auf: Welches der beiden
+duennen Kabel das USB-Kabel ist, steht auf dem Mainboard.
+
+```
+Tastaturmatrix ──[breites FFC, blaue Versteifung]──► ZIF der Controllerplatine
+                                                     (CN1/CN2, C10, L4025, QFP = IT8298)
+                                          CN1 ──[duennes weisses FFC]──► Mainboard: USB2_KB2
+```
+
+Der Siebdruck am Mainboard-Stecker lautet **`USB2_KB2`**. Damit ist belegt, was die vorige
+Ueberlegung nur geschlossen hatte: VBUS, GND, D+ und D- laufen durch dieses duenne weisse
+Flachband, nicht durch das breite Tastaturband.
+
+Der am 2026-09-10 neu gesetzte Stecker war damit hoechstwahrscheinlich der falsche - das breite
+Band liegt hinter dem Controller und kann weder ein Verschwinden vom Bus noch Code 43 erzeugen.
+
+### Der Eingriff
+
+Am 2026-09-18 wurde das weisse FFC an `USB2_KB2` abgezogen und neu gesteckt. Der Watcher laeuft
+seit 17:21:45, die Tastatur war beim Start angemeldet.
+
+### Woran der Test scheitert, wenn man nicht aufpasst
+
+Gemessen werden darf nur gegen die Baseline vom 17.09. abends - **flach, aufgeklappt, und es
+wird getippt**: 2,2 / 3,3 / 5,9 Minuten. Im Staender hielt sie am selben Abend ohne jeden
+Eingriff bereits 24 Minuten; eine lange Laufzeit dort beweist nichts ueber den Eingriff.
+
+Und die Geduldsprobe: Das Neusetzen am 10.09. hielt vier Tage. Ein guter Abend ist kein Beweis.
+
+| Ergebnis in der Lage "flach, aufgeklappt, in Benutzung" | Schluss |
+| --- | --- |
+| wieder Minuten | Kontakt an `USB2_KB2` war es nicht - naechster Verdacht: die Loetstellen des Steckers oder das Kabel selbst |
+| Stunden bis Tage | der Kontakt war es; ein vierpoliges FFC ist ein Normteil fuer wenige Euro |
+
 ## Was ausgeschlossen ist
 
 - Keine Herstellersoftware, die um dasselbe Gerät konkurriert: GCC ist deinstalliert, kein
