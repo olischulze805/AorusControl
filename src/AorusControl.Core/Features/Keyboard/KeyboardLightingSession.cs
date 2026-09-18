@@ -112,18 +112,30 @@ public sealed class KeyboardLightingSession(IKeyboardLightingTransport transport
         try
         {
             if (_disposed) return;
+            // Same reasoning as SuspendAsync: nothing writes after this, so putting the old
+            // state back would be the app's parting act rather than the user's last choice.
+            if (transport is IEffectHandover handover) handover.KeepLightingOnStop();
             await StopEffectAsync().ConfigureAwait(false);
             _disposed = true;
         }
         finally { _gate.Release(); }
     }
 
+    /// <summary>
+    /// Lets go of the keyboard without changing what is on it.
+    ///
+    /// This runs when the app closes, and it is the one stop that is not followed by a write.
+    /// The renderer is therefore told to leave its last frame standing: the colours and the
+    /// mode stay as the user left them, which is what somebody who set a colour scheme
+    /// expects of a program that is merely quitting.
+    /// </summary>
     public async Task SuspendAsync()
     {
         await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            if (transport is IEffectHandover handover) handover.KeepLightingOnStop();
             await StopEffectAsync().ConfigureAwait(false);
         }
         finally { _gate.Release(); }

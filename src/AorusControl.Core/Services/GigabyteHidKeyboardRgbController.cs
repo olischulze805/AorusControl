@@ -6,7 +6,8 @@ using HidSharp;
 
 namespace AorusControl.Core.Services;
 
-public sealed class GigabyteHidKeyboardRgbController : IAorusKeyboardRgbController, AorusControl.Core.Features.Keyboard.IKeyboardLightingTransport, ILiveEffectBrightness
+public sealed class GigabyteHidKeyboardRgbController : IAorusKeyboardRgbController, AorusControl.Core.Features.Keyboard.IKeyboardLightingTransport, ILiveEffectBrightness,
+    Features.Keyboard.IEffectHandover
 {
     private const int VendorId = 0x1044;
     private const int ProductId = 0x7A41;
@@ -18,6 +19,9 @@ public sealed class GigabyteHidKeyboardRgbController : IAorusKeyboardRgbControll
     private static readonly TimeSpan EffectFrameInterval = Features.Keyboard.KeyboardEffectFrames.FrameInterval;
     private readonly object _sync = new();
     private int _effectBrightness = -1;
+    private volatile bool _keepLighting;
+
+    public void KeepLightingOnStop() => _keepLighting = true;
 
     public void UpdateEffectBrightness(KeyboardBrightnessLevel level)
     {
@@ -98,6 +102,7 @@ public sealed class GigabyteHidKeyboardRgbController : IAorusKeyboardRgbControll
         CancellationToken cancellationToken)
     {
         Volatile.Write(ref _effectBrightness, -1);
+        _keepLighting = false;
         return Task.Run(() => PlayEffect(effect, speed, cancellationToken), CancellationToken.None);
     }
 
@@ -205,10 +210,15 @@ public sealed class GigabyteHidKeyboardRgbController : IAorusKeyboardRgbControll
 
             try
             {
-                int liveBrightness = Volatile.Read(ref _effectBrightness);
-                KeyboardRgbState restore = liveBrightness < 0 ? original : new(original.Zones
-                    .Select(zone => zone with { Brightness = (byte)liveBrightness }).ToArray());
-                RestoreAndVerify(stream, restore);
+                // Told to hand over: the last frame is already on the keyboard, and writing
+                // anything else here would be the app changing the lighting on its way out.
+                if (!_keepLighting)
+                {
+                    int liveBrightness = Volatile.Read(ref _effectBrightness);
+                    KeyboardRgbState restore = liveBrightness < 0 ? original : new(original.Zones
+                        .Select(zone => zone with { Brightness = (byte)liveBrightness }).ToArray());
+                    RestoreAndVerify(stream, restore);
+                }
             }
             catch (Exception restoreException)
             {

@@ -237,17 +237,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         while (_starting || _isReading || Modules.Any(module => module.IsBusy))
             await Task.Delay(50);
         _timer.Stop();
+        // Letting go of the lighting is allowed to fail. It used to keep the window open,
+        // on the reasoning that the app still held the keyboard - but since the lighting is
+        // now handed over as it stands, there is nothing left to hand back, and the usual
+        // reason for the failure is that the keyboard has fallen off the USB bus. A machine
+        // whose keyboard has died must not also refuse to close its control panel.
         try { await Keyboard.SuspendAsync(); }
-        catch
-        {
-            // The lighting stayed with us, so the window stays open and everything that was
-            // stopped for the close has to come back up.
-            _closing = false;
-            Cooling.CancelClose();
-            Keyboard.ResumeAfterFailedClose();
-            if (_isRunning) _timer.Start();
-            throw;
-        }
+        catch (Exception error) { AppLog.Error("keyboard", "Beleuchtung beim Schließen nicht sauber freigegeben.", error); }
+
         try { await Cooling.HandBackAsync(); }
         catch
         {

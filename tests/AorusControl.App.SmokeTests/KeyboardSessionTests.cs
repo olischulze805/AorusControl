@@ -55,8 +55,22 @@ internal static class KeyboardSessionTests
         catch (InvalidOperationException) { failed = true; }
         Assert(failed && (await session.ReadSettingsAsync()).Left == initial.Left, "failed write is not committed");
         transport.FailWrite = false;
+
+        // Closing hands the lighting over as it stands. A stop inside a session is followed
+        // by a write and may restore; this one is the last thing to reach the keyboard, and
+        // restoring here would change the colours the moment the app quits.
         await session.ChangeAsync(s => s with { Effect = KeyboardRgbEffect.Pulse });
+        KeyboardRgbColor duringEffect = new(1, 2, 3);
+        transport.SetFrame(duringEffect);
+        await session.SuspendAsync();
+        Assert(transport.Hardware.GetZone(1).Color == duringEffect,
+            "suspending leaves the last rendered frame standing instead of putting the old colours back");
+
+        await session.ChangeAsync(s => s with { Effect = KeyboardRgbEffect.Pulse });
+        transport.SetFrame(new(4, 5, 6));
         await session.DisposeAsync();
+        Assert(transport.Hardware.GetZone(1).Color == new KeyboardRgbColor(4, 5, 6),
+            "and so does disposing, for the same reason");
         Assert(transport.Active == 0, "dispose awaits renderer stop");
         bool disposed = false;
         try { await session.ChangeAsync(s => s); } catch (ObjectDisposedException) { disposed = true; }
@@ -229,8 +243,10 @@ internal static class KeyboardSessionTests
         }
     }
 
-    private sealed class FakeTransport : IAorusKeyboardRgbController, ILiveEffectBrightness
+    private sealed class FakeTransport : IAorusKeyboardRgbController, ILiveEffectBrightness, IEffectHandover
     {
+        private bool _keepLighting;
+        public void KeepLightingOnStop() => _keepLighting = true;
         private KeyboardBrightnessLevel? _liveBrightness;
         public int Starts { get; private set; }
         public KeyboardBrightnessLevel? LastRestoredBrightness { get; private set; }
@@ -253,6 +269,10 @@ internal static class KeyboardSessionTests
         public bool WriteDuringEffect { get; private set; }
         public bool FailWrite { get; set; }
         public KeyboardRgbState ReadState() => Hardware;
+        /// <summary>What the running renderer has just put on the keyboard.</summary>
+        public void SetFrame(KeyboardRgbColor color) =>
+            Hardware = new(Hardware.Zones.Select(z => z with { Color = color }).ToArray());
+
         public void SimulateReset() => Hardware = new(Hardware.Zones.Select(z => z with { Color = new KeyboardRgbColor(0, 0, 255), Brightness = 0 }).ToArray());
         public KeyboardRgbState ApplyState(KeyboardRgbState state)
         {
@@ -265,6 +285,7 @@ internal static class KeyboardSessionTests
         {
             Starts++;
             _liveBrightness = null;
+            _keepLighting = false;
             KeyboardRgbState original = Hardware;
             Active++;
             MaxActive = Math.Max(MaxActive, Active);
@@ -274,7 +295,8 @@ internal static class KeyboardSessionTests
             {
                 // Delayed restoration simulates the real transport's shutdown sequence.
                 await Task.Delay(10);
-                Hardware = _liveBrightness is { } level ? new(original.Zones.Select(z => z with { Brightness = (byte)level }).ToArray()) : original;
+                if (!_keepLighting)
+                    Hardware = _liveBrightness is { } level ? new(original.Zones.Select(z => z with { Brightness = (byte)level }).ToArray()) : original;
                 LastRestoredBrightness = Hardware.Brightness;
                 Active--;
             }
