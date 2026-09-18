@@ -33,7 +33,9 @@ internal static class LocalizationTests
             "Nav_Dashboard", "Cool_Normal", "Cool_Gaming", "Cool_Live", "Pwr_ModeBalanced",
             "About_Version", "About_Updates", "About_Log", "Key_EffectManual",
             // A product name and a word English borrowed unchanged.
-            "Gpu_ChipNvidia", "Tray_Limit"
+            "Gpu_ChipNvidia", "Tray_Limit",
+            // A number and a per-cent sign, which no language spells differently.
+            "Saver_Percent"
         ];
         string[] suspicious = german
             .Where(pair => english[pair.Key] == pair.Value && !sameOnPurpose.Contains(pair.Key))

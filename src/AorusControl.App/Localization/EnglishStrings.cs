@@ -288,5 +288,14 @@ internal static class EnglishStrings
             ["Live_NoRpm"] = "– rpm",
             ["Live_Rpm"] = "{0} rpm",
             ["Live_Stopped"] = "stopped",
+            ["Saver_Brightness"] = "BRIGHTNESS",
+            ["Saver_CpuCap"] = "CPU CAP",
+            ["Saver_Failed"] = "Switching failed: {0}",
+            ["Saver_Off"] = "Off · back on the previous power plan.",
+            ["Saver_On"] = "On · {0} settings, on a power plan of its own.",
+            ["Saver_Percent"] = "{0} %",
+            ["Saver_Savings"] = "The screen at {0} % saves about 3 W. The CPU cap at {1} % does nothing at idle - only under load, and then at the cost of responsiveness.",
+            ["Saver_Title"] = "Battery saver",
+            ["Tip_BatterySaver"] = "Battery only: only the battery side is written. On mains the machine behaves exactly as before, so the switch can stay on. AORUS Control copies your power plan and switches to the copy - your own plan is never changed. Turning it off switches back and deletes the copy.",
         };
 }

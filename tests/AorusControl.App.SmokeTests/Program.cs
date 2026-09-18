@@ -43,6 +43,7 @@ GpuActivityTests.Run();
 TrayStatusTests.Run();
 LocalizationTests.Run();
 await ProgramCloserTests.RunAsync();
+await BatterySaverTests.RunAsync();
 KeyboardEffectFrameTests.Run();
 KeyboardLayoutTests.Run();
 AppDataTests.Run();

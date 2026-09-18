@@ -789,6 +789,68 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Der Akkusparmodus. Geschrieben wird nur die Akku-Seite eines
+                             eigenen Plans, deshalb braucht es weder eine Automatik noch eine
+                             Bedingung: am Netz ändert er nichts, der Schalter kann anbleiben. -->
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{loc:T Saver_Title}" Style="{StaticResource CardTitle}" />
+                                        <ui:SymbolIcon Style="{StaticResource InfoDot}" ToolTip="{loc:T Tip_BatterySaver}" />
+                                    </StackPanel>
+                                    <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                     IsChecked="{Binding Saver.IsOn, Mode=TwoWay}" />
+                                </Grid>
+                                <TextBlock Text="{Binding Saver.Savings}" Style="{StaticResource Hint}" TextWrapping="Wrap" />
+
+                                <Grid Margin="0,18,0,0" IsEnabled="{Binding Saver.CanAdjust}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{loc:T Saver_Brightness}" Style="{StaticResource TileLabel}"
+                                               VerticalAlignment="Center" MinWidth="92" />
+                                    <Grid Grid.Column="1">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Saver.BrightnessText}" Style="{StaticResource TileValueSmall}"
+                                                   VerticalAlignment="Center" MinWidth="58" />
+                                        <Slider Grid.Column="1" Style="{StaticResource ValueSlider}" MinWidth="150" Margin="8,0,0,0"
+                                                Minimum="10" Maximum="100" SmallChange="5" LargeChange="10"
+                                                Value="{Binding Saver.Brightness, Mode=TwoWay}" />
+                                    </Grid>
+                                </Grid>
+                                <Grid Margin="0,12,0,0" IsEnabled="{Binding Saver.CanAdjust}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{loc:T Saver_CpuCap}" Style="{StaticResource TileLabel}"
+                                               VerticalAlignment="Center" MinWidth="92" />
+                                    <Grid Grid.Column="1">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Saver.ProcessorCapText}" Style="{StaticResource TileValueSmall}"
+                                                   VerticalAlignment="Center" MinWidth="58" />
+                                        <Slider Grid.Column="1" Style="{StaticResource ValueSlider}" MinWidth="150" Margin="8,0,0,0"
+                                                Minimum="30" Maximum="100" SmallChange="5" LargeChange="10"
+                                                Value="{Binding Saver.ProcessorCap, Mode=TwoWay}" />
+                                    </Grid>
+                                </Grid>
+                                <TextBlock Text="{Binding Saver.Status}" Style="{StaticResource StatusText}"
+                                           Visibility="{Binding Saver.Status, Converter={StaticResource TextVisible}}" />
+                            </StackPanel>
+                        </Border>
+
                         <Border Style="{StaticResource Card}">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal">

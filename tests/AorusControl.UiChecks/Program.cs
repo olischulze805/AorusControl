@@ -132,7 +132,7 @@ static void RenderReadmeShots()
         // One height per section: a picture padded out with empty background reads as an
         // empty app.
         foreach ((string section, int height) in new[]
-                 { ("Dashboard", 770), ("Cooling", 1400), ("Lighting", 1180), ("Graphics", 800), ("Power", 640) })
+                 { ("Dashboard", 770), ("Cooling", 1400), ("Lighting", 1180), ("Graphics", 800), ("Power", 900) })
         {
             vm.SelectedSection = section;
             Layout(content, 1180, height);

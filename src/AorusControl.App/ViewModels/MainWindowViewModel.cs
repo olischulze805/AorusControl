@@ -124,7 +124,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         IGpuPreferenceStore? gpuPreferenceStore = null,
         IGpuPreferenceSettingsStore? gpuPreferenceSettings = null,
         Func<LaptopPowerSource>? readPowerSource = null,
-        IGpuActivityReader? gpuActivity = null)
+        IGpuActivityReader? gpuActivity = null,
+        IBatterySaver? batterySaver = null,
+        IBatterySaverSettingsStore? batterySaverSettings = null)
     {
         _reader = reader;
         _readPower = readPower;
@@ -151,6 +153,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             gpuActivity);
         Updates = new UpdateViewModel();
         Language = new LanguageViewModel();
+        Saver = new BatterySaverViewModel(batterySaver, batterySaverSettings, debounceWait);
         // The tray text is derived, so it has to be told when either half moves. Both
         // modules already raise these; nothing new is polled for it.
         // A language change reaches bound text by itself; the sentences these modules compute
@@ -197,7 +200,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     /// <summary>The attached feature modules. Everything the shell does to all of them -
     /// start them, wait for them, release them - goes through this list, so a new feature
     /// is a class plus one entry rather than another branch in three methods.</summary>
-    private IReadOnlyList<IFeatureModule> Modules => [Graphics, Keyboard, Cooling, Windows, Battery];
+    private IReadOnlyList<IFeatureModule> Modules => [Graphics, Keyboard, Cooling, Windows, Battery, Saver];
 
     public KeyboardViewModel Keyboard { get; }
     public CoolingViewModel Cooling { get; }
@@ -213,6 +216,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     /// <summary>The language picker. Constructed early on purpose: it applies the stored
     /// choice, and everything drawn afterwards reads from the table it selected.</summary>
     public LanguageViewModel Language { get; }
+
+    /// <summary>The battery saver, on the power page beside the charge limit.</summary>
+    public BatterySaverViewModel Saver { get; }
 
     public string Status { get => _status; private set => SetProperty(ref _status, value); }
 

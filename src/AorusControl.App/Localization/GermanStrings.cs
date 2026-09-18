@@ -288,5 +288,14 @@ internal static class GermanStrings
             ["Live_NoRpm"] = "– U/min",
             ["Live_Rpm"] = "{0} U/min",
             ["Live_Stopped"] = "steht",
+            ["Saver_Brightness"] = "HELLIGKEIT",
+            ["Saver_CpuCap"] = "CPU-DECKEL",
+            ["Saver_Failed"] = "Umschalten fehlgeschlagen: {0}",
+            ["Saver_Off"] = "Aus · wieder auf dem vorherigen Energiesparplan.",
+            ["Saver_On"] = "Eingeschaltet · {0} Einstellungen auf einem eigenen Energiesparplan.",
+            ["Saver_Percent"] = "{0} %",
+            ["Saver_Savings"] = "Bildschirm auf {0} % spart etwa 3 W. Der CPU-Deckel auf {1} % bringt im Leerlauf nichts - erst unter Last, und dann auf Kosten der Reaktionszeit.",
+            ["Saver_Title"] = "Akku sparen",
+            ["Tip_BatterySaver"] = "Gilt nur im Akkubetrieb: Geschrieben wird ausschliesslich die Akku-Seite. Am Netz verhält sich das Gerät genau wie vorher, der Schalter kann also anbleiben. AORUS Control legt dafür eine Kopie deines Energiesparplans an und wechselt darauf - dein eigener Plan wird nie verändert. Ausschalten wechselt zurück und löscht die Kopie.",
         };
 }
