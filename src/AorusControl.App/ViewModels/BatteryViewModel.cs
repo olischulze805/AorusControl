@@ -58,6 +58,10 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
     }
     public bool CanApply => _supported && !IsBusy && !_disposed;
 
+    /// <summary>Whether the device answered about its charge policy at all. The tray text
+    /// needs it: "Standardladen" on a machine that never replied would be a claim.</summary>
+    public bool IsSupported => _supported;
+
     /// <summary>
     /// Whether a charge limit is in force at all - the switch above the slider.
     ///

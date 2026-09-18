@@ -99,11 +99,19 @@ public partial class App : System.Windows.Application
                 // always visually consistent.
                 Icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!)
                     ?? System.Drawing.SystemIcons.Application,
-                Text = "AORUS Control · Öffnen oder Beenden per Rechtsklick",
+                Text = window.ViewModel.TrayText,
                 ContextMenuStrip = _trayMenu,
                 Visible = true
             };
             _tray.DoubleClick += (_, _) => ShowWindow();
+            // The tooltip follows the state it describes. Nothing is polled for it: both
+            // halves come from modules that already announce their own changes.
+            window.ViewModel.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName != nameof(AorusControl.App.ViewModels.MainWindowViewModel.TrayText) || _tray is null) return;
+                try { _tray.Text = window.ViewModel.TrayText; }
+                catch (ArgumentException error) { AppLog.Error("tray", "Kurzinfo zu lang für den Infobereich.", error); }
+            };
             // The automatic check says nothing unless it found something; when it does, this
             // is how a user who is not looking at the window gets to hear about it. One
             // balloon per launch, and clicking it lands on the update card.

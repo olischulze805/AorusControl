@@ -82,6 +82,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public string PowerFlowRuntime { get => _flowRuntime; private set => SetProperty(ref _flowRuntime, value); }
     public string GpuPowerStatus { get => _gpuPowerStatus; private set => SetProperty(ref _gpuPowerStatus, value); }
 
+    /// <summary>
+    /// What the tray icon says when the pointer rests on it. Built from state the app already
+    /// holds - no reading, no clock - so it stays honest while the window is hidden and the
+    /// telemetry is stopped.
+    /// </summary>
+    public string TrayText => TrayStatus.Build(Cooling.ActiveProfile, Battery.StopPercent, Battery.IsSupported);
+
     public MainWindowViewModel()
         : this(
             new GigabyteWmiTelemetryReader(),
@@ -142,6 +149,17 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             readPowerSource ?? powerOverlay.ReadPowerSource,
             gpuActivity);
         Updates = new UpdateViewModel();
+        // The tray text is derived, so it has to be told when either half moves. Both
+        // modules already raise these; nothing new is polled for it.
+        Cooling.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName is nameof(CoolingViewModel.ActiveProfile)) OnPropertyChanged(nameof(TrayText));
+        };
+        Battery.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName is nameof(BatteryViewModel.StopPercent) or nameof(BatteryViewModel.CanApply))
+                OnPropertyChanged(nameof(TrayText));
+        };
         _timer = new DispatcherTimer(DispatcherPriority.Background)
         {
             Interval = TimeSpan.FromSeconds(2)
