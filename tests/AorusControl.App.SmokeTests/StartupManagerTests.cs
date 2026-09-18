@@ -1,3 +1,4 @@
+using System.Reflection;
 using AorusControl.Core.Features.Startup;
 
 internal static class StartupManagerTests
@@ -56,7 +57,49 @@ internal static class StartupManagerTests
         Check(StartupTaskDefinition.Matches(xml.Replace("AORUS5", "AORUS\u00dc"), Executable),
             "an account the console code page mangles must not force a rewrite on every start");
 
-        Console.WriteLine("PASS: startup task definition (battery conditions, no time limit, normal priority, version marker)");
+        ValidateAgainstScheduler(xml);
+        Console.WriteLine("PASS: startup task definition parses in the real Task Scheduler (battery conditions, no time limit, restart on failure, normal priority, version marker)");
+    }
+
+    /// <summary>
+    /// Hands the definition to the Task Scheduler itself and lets it parse.
+    ///
+    /// The element order in this file is not a matter of taste - the scheduler validates
+    /// against a schema, and a document in the wrong order is rejected outright. Checking
+    /// that with string searches only proves the text is there, not that Windows will take
+    /// it, and the way that failure shows up otherwise is an autostart that silently never
+    /// gets written.
+    ///
+    /// Nothing is registered: <c>NewTask</c> plus the <c>XmlText</c> setter parses and
+    /// populates a definition object in memory. No task, no elevation, no side effect.
+    /// </summary>
+    private static void ValidateAgainstScheduler(string xml)
+    {
+        Type? service = Type.GetTypeFromProgID("Schedule.Service");
+        if (service is null) return;
+        object? scheduler = Activator.CreateInstance(service);
+        if (scheduler is null) return;
+        try
+        {
+            service.InvokeMember("Connect", BindingFlags.InvokeMethod, null, scheduler, [Type.Missing, Type.Missing, Type.Missing, Type.Missing]);
+            object definition = service.InvokeMember("NewTask", BindingFlags.InvokeMethod, null, scheduler, [0u])!;
+            // Throws when the schema refuses the document, which is the whole point.
+            definition.GetType().InvokeMember("XmlText", BindingFlags.SetProperty, null, definition, [xml]);
+
+            object settings = definition.GetType().InvokeMember("Settings", BindingFlags.GetProperty, null, definition, null)!;
+            object Read(string name) => settings.GetType().InvokeMember(name, BindingFlags.GetProperty, null, settings, null)!;
+
+            Check((int)Read("RestartCount") == 3, "a crashed tray app is brought back, three times");
+            Check((string)Read("RestartInterval") == "PT1M", "a minute apart, not instantly in a loop");
+            Check((int)Read("Priority") == 5, "normal priority, so the start it is meant to make prompt is not slowed");
+            Check((string)Read("ExecutionTimeLimit") == "PT0S", "no execution limit; Windows kills a long-running tray app otherwise");
+            Check(!(bool)Read("DisallowStartIfOnBatteries"), "it starts on battery - that is when the fans matter most");
+            Check(!(bool)Read("StopIfGoingOnBatteries"), "and unplugging the mains does not kill it");
+        }
+        finally
+        {
+            if (OperatingSystem.IsWindows()) System.Runtime.InteropServices.Marshal.ReleaseComObject(scheduler);
+        }
     }
 
     private static void Check(bool value, string message)

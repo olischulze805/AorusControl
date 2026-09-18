@@ -33,7 +33,7 @@ public static class StartupTaskDefinition
     /// Bump it whenever the definition below changes in a way that existing installations
     /// should pick up; <see cref="StartupManager.RepairAsync"/> then replaces them silently.
     /// </summary>
-    public const string Version = "AORUS Control Autostart v2";
+    public const string Version = "AORUS Control Autostart v3";
 
     public const string BackgroundStartArgument = "--background";
 
@@ -73,6 +73,15 @@ public static class StartupTaskDefinition
                 </Principal>
               </Principals>
               <Settings>
+                <!-- If the app dies, Windows brings it back. Without this the task simply
+                     records a failure and the machine spends the rest of the session with no
+                     fan supervision and no lighting, until somebody notices. Three tries a
+                     minute apart: enough for a one-off crash, not enough to loop over a fault
+                     that will not go away. -->
+                <RestartOnFailure>
+                  <Count>3</Count>
+                  <Interval>PT1M</Interval>
+                </RestartOnFailure>
                 <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
                 <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
                 <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
