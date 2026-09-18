@@ -54,11 +54,11 @@
                 <ui:NavigationViewItem Content="Leistung &amp; Akku" TargetPageTag="Power" TargetPageType="{x:Type ctrl:PowerPage}">
                     <ui:NavigationViewItem.Icon><ui:SymbolIcon Symbol="Battery924" /></ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
-            </ui:NavigationView.MenuItems>
-            <ui:NavigationView.FooterMenuItems>
                 <ui:NavigationViewItem Content="Grafik" TargetPageTag="Graphics" TargetPageType="{x:Type ctrl:GraphicsPage}">
                     <ui:NavigationViewItem.Icon><ui:SymbolIcon Symbol="Desktop24" /></ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
+            </ui:NavigationView.MenuItems>
+            <ui:NavigationView.FooterMenuItems>
                 <ui:NavigationViewItem Content="Info &amp; Updates" TargetPageTag="About" TargetPageType="{x:Type ctrl:AboutPage}">
                     <ui:NavigationViewItem.Icon><ui:SymbolIcon Symbol="Info24" /></ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
