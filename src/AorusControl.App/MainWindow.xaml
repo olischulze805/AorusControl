@@ -763,7 +763,7 @@
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="{loc:T Pwr_WindowsMode}" Style="{StaticResource CardTitle}" />
                                             <ui:SymbolIcon Style="{StaticResource InfoDot}"
-                                                           ToolTip="{Binding Windows.PowerModeScope}" />
+                                                           ToolTip="{Binding Windows.PowerModeTooltip}" />
                                         </StackPanel>
                                     </StackPanel>
                                 </Grid>
@@ -786,31 +786,6 @@
                                 </WrapPanel>
                                 <TextBlock Text="{Binding Windows.PowerStatus}" Style="{StaticResource StatusText}" />
 
-                                <!-- What changing the mode really does. Vendor tools tend to imply a
-                                     performance mode also drives the fans; on this laptop it does not,
-                                     and showing the curve that IS in force next to it is the honest
-                                     answer to "what did I just change?". -->
-                                <Border Style="{StaticResource InnerPanel}" Margin="0,20,0,0">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" MinWidth="240" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0" Margin="0,0,18,0">
-                                            <TextBlock Text="{loc:T Pwr_WhatItChanges}" Style="{StaticResource SubLabel}" />
-                                            <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
-                                                       Text="{Binding Windows.PowerModeEffect}" TextWrapping="Wrap" />
-                                            <TextBlock Style="{StaticResource SubLabel}" Margin="0,18,0,0" Text="{loc:T Pwr_CoolingNow}" />
-                                            <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
-                                                       Text="{Binding Cooling.Summary}" TextWrapping="Wrap" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="1" MinWidth="280">
-                                            <ctrl:FanCurveChart Rows="{Binding Cooling.CurveRows}" Height="150" />
-                                            <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0" HorizontalAlignment="Center"
-                                                       Text="{loc:T Pwr_CurveOnEc}" />
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
                             </StackPanel>
                         </Border>
 

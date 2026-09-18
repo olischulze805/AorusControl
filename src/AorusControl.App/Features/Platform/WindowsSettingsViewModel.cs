@@ -90,6 +90,17 @@ public sealed class WindowsSettingsViewModel : ObservableObject, IFeatureModule
     /// under test: the promise that the app never overstates where a mode was verified is
     /// exactly the kind of sentence that quietly disappears in a layout change.
     /// </summary>
+    /// <summary>
+    /// Everything the card has to say about the mode, on its info dot.
+    ///
+    /// It used to be a panel taking a third of the page: two headings, two sentences and a
+    /// copy of the fan curve. The curve is on the Cooling page where it can be edited, the
+    /// cooling state is on the dashboard tile, and what was left did not earn that much
+    /// space. Behind the "i" it costs none and is still one hover away.
+    /// </summary>
+    public string PowerModeTooltip => string.Join(Environment.NewLine + Environment.NewLine,
+        PowerModeEffect, PowerModeScope, Strings.Current["Pwr_CurveOnEc"]);
+
     public string PowerModeScope =>
         Strings.Current["Win_ModeScope"];
 
