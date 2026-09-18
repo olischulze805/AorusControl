@@ -35,7 +35,7 @@ internal static class BatteryRestoreTests
         // --- restoring after a restart ---------------------------------------------------
         var saved = new FakeStore { Settings = new BatterySettings(false, 80) };
         var device = new FakeBattery { State = new BatteryChargeState(0, 100) };
-        using (var vm = new BatteryViewModel(device, store: saved))
+        using (var vm = new BatteryViewModel(device, store: saved, watchResume: false))
         {
             await vm.StartAsync();
             Check(device.Writes == 1, "a device that lost the limit gets it back, exactly once");
@@ -43,23 +43,43 @@ internal static class BatteryRestoreTests
             Check(vm.Status.Contains("wiederhergestellt"), "and the card says so instead of doing it behind the reader's back");
         }
 
+        // --- and after waking up, which is the same gap ------------------------------------
+        // A laptop that is suspended rather than shut down could otherwise run for weeks
+        // charging to full: the start-up restore happens once per launch, and nothing looked
+        // again.
+        var afterSleep = new FakeBattery { State = new BatteryChargeState(4, 80) };
+        using (var vm = new BatteryViewModel(afterSleep, store: new FakeStore { Settings = new BatterySettings(false, 80) },
+            watchResume: false))
+        {
+            await vm.StartAsync();
+            Check(afterSleep.Writes == 0, "nothing to do while the device still agrees");
+            await vm.ReapplyAfterResumeAsync();
+            Check(afterSleep.Writes == 0, "and waking up on its own writes nothing either");
+
+            // Now the controller comes back with the firmware's own threshold.
+            afterSleep.State = new BatteryChargeState(0, 100);
+            await vm.ReapplyAfterResumeAsync();
+            Check(afterSleep.Writes == 1 && afterSleep.State == new BatteryChargeState(4, 80),
+                "a limit lost over sleep is put back, once");
+        }
+
         // --- the cases that must stay quiet ----------------------------------------------
         var matching = new FakeBattery { State = new BatteryChargeState(4, 80) };
-        using (var vm = new BatteryViewModel(matching, store: new FakeStore { Settings = new BatterySettings(false, 80) }))
+        using (var vm = new BatteryViewModel(matching, store: new FakeStore { Settings = new BatterySettings(false, 80) }, watchResume: false))
         {
             await vm.StartAsync();
             Check(matching.Writes == 0, "a device that already agrees is left alone");
         }
 
         var nothingSaved = new FakeBattery { State = new BatteryChargeState(0, 100) };
-        using (var vm = new BatteryViewModel(nothingSaved, store: new FakeStore()))
+        using (var vm = new BatteryViewModel(nothingSaved, store: new FakeStore(), watchResume: false))
         {
             await vm.StartAsync();
             Check(nothingSaved.Writes == 0, "with nothing saved the device keeps whatever it has");
         }
 
         var unsupported = new FakeBattery { Supported = false };
-        using (var vm = new BatteryViewModel(unsupported, store: new FakeStore { Settings = new BatterySettings(false, 80) }))
+        using (var vm = new BatteryViewModel(unsupported, store: new FakeStore { Settings = new BatterySettings(false, 80) }, watchResume: false))
         {
             await vm.StartAsync();
             Check(unsupported.Writes == 0, "a device that is not cleared for writing is never written to");
@@ -68,7 +88,7 @@ internal static class BatteryRestoreTests
         // --- saving what the user chose --------------------------------------------------
         var writing = new FakeStore();
         var controller = new FakeBattery { State = new BatteryChargeState(0, 100) };
-        using (var vm = new BatteryViewModel(controller, store: writing))
+        using (var vm = new BatteryViewModel(controller, store: writing, watchResume: false))
         {
             await vm.RefreshAsync();
             vm.SelectedLimit = 70;
@@ -83,7 +103,7 @@ internal static class BatteryRestoreTests
             Check(writing.Settings is { StandardMode: true }, "a change that failed is not remembered as if it had worked");
         }
 
-        Console.WriteLine("PASS: charge limit survives a restart, and stays quiet when there is nothing to restore");
+        Console.WriteLine("PASS: charge limit survives a restart and a suspend, and stays quiet when there is nothing to restore");
     }
 
     private static void Check(bool value, string message)

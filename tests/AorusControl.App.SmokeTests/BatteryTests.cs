@@ -7,7 +7,7 @@ internal static class BatteryTests
     public static async Task RunAsync()
     {
         var controller = new FakeBattery();
-        using var vm = new BatteryViewModel(controller);
+        using var vm = new BatteryViewModel(controller, watchResume: false);
         await vm.RefreshAsync();
         Check(controller.Writes == 0 && vm.ActivePolicy.Contains("Standard"), "initial read must not apply stored stop");
         Check(!vm.ActivePolicy.Contains("97"), "inactive threshold must not look active");

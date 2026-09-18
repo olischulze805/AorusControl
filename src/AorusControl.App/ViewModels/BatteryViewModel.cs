@@ -18,17 +18,21 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
     private string _activePolicy = "Noch nicht gelesen";
 
     private readonly IBatterySettingsStore? _store;
+    private readonly bool _watchingResume;
     private bool _restoreDone;
 
     public BatteryViewModel(
         IAorusBatteryChargeController controller,
         Func<TimeSpan, CancellationToken, Task>? wait = null,
-        IBatterySettingsStore? store = null)
+        IBatterySettingsStore? store = null,
+        bool watchResume = true)
     {
         this.controller = controller;
         _store = store;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
         ApplyStandardCommand = new AsyncRelayCommand(ApplyStandardAsync);
+        if (watchResume) Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
+        _watchingResume = watchResume;
         // Dragging the limit applies by itself once the slider comes to rest. The wait is
         // long enough that a drag across the range is one transaction, not forty.
         _applyLimit = new Debouncer(TimeSpan.FromMilliseconds(700), ApplyPendingLimitAsync, wait);
@@ -251,9 +255,38 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
         if (!_supported) ActivePolicy += " · Schreiben gesperrt";
     }
 
+    /// <summary>
+    /// Checks the limit again after the machine wakes up.
+    ///
+    /// The controller does not reliably keep it: that is why the saved value is restored at
+    /// start in the first place. Sleep is the same kind of gap - the embedded controller can
+    /// come back with the firmware's own threshold - and until now nothing looked again until
+    /// the next launch, so a laptop that is suspended rather than shut down could run for
+    /// weeks charging to full without anyone noticing.
+    ///
+    /// The restore itself stays where it was: a write happens only when the device really
+    /// disagrees with the saved choice.
+    /// </summary>
+    private void OnPowerModeChanged(object? sender, Microsoft.Win32.PowerModeChangedEventArgs args)
+    {
+        if (_disposed || args.Mode != Microsoft.Win32.PowerModes.Resume) return;
+        // SystemEvents raises this on its own thread; the refresh touches bound properties.
+        _ = System.Windows.Application.Current?.Dispatcher.InvokeAsync(() => ReapplyAfterResumeAsync());
+    }
+
+    /// <summary>The resume check itself, separated so it can be run without a real suspend.</summary>
+    internal Task ReapplyAfterResumeAsync()
+    {
+        // The start-up restore runs once per launch on purpose. Waking up is the one other
+        // moment the device may have been reset underneath us, so it is allowed once more.
+        _restoreDone = false;
+        return RefreshAsync(restoreSaved: true);
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
+        if (_watchingResume) Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         if (IsBusy) throw new InvalidOperationException("Laufende Akkuoperation muss vor Dispose beendet werden.");
         _disposed = true;
         controller.Dispose();

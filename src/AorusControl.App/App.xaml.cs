@@ -30,6 +30,15 @@ public partial class App : System.Windows.Application
             AppLog.Error("crash", "Unbehandelter UI-Fehler.", args.Exception);
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
             AppLog.Error("crash", "Unbehandelter Fehler.", args.ExceptionObject as Exception);
+        // A task nobody awaits - a power-source change, a background refresh, a setting
+        // applying itself - throws into nothing. Since .NET 4.5 that no longer ends the
+        // process, which is right for a tray app and also means such a failure leaves no
+        // trace at all. It leaves one here.
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            AppLog.Error("crash", "Fehler in einem nicht abgewarteten Vorgang.", args.Exception);
+            args.SetObserved();
+        };
         // updateAccent MUST stay false: with the default (true), WPF-UI writes the user's
         // Windows accent into Application.Current.Resources at the top level, on top of
         // the accent keys App.xaml defines - so the hand-templated chips/tiles/sliders

@@ -82,7 +82,7 @@ internal static class AutoApplyTests
     {
         var clock = new ManualWait();
         var controller = new AutoApplyBattery();
-        using var vm = new BatteryViewModel(controller, clock.Wait);
+        using var vm = new BatteryViewModel(controller, clock.Wait, watchResume: false);
         await vm.RefreshAsync();
         int afterRead = controller.Writes;
         Check(afterRead == 0, "reading the device must not write back to it");
