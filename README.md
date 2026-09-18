@@ -1,102 +1,161 @@
+<div align="center">
+
+<img src="docs/icon.png" width="96" alt="AORUS Control">
+
 # AORUS Control
 
-A replacement control panel for my Gigabyte AORUS 5 SE4 laptop: fan profiles and a custom
-fan curve, three-zone keyboard lighting, battery charge limit, and the Windows power mode —
-in one window that starts fast and stays out of the way.
+**A replacement control panel for the Gigabyte AORUS 5 SE4.**
+Fans, keyboard lighting, battery and graphics switching — in one window that starts fast,
+stays out of the way, and never claims more than it has measured.
 
-I built it because Gigabyte Control Center never really worked on this machine. It was slow,
-it forgot settings, parts of it silently did nothing, and it wanted a background stack far
-larger than the handful of registers it actually writes. So I took the same hardware
-interfaces apart myself and wrote something small that does the few things I need, reliably.
+[![Release](https://img.shields.io/github/v/release/olischulze805/AorusControl?label=release&color=35C7E6)](https://github.com/olischulze805/AorusControl/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/olischulze805/AorusControl/total?color=35C7E6)](https://github.com/olischulze805/AorusControl/releases)
+[![License](https://img.shields.io/badge/license-MIT-35C7E6)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%2011-35C7E6)](#install)
+[![Built with](https://img.shields.io/badge/.NET-10-35C7E6)](https://dotnet.microsoft.com/)
 
-**This project is completely vibe coded.** I described what I wanted and Claude wrote it;
-I did not hand-write the code line by line. What keeps that honest is in the design rather
-than in my review of every statement:
+<img src="docs/screenshots/dashboard.png" width="860" alt="The dashboard: CPU and GPU temperature with their watt figures, total power draw from the battery, and remaining runtime">
 
-- Every hardware write is read back and verified, and rolled back if the readback disagrees.
-- Everything is locked to this exact machine — model `AORUS 5 SE`, BIOS `FB0F`, and the exact
-  USB keyboard interface. On anything else the app refuses to write rather than guessing.
-- The panel shows what the device reports, not what was last clicked. A write that fails moves
-  the highlight back instead of pretending it worked.
-- 56 automated checks run without any hardware attached, and the real window is laid out
-  offscreen at three widths so layout mistakes are caught rather than shipped.
+</div>
 
-## ⚠️ Before you use this
+---
 
-It is built for one laptop model and one firmware version. Fan control writes to the
-embedded controller, so on a machine it does not recognise it stops instead of
-experimenting — but do not remove those gates to "make it work" on your device. BIOS and EC
-firmware are never flashed or modified.
+## Why this exists
 
-Fixed fan speed is held by a lease in a separate process, so if the panel crashes or is
-killed, that process still returns the fans to firmware control on its own.
+Gigabyte Control Center never really worked on this machine. It was slow, it forgot
+settings, parts of it silently did nothing, and it wanted a background stack far larger than
+the handful of registers it actually writes. So the same hardware interfaces were taken apart
+and this was written instead: small, and reliable about the few things it does.
+
+**This project is entirely vibe coded.** I described what I wanted and Claude wrote it; I did
+not hand-write the code line by line. What keeps that honest is in the design rather than in
+my review of every statement:
+
+| | |
+|---|---|
+| **Every write is read back** | and rolled back if the readback disagrees. |
+| **Locked to one machine** | model `AORUS 5 SE`, BIOS `FB0F`, the exact USB keyboard interface. On anything else it refuses to write rather than guessing. |
+| **It shows the device, not the click** | a write that fails moves the highlight back instead of pretending it worked. |
+| **Nothing is claimed unmeasured** | figures in the interface come with what they are and are not; where a lever does nothing on this hardware, it says so. |
+| **Tested without hardware** | automated checks run on any machine, and the real window is laid out offscreen in both languages so layout mistakes are caught rather than shipped. |
 
 ## What it does
 
-| Section | |
-|---|---|
-| **Dashboard** | CPU and GPU temperature, fan RPM and duty, plus what is actually in force: fan mode, Windows power mode and power source, charge limit, lighting |
-| **Kühlung** | Fan profiles, a fixed speed limited to the eight tested steps, and a draggable 15-point fan curve |
-| **Tastatur** | Three RGB zones, nine effects, four brightness steps, plus a live preview of the actual keyboard |
-| **Leistung & Akku** | Windows power mode - with what it changes and the fan curve that is in force next to it - and the battery charge limit |
-| **Info & Updates** | Version, autostart, logs, update check |
+### Dashboard
+
+Temperatures and watts first, because those are the two things worth a glance. The power card
+shows the one total this laptop can actually measure — what flows through the battery — and
+turns it into remaining time.
+
+<img src="docs/screenshots/dashboard.png" width="820" alt="Dashboard">
+
+### Cooling
+
+Five fan profiles, a fixed speed across the firmware's whole range, and a draggable 15-point
+curve. Fixed speed is held by a lease in a **separate process**, so if the panel crashes or is
+killed, that process still hands the fans back to the firmware on its own.
+
+<img src="docs/screenshots/cooling.png" width="820" alt="Cooling: the live fan picture, five profiles, the curve editor and the fixed-speed switch">
+
+### Keyboard
+
+Three RGB zones, nine host-rendered effects, four brightness steps, and a live preview drawn
+with the same function that feeds the keyboard. Fn+Space is picked up rather than fought.
+Closing the app leaves the lighting exactly as you set it.
+
+<img src="docs/screenshots/lighting.png" width="820" alt="Keyboard: zone preview, brightness, nine effects and zone colours">
+
+### Graphics
+
+Which program is on which chip **right now**, read from the graphics kernel's own counters —
+the NVIDIA driver is never asked, so a sleeping card stays asleep. A program on the RTX keeps
+it awake even at zero load, so the list is also the answer to "why is my battery going".
+
+Each managed program gets two rules of its own, one for mains and one for battery. A program
+holding the card awake can be closed from here, after a question that says exactly what will
+happen.
+
+<img src="docs/screenshots/graphics.png" width="820" alt="Graphics: which program uses which chip, and per-program rules for mains and battery">
+
+### Power &amp; battery
+
+The Windows power mode with what it actually changes written next to it, and a charge limit
+that survives a restart *and* a suspend — the controller loses it, so the app checks and puts
+it back.
+
+<img src="docs/screenshots/power.png" width="820" alt="Power and battery: Windows power mode and the charge limit">
+
+## ⚠️ Before you use this
+
+It is built for one laptop model and one firmware version. Fan control writes to the embedded
+controller, so on a machine it does not recognise it stops instead of experimenting — **do not
+remove those gates to "make it work" on your device.** BIOS and EC firmware are never flashed
+or modified.
 
 ## Install
 
-Run `AorusControl-win-Setup.exe` from the releases page. It installs into your own user
-folder, brings its own .NET, and the app updates itself from there. It looks for a newer
-version once at launch and only says something if it finds one; checking and downloading
-are separate buttons, and the downloaded version is applied either at the next start or right
-away - "Übernehmen und neu starten" closes the app properly, hands the fans and lighting back
-to the firmware, swaps the files and opens it again. The installer is not code-signed, so
-Windows SmartScreen will warn about an unknown publisher; "Weitere Informationen" then
-"Trotzdem ausführen" gets past it.
+Download `AorusControl-<version>-Setup.exe` from the
+[latest release](https://github.com/olischulze805/AorusControl/releases/latest).
 
-Hardware access needs administrator rights, so Windows shows its normal UAC prompt on
-launch. Autostart uses a scheduled task instead of the registry Run key precisely so that
-prompt does not reappear at every login.
+It installs into your own user folder, brings its own .NET, and updates itself from there —
+it looks once at launch and only says something if it finds a newer version. The installer is
+not code-signed, so SmartScreen warns about an unknown publisher: **More info → Run anyway**.
+
+Hardware access needs administrator rights, so Windows shows its usual prompt at launch.
+Autostart uses a scheduled task rather than the registry Run key precisely so that prompt does
+not come back at every login — and the task restarts the app if it ever crashes.
+
+Settings and logs live under `%AppData%\AorusControl\`; the program itself under
+`%LocalAppData%\AorusControl\`. Uninstalling leaves the settings.
+
+## Language
+
+German and English, switchable in **About &amp; updates** without a restart. It follows Windows
+by default. Numbers follow the language too, so an English window does not print a decimal
+comma.
 
 ## Build
 
 Requires the .NET SDK pinned in `global.json`; Windows only.
 
 ```powershell
-dotnet build AorusControl.slnx --configuration Release
+dotnet build --configuration Release
 dotnet run --project tests/AorusControl.App.SmokeTests
 dotnet run --project tests/AorusControl.UiChecks
 ```
 
+The second command is the logic suite; the third lays the real window out offscreen at three
+widths in both languages and writes the pictures to `research/runs/ui/`. Neither needs the
+laptop.
+
 To build a release installer:
 
 ```powershell
-powershell -File tools\Build-Release.ps1 -Version 0.2.0
+powershell -File tools\Build-Release.ps1 -Version 0.5.6
 ```
 
-For a build tree, `tools\Start-AorusControl.cmd` starts the app, and
-`tools\Start-FanNormalRestore.cmd` puts the fans back under firmware control if anything
-ever goes sideways.
-
-Settings and logs live under `%AppData%\AorusControl\`; the program itself is installed to
-`%LocalAppData%\AorusControl\`, and uninstalling it from Windows' app list leaves the settings.
+Other useful scripts: `tools\Start-AorusControl.cmd` runs a build tree,
+`tools\Start-FanNormalRestore.cmd` puts the fans back under firmware control if anything ever
+goes sideways, and `tools\Build-AppIcon.ps1` draws the icon.
 
 ## Layout
 
 | Path | |
 |---|---|
-| `src/` | `Core` (device gates and guarded setters), `App` (the WPF panel, one folder per feature under `Features/`), `Worker` (keeps fixed fan mode crash-safe), `Diagnostics` (read-only reports) |
-| `tests/` | Console suites, no test framework, no hardware needed - logic, worker IPC, and offscreen window rendering |
-| `tools/` | Launchers for the app and for each experiment |
+| `src/` | `Core` (device gates and guarded setters), `App` (the WPF panel, one folder per feature), `Worker` (keeps fixed fan mode crash-safe), `Diagnostics` (read-only reports) |
+| `tests/` | Console suites, no test framework, no hardware needed — logic, worker IPC, and offscreen window rendering |
+| `tools/` | Launchers, the release build, and one script per experiment |
 | `research/` | How the hardware was worked out, and why each decision went the way it did |
 | `third-party/` | Not in version control — vendor installers and analysis tools; see its README |
 
-If you want detail: `RESEARCH.md` in the root has the verified ACPI method map, and the
-documents in `research/` cover the fan supervisor, the RGB protocol, the UI design system
-and the reverse-engineering notes behind them.
+`RESEARCH.md` has the verified ACPI method map. The documents under `research/` cover the fan
+supervisor, the RGB protocol, the control-selection rules behind the interface, the power
+measurements, and a long investigation into a keyboard that keeps falling off the USB bus.
 
 ## License
 
-MIT — see `LICENSE`. Use it, change it, ship it; just keep the copyright notice.
+MIT — see [`LICENSE`](LICENSE). Use it, change it, ship it; just keep the copyright notice.
 
-This covers the code and documentation here. Gigabyte's own software and firmware are not
-part of this repository, and `research/` documents findings about the hardware rather than
+This covers the code and documentation here. Gigabyte's own software and firmware are not part
+of this repository, and `research/` documents findings about the hardware rather than
 reproducing vendor source.
