@@ -10,8 +10,12 @@ using AorusControl.Core.Features.PowerMonitoring;
 using AorusControl.Core.Features.Startup;
 using AorusControl.Core.Features.Worker;
 using AorusControl.App.Infrastructure;
+using AorusControl.App.Localization;
 
 TestProcessSettings.DisableNativeCrashDialogs();
+// Most assertions predate the English UI and inspect German status wording. Make that test
+// fixture explicit instead of inheriting the language of whichever machine runs CI.
+Strings.Current.Use(AppLanguage.German);
 
 string instanceName = @"Local\AorusControl.Test." + Guid.NewGuid().ToString("N");
 using (var primary = new SingleInstanceGate(instanceName))

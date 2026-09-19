@@ -11,6 +11,7 @@ internal static class LocalizationTests
     /// </summary>
     public static void Run()
     {
+        AppLanguage previousLanguage = Strings.Current.Language;
         IReadOnlyDictionary<string, string> german = Table("GermanStrings");
         IReadOnlyDictionary<string, string> english = Table("EnglishStrings");
 
@@ -54,6 +55,8 @@ internal static class LocalizationTests
 
         Check(Strings.Current["Gibt_Es_Nicht"] == "Gibt_Es_Nicht",
             "an unknown key shows itself - a blank label would hide the mistake");
+
+        Strings.Current.Use(previousLanguage);
 
         Console.WriteLine($"PASS: both languages cover the same {german.Count} keys, and switching reaches the indexer");
     }
