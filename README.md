@@ -9,7 +9,6 @@ Fans, keyboard lighting, battery and graphics switching — in one window that s
 stays out of the way, and never claims more than it has measured.
 
 [![Release](https://img.shields.io/github/v/release/olischulze805/AorusControl?label=release&color=35C7E6)](https://github.com/olischulze805/AorusControl/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/olischulze805/AorusControl/total?color=35C7E6)](https://github.com/olischulze805/AorusControl/releases)
 [![License](https://img.shields.io/badge/license-MIT-35C7E6)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2011-35C7E6)](#install)
 [![Built with](https://img.shields.io/badge/.NET-10-35C7E6)](https://dotnet.microsoft.com/)
