@@ -131,6 +131,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _reader = reader;
         _readPower = readPower;
         _releasePower = releasePower;
+        // Apply the stored language before any feature creates its initial status text.
+        // Constructing this after the features caused an English window with German status
+        // lines until the next hardware refresh (for example "Aktiv: Ausbalanciert").
+        Language = new LanguageViewModel();
         Keyboard = new KeyboardViewModel(keyboardRgb, keyboardSettingsStore, brightnessListener, resumeReapplyDelay);
         Cooling = new CoolingViewModel(
             fanController,
@@ -152,7 +156,6 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             readPowerSource ?? powerOverlay.ReadPowerSource,
             gpuActivity);
         Updates = new UpdateViewModel();
-        Language = new LanguageViewModel();
         Saver = new BatterySaverViewModel(batterySaver, batterySaverSettings, debounceWait);
         // The tray text is derived, so it has to be told when either half moves. Both
         // modules already raise these; nothing new is polled for it.

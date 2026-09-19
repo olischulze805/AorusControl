@@ -7,7 +7,12 @@ namespace AorusControl.Core.Features.PowerProfiles;
 /// it was killed while the saver was on. Kept so the next start can clean it up: a stray entry
 /// in the user's plan list is harmless but untidy, and untidy is how people lose trust in a
 /// tool that edits system settings.</param>
-public sealed record BatterySaverSettings(bool Enabled, uint ProcessorCap, uint Brightness, Guid? LeftoverScheme = null)
+public sealed record BatterySaverSettings(
+    bool Enabled,
+    uint ProcessorCap,
+    uint Brightness,
+    Guid? LeftoverScheme = null,
+    Guid? PreviousScheme = null)
 {
     public static readonly BatterySaverSettings Default = new(false, 50, 30);
 }
@@ -36,12 +41,13 @@ public sealed class BatterySaverSettingsStore(string filePath) : IBatterySaverSe
         {
             if (!File.Exists(_path)) return BatterySaverSettings.Default;
             Envelope? envelope = JsonSerializer.Deserialize<Envelope>(File.ReadAllText(_path), Options);
-            if (envelope is null || envelope.Version != 1) return BatterySaverSettings.Default;
+            if (envelope is null || envelope.Version is not (1 or 2)) return BatterySaverSettings.Default;
             return new BatterySaverSettings(
                 envelope.Enabled,
                 BatterySaverPlan.Clamp(envelope.ProcessorCap, BatterySaverPlan.LowestProcessorCap),
                 BatterySaverPlan.Clamp(envelope.Brightness, BatterySaverPlan.LowestBrightness),
-                envelope.LeftoverScheme);
+                envelope.LeftoverScheme,
+                envelope.PreviousScheme);
         }
         catch (Exception exception) when (exception is IOException or JsonException or UnauthorizedAccessException)
         {
@@ -54,8 +60,10 @@ public sealed class BatterySaverSettingsStore(string filePath) : IBatterySaverSe
         ArgumentNullException.ThrowIfNull(settings);
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
         File.WriteAllText(_path, JsonSerializer.Serialize(
-            new Envelope(1, settings.Enabled, settings.ProcessorCap, settings.Brightness, settings.LeftoverScheme), Options));
+            new Envelope(2, settings.Enabled, settings.ProcessorCap, settings.Brightness,
+                settings.LeftoverScheme, settings.PreviousScheme), Options));
     }
 
-    private sealed record Envelope(int Version, bool Enabled, uint ProcessorCap, uint Brightness, Guid? LeftoverScheme);
+    private sealed record Envelope(int Version, bool Enabled, uint ProcessorCap, uint Brightness,
+        Guid? LeftoverScheme, Guid? PreviousScheme);
 }

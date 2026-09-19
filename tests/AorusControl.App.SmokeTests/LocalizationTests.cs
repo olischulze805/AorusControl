@@ -34,6 +34,8 @@ internal static class LocalizationTests
             "About_Version", "About_Updates", "About_Log", "Key_EffectManual",
             // A product name and a word English borrowed unchanged.
             "Gpu_ChipNvidia", "Tray_Limit",
+            // UI terms and a numbered hardware zone that are conventionally identical.
+            "Key_SpeedNormal", "Key_Zone1",
             // A number and a per-cent sign, which no language spells differently.
             "Saver_Percent"
         ];

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows;
 using AorusControl.App.Infrastructure;
+using AorusControl.App.Localization;
 using AorusControl.App.ViewModels;
 using AorusControl.Core.Features.GpuPreferences;
 using Wpf.Ui.Controls;
@@ -48,7 +49,7 @@ public partial class ProgramPickerWindow : FluentWindow
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
             Title = Localization.Strings.Current["Dlg_ChooseProgram"],
-            Filter = "Programme (*.exe)|*.exe",
+            Filter = Strings.Current["Picker_ExeFilter"],
             CheckFileExists = true
         };
         if (dialog.ShowDialog(this) != true) return;
@@ -70,7 +71,7 @@ public sealed class ProgramPickerViewModel : ObservableObject
     private IReadOnlyList<InstalledProgram> _all = [];
     private InstalledProgram? _selected;
     private string _query = string.Empty;
-    private string _summary = "Programme werden gesucht …";
+    private string _summary = Strings.Current["Picker_Searching"];
 
     public ObservableCollection<InstalledProgram> Results { get; } = [];
     public string Summary { get => _summary; private set => SetProperty(ref _summary, value); }
@@ -103,9 +104,9 @@ public sealed class ProgramPickerViewModel : ObservableObject
         foreach (InstalledProgram program in matches.Take(400)) Results.Add(program);
 
         Summary = _all.Count == 0
-            ? "Keine Programme gefunden."
+            ? Strings.Current["Picker_NoneFound"]
             : matches.Count == _all.Count
-                ? $"{_all.Count} Programme, davon {_all.Count(program => program.IsStoreApp)} aus dem Store."
-                : $"{matches.Count} von {_all.Count} passen.";
+                ? Strings.Current.Format("Picker_AllPrograms", _all.Count, _all.Count(program => program.IsStoreApp))
+                : Strings.Current.Format("Picker_Matches", matches.Count, _all.Count);
     }
 }

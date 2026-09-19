@@ -108,7 +108,7 @@ public partial class MainWindow : FluentWindow
             AorusControl.Core.Features.Diagnostics.AppLog.Error("ui", "Protokollordner konnte nicht geöffnet werden.", exception);
             System.Windows.MessageBox.Show(this,
                 Localization.Strings.Current.Format("Dlg_LogFolderFailed", exception.Message, AorusControl.Core.Features.Diagnostics.AppLog.Directory),
-                "Protokoll", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+                Localization.Strings.Current["Dlg_LogTitle"], System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
         }
     }
 
@@ -150,7 +150,7 @@ public partial class MainWindow : FluentWindow
             _restartForUpdate = false;
             System.Windows.MessageBox.Show(this,
                 Localization.Strings.Current.Format("Dlg_CloseBlocked", exception.Message),
-                "Sicheres Beenden fehlgeschlagen", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                Localization.Strings.Current["Dlg_CloseFailedTitle"], System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
         }
         finally
         {

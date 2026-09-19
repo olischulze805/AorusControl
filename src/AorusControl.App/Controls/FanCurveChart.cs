@@ -487,7 +487,8 @@ public sealed class FanCurveChart : Canvas
             Cursor = locked ? Cursors.Arrow : Cursors.Hand,
             Effect = new DropShadowEffect { Color = color, BlurRadius = 10, ShadowDepth = 0, Opacity = 0.7 },
             ToolTip = !IsEditable
-                ? $"{handles[index].TemperatureNumber:0} °C / {handles[index].Percent} % · gespeicherte Kurve, unter diesem Modus nur zur Ansicht"
+                ? Localization.Strings.Current.Format("Curve_ReadOnlyPoint",
+                    handles[index].TemperatureNumber.ToString("0"), handles[index].Percent)
                 : locked
                 ? Localization.Strings.Current.Format("Curve_LockedPoint", handles[index].TemperatureNumber.ToString("0"), handles[index].Percent)
                 : $"{handles[index].TemperatureNumber:0} °C / {handles[index].Percent} % · Ziehen, Pfeiltasten verschieben, Rechtsklick entfernt"

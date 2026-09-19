@@ -7,6 +7,10 @@ public interface IBatterySaver
     /// <summary>The copy currently in force, so it can be written down and cleaned up after
     /// a crash. Empty when the saver is off.</summary>
     Guid Scheme { get; }
+    Guid PreviousScheme { get; }
+
+    /// <summary>Adopts the app-owned plan that is still active after an app restart.</summary>
+    bool Resume(Guid scheme, Guid previousScheme);
 
     /// <summary>Removes a scheme left behind by a previous run. Quiet about a scheme that is
     /// already gone - that is the normal case.</summary>
@@ -39,6 +43,18 @@ public sealed class BatterySaver : IBatterySaver
 
     public bool IsOn => _baseline is not null;
     public Guid Scheme => _scheme;
+    public Guid PreviousScheme => _baseline?.PreviousScheme ?? Guid.Empty;
+
+    public bool Resume(Guid scheme, Guid previousScheme)
+    {
+        if (IsOn || scheme == Guid.Empty || previousScheme == Guid.Empty || scheme == previousScheme
+            || PowerSchemeWriter.Active() != scheme)
+            return false;
+
+        _scheme = scheme;
+        _baseline = new SaverBaseline(previousScheme);
+        return true;
+    }
 
     public void DiscardLeftover(Guid scheme)
     {

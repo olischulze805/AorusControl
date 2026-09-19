@@ -152,7 +152,7 @@ public sealed class UpdateViewModel : ObservableObject
     {
         if (!CanCheck) return;
         IsBusy = true;
-        if (announceFailure) Status = "Suche nach Updates …";
+        if (announceFailure) Status = Strings.Current["Upd_Checking"];
         try
         {
             _available = await _updates!.CheckForUpdatesAsync();
@@ -183,17 +183,18 @@ public sealed class UpdateViewModel : ObservableObject
     {
         if (!CanInstall) return;
         IsBusy = true;
-        Status = "Update wird geladen …";
+        Status = Strings.Current["Upd_Downloading"];
         try
         {
-            await _updates!.DownloadUpdatesAsync(_available!, progress => Status = $"Update wird geladen … {progress} %");
+            await _updates!.DownloadUpdatesAsync(_available!, progress =>
+                Status = Strings.Current.Format("Upd_DownloadingProgress", progress));
             IsDownloaded = true;
             Status = Strings.Current.Format("Upd_Ready", AvailableVersion);
         }
         catch (Exception error)
         {
             AppLog.Error("update", "Update-Download fehlgeschlagen.", error);
-            Status = "Update-Download fehlgeschlagen: " + error.Message;
+            Status = Strings.Current.Format("Upd_DownloadFailed", error.Message);
         }
         finally { IsBusy = false; }
     }

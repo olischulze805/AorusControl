@@ -804,7 +804,8 @@
                                         <ui:SymbolIcon Style="{StaticResource InfoDot}" ToolTip="{loc:T Tip_BatterySaver}" />
                                     </StackPanel>
                                     <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
-                                                     IsChecked="{Binding Saver.IsOn, Mode=TwoWay}" />
+                                                     IsChecked="{Binding Saver.IsOn, Mode=TwoWay}"
+                                                     IsEnabled="{Binding Saver.CanSwitch}" />
                                 </Grid>
                                 <TextBlock Text="{Binding Saver.Savings}" Style="{StaticResource Hint}" TextWrapping="Wrap" />
 

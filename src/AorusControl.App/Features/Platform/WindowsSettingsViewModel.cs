@@ -120,7 +120,9 @@ public sealed class WindowsSettingsViewModel : ObservableObject, IFeatureModule
 
     /// <summary>Re-reads the power source on the telemetry tick; it changes under the app
     /// whenever someone plugs the charger in.</summary>
-    public void RefreshPowerSource() => PowerSource = _overlay.IsOnAcPower() ? "Netzbetrieb" : "Akkubetrieb";
+    public void RefreshPowerSource() => PowerSource = _overlay.IsOnAcPower()
+        ? Strings.Current["Win_SourceAc"]
+        : Strings.Current["Win_SourceBattery"];
 
     public async Task SetPowerModeAsync(WindowsPowerOverlayMode mode)
     {
@@ -128,7 +130,7 @@ public sealed class WindowsSettingsViewModel : ObservableObject, IFeatureModule
 
         _powerBusy = true;
         PowerControlsEnabled = false;
-        PowerStatus = $"{Describe(mode)} wird gesetzt …";
+        PowerStatus = Strings.Current.Format("Win_SettingMode", Describe(mode));
         try
         {
             if (!_overlay.IsOnAcPower())
@@ -145,7 +147,7 @@ public sealed class WindowsSettingsViewModel : ObservableObject, IFeatureModule
         catch (Exception exception)
         {
             AppLog.Error("power", $"Leistungsmodus {mode} fehlgeschlagen.", exception);
-            PowerStatus = $"Leistungsmodus fehlgeschlagen: {exception.Message}";
+            PowerStatus = Strings.Current.Format("Win_ModeFailed", exception.Message);
             try
             {
                 // Without this the chip keeps showing the mode that was clicked rather than
@@ -174,7 +176,9 @@ public sealed class WindowsSettingsViewModel : ObservableObject, IFeatureModule
     {
         if (_startupBusy) return;
         _startupBusy = true;
-        StartupStatus = enabled ? "Autostart wird eingerichtet …" : "Autostart wird entfernt …";
+        StartupStatus = enabled
+            ? Strings.Current["Win_StartupEnabling"]
+            : Strings.Current["Win_StartupDisabling"];
         try
         {
             if (enabled) await _startup.EnableAsync();
@@ -198,7 +202,7 @@ public sealed class WindowsSettingsViewModel : ObservableObject, IFeatureModule
             RefreshPowerSource();
             if (!_overlay.IsOnAcPower())
             {
-                PowerStatus = "Akkubetrieb · Umschalten ist vorerst nur im getesteten Netzbetrieb freigegeben";
+                PowerStatus = Strings.Current["Win_BatteryOnly"];
                 return;
             }
             Guid current = await Task.Run(_overlay.ReadActiveForCurrentPowerSource);
@@ -227,10 +231,10 @@ public sealed class WindowsSettingsViewModel : ObservableObject, IFeatureModule
             if (repaired)
             {
                 AppLog.Info("startup", "Autostart-Aufgabe auf die aktuelle Fassung gebracht.");
-                StartupStatus += " Die Aufgabe wurde auf die aktuelle Fassung gebracht.";
+                StartupStatus += Strings.Current["Win_StartupRepairedSuffix"];
             }
         }
-        catch (Exception exception) { StartupStatus = $"Autostart-Status nicht lesbar: {exception.Message}"; }
+        catch (Exception exception) { StartupStatus = Strings.Current.Format("Win_StartupUnreadable", exception.Message); }
     }
 
     private async Task ShowStartupStateAsync()
@@ -266,5 +270,7 @@ public sealed class WindowsSettingsViewModel : ObservableObject, IFeatureModule
                     : null;
 
     private static string DescribeGuid(Guid guid) =>
-        KeyFor(guid) is { } key ? Describe(Enum.Parse<WindowsPowerOverlayMode>(key)) : $"Unbekannt ({guid})";
+        KeyFor(guid) is { } key
+            ? Describe(Enum.Parse<WindowsPowerOverlayMode>(key))
+            : Strings.Current.Format("Win_UnknownMode", guid);
 }

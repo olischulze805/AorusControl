@@ -112,18 +112,10 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
     public string Status { get => _status; private set => SetProperty(ref _status, value); }
     public KeyboardRgbEffect SelectedEffect { get => _selectedEffect; set => SetProperty(ref _selectedEffect, value); }
 
-    public IReadOnlyList<KeyboardEffectChoice> EffectChoices { get; } = new[]
-    {
-        (KeyboardRgbEffect.Breathing, "Atmen"),
-        (KeyboardRgbEffect.Pulse, "Pulsieren"),
-        (KeyboardRgbEffect.ColorCycle, "Farbwechsel"),
-        (KeyboardRgbEffect.RainbowMarquee, "Regenbogen-Lauflicht"),
-        (KeyboardRgbEffect.Wave, "Welle"),
-        (KeyboardRgbEffect.Marquee, "Lauflicht"),
-        (KeyboardRgbEffect.Rotate, "Pendel"),
-        (KeyboardRgbEffect.Raindrop, "Regentropfen"),
-        (KeyboardRgbEffect.FadeSweep, "Ausblendende Welle"),
-    }.Select(pair => new KeyboardEffectChoice(pair.Item1, pair.Item2)).ToArray();
+    public IReadOnlyList<KeyboardEffectChoice> EffectChoices =>
+        Enum.GetValues<KeyboardRgbEffect>()
+            .Select(effect => new KeyboardEffectChoice(effect, GetEffectName(effect)))
+            .ToArray();
 
     public string Zone1Hex => _zone1.Hex;
     public string Zone2Hex => _zone2.Hex;
@@ -219,7 +211,8 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
 
     /// <summary>Names zone 1's role, since for Atmen/Pulsieren it is not just "zone 1" but
     /// the colour the whole effect is built from.</summary>
-    public string Zone1Label => ColorUsage == KeyboardEffectColorUsage.BaseColorOnly ? "Zone 1 · Basisfarbe" : "Zone 1";
+    public string Zone1Label => Strings.Current[
+        ColorUsage == KeyboardEffectColorUsage.BaseColorOnly ? "Key_Zone1Base" : "Key_Zone1"];
     public bool HasInactiveZones => ColorUsage != KeyboardEffectColorUsage.AllZones;
 
     /// <summary>Said once under the row rather than three times under the swatches. It has
@@ -227,9 +220,9 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
     public string InactiveZoneNote => ColorUsage switch
     {
         KeyboardEffectColorUsage.BaseColorOnly =>
-            "Dieser Effekt baut alles aus der Basisfarbe. Die gedimmten Zonen bleiben gespeichert.",
+            Strings.Current["Key_InactiveBase"],
         KeyboardEffectColorUsage.None =>
-            "Dieser Effekt liest keine der gespeicherten Farben. Sie bleiben erhalten.",
+            Strings.Current["Key_InactiveNone"],
         _ => string.Empty
     };
 
@@ -266,11 +259,11 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
 
     public static string DescribeSpeed(KeyboardEffectSpeed speed) => speed switch
     {
-        KeyboardEffectSpeed.VerySlow => "Sehr langsam",
-        KeyboardEffectSpeed.Slow => "Langsam",
-        KeyboardEffectSpeed.Fast => "Schnell",
-        KeyboardEffectSpeed.VeryFast => "Sehr schnell",
-        _ => "Normal"
+        KeyboardEffectSpeed.VerySlow => Strings.Current["Key_SpeedVerySlow"],
+        KeyboardEffectSpeed.Slow => Strings.Current["Key_SpeedSlow"],
+        KeyboardEffectSpeed.Fast => Strings.Current["Key_SpeedFast"],
+        KeyboardEffectSpeed.VeryFast => Strings.Current["Key_SpeedVeryFast"],
+        _ => Strings.Current["Key_SpeedNormal"]
     };
 
     public static string DescribeBrightness(KeyboardBrightnessLevel level) => level switch
@@ -283,15 +276,15 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
 
     private static string GetEffectName(KeyboardRgbEffect effect) => effect switch
     {
-        KeyboardRgbEffect.Breathing => "Atmen",
-        KeyboardRgbEffect.Pulse => "Pulsieren",
-        KeyboardRgbEffect.ColorCycle => "Farbwechsel",
-        KeyboardRgbEffect.RainbowMarquee => "Regenbogen-Lauflicht",
-        KeyboardRgbEffect.Wave => "Welle",
-        KeyboardRgbEffect.Marquee => "Lauflicht",
-        KeyboardRgbEffect.Rotate => "Pendel",
-        KeyboardRgbEffect.Raindrop => "Regentropfen",
-        KeyboardRgbEffect.FadeSweep => "Ausblendende Welle",
+        KeyboardRgbEffect.Breathing => Strings.Current["Key_EffectBreathing"],
+        KeyboardRgbEffect.Pulse => Strings.Current["Key_EffectPulse"],
+        KeyboardRgbEffect.ColorCycle => Strings.Current["Key_EffectColorCycle"],
+        KeyboardRgbEffect.RainbowMarquee => Strings.Current["Key_EffectRainbow"],
+        KeyboardRgbEffect.Wave => Strings.Current["Key_EffectWave"],
+        KeyboardRgbEffect.Marquee => Strings.Current["Key_EffectMarquee"],
+        KeyboardRgbEffect.Rotate => Strings.Current["Key_EffectSwing"],
+        KeyboardRgbEffect.Raindrop => Strings.Current["Key_EffectRaindrop"],
+        KeyboardRgbEffect.FadeSweep => Strings.Current["Key_EffectFadingWave"],
         _ => effect.ToString()
     };
 
@@ -314,7 +307,7 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
         {
             if (await TryStartAsync()) return;
             if (attempt >= StartRetryDelays.Length || _closing || _disposed) return;
-            Status = $"Tastatur noch nicht bereit - neuer Versuch in {StartRetryDelays[attempt].TotalSeconds:N0} s …";
+            Status = Strings.Current.Format("Key_StartRetry", StartRetryDelays[attempt].TotalSeconds.ToString("N0"));
             await _resumeReapplyDelay(StartRetryDelays[attempt]);
         }
     }
@@ -334,7 +327,7 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
             if (_settingsStore is not null)
             {
                 try { saved = await Task.Run(_settingsStore.Load); }
-                catch (Exception exception) { warning = $"Gespeicherte RGB-Auswahl nicht geladen: {exception.Message}"; }
+                catch (Exception exception) { warning = Strings.Current.Format("Key_SavedLoadFailed", exception.Message); }
             }
             Show(saved is null ? await _session.ReadSettingsAsync() : await _session.ChangeAsync(_ => saved));
             if (warning is not null) Status = warning + " · " + Strings.Current["Key_StateReadOnly"];
@@ -412,7 +405,7 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
             if (_settingsStore is not null)
             {
                 try { await Task.Run(() => _settingsStore.Save(state)); }
-                catch (Exception exception) { Status += $" · Aktiv, aber nicht gespeichert: {exception.Message}"; }
+                catch (Exception exception) { Status += " · " + Strings.Current.Format("Key_ActiveNotSaved", exception.Message); }
             }
         }
         catch (Exception exception)
@@ -594,14 +587,14 @@ public sealed class KeyboardViewModel : ObservableObject, IFeatureModule
         if (running != _activeEffect || (running is not null && !_effectClock.IsRunning)) _effectClock.Restart();
         if (running is null) _effectClock.Reset();
         ActiveEffect = running;
-        Status = $"{(state.Enabled ? "Ein" : "Aus · Auswahl gespeichert")} · " +
+        Status = $"{Strings.Current[state.Enabled ? "Key_StateOn" : "Key_StateOffSaved"]} · " +
             (state.Effect is { } effect ? GetEffectName(effect) : Strings.Current["Key_ManualZoneColours"]);
         PaletteHint = KeyboardEffectFrames.ColorUsage(running) switch
         {
-            KeyboardEffectColorUsage.AllZones => "Alle drei gespeicherten Farben werden direkt angezeigt.",
+            KeyboardEffectColorUsage.AllZones => Strings.Current["Key_PaletteAll"],
             KeyboardEffectColorUsage.BaseColorOnly =>
                 Strings.Current["Key_ZoneOneDrivesAll"],
-            _ => "Eigene Palette des Effekts; die gespeicherten Farben bleiben erhalten."
+            _ => Strings.Current["Key_PaletteOwn"]
         };
         if (EffectRunning && !_closing) _rgbTimer.Start(); else _rgbTimer.Stop();
         foreach (string property in Derived) OnPropertyChanged(property);

@@ -157,7 +157,7 @@ public partial class App : System.Windows.Application
         catch (Exception exception)
         {
             AppLog.Error("start", "Start fehlgeschlagen.", exception);
-            System.Windows.MessageBox.Show($"AORUS Control konnte nicht gestartet werden: {exception.Message}");
+            System.Windows.MessageBox.Show(Localization.Strings.Current.Format("App_StartupFailed", exception.Message));
             Shutdown(1);
         }
     }

@@ -17,6 +17,10 @@ stays out of the way, and never claims more than it has measured.
 
 </div>
 
+GitHub's release number counts asset requests, including repeat downloads and automatic
+updates; it does not identify unique people. This README therefore deliberately does not
+present that number as a user or installation count.
+
 ---
 
 ## Why this exists
@@ -135,7 +139,7 @@ laptop.
 To build a release installer:
 
 ```powershell
-powershell -File tools\Build-Release.ps1 -Version 0.5.6
+powershell -File tools\Build-Release.ps1 -Version 0.5.8
 ```
 
 Other useful scripts: `tools\Start-AorusControl.cmd` runs a build tree,

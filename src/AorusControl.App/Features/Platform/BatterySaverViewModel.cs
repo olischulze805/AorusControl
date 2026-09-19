@@ -64,6 +64,11 @@ public sealed class BatterySaverViewModel : ObservableObject, IFeatureModule
         set
         {
             if (value == _settings.Enabled || _applyingStored) return;
+            if (_busy || _disposed)
+            {
+                OnPropertyChanged();
+                return;
+            }
             _settings = _settings with { Enabled = value };
             OnPropertyChanged();
             OnPropertyChanged(nameof(CanAdjust));
@@ -73,7 +78,8 @@ public sealed class BatterySaverViewModel : ObservableObject, IFeatureModule
 
     /// <summary>The sliders stay usable while it is off: the values are what the saver will
     /// apply, not a setting with nothing to act on.</summary>
-    public bool CanAdjust => !_disposed;
+    public bool CanAdjust => !_disposed && !_busy;
+    public bool CanSwitch => !_disposed && !_busy;
 
     public string Status { get => _status; private set => SetProperty(ref _status, value); }
 
@@ -82,12 +88,23 @@ public sealed class BatterySaverViewModel : ObservableObject, IFeatureModule
 
     public async Task StartAsync()
     {
-        // A scheme this app created and was killed before it could remove. Deleting it is
-        // safe: it is not the active one, or DiscardLeftover leaves it alone.
         if (_settings.LeftoverScheme is { } leftover)
         {
+            if (_settings.PreviousScheme is { } previous && _saver.Resume(leftover, previous))
+            {
+                if (_settings.Enabled)
+                {
+                    Status = Strings.Current.Format("Saver_On", BatterySaverPlan.Levers(
+                        _settings.ProcessorCap, _settings.Brightness).Count);
+                    return;
+                }
+
+                await SwitchAsync(false);
+                return;
+            }
+
             await Task.Run(() => _saver.DiscardLeftover(leftover));
-            Remember(_settings with { LeftoverScheme = null });
+            Remember(_settings with { LeftoverScheme = null, PreviousScheme = null });
         }
         if (_settings.Enabled) await SwitchAsync(true);
     }
@@ -97,19 +114,26 @@ public sealed class BatterySaverViewModel : ObservableObject, IFeatureModule
         if (_busy || _disposed) return;
         _busy = true;
         OnPropertyChanged(nameof(IsBusy));
+        OnPropertyChanged(nameof(CanAdjust));
+        OnPropertyChanged(nameof(CanSwitch));
         try
         {
             if (on)
             {
                 IReadOnlyList<SaverLever> levers = await Task.Run(() =>
                     _saver.TurnOn(_settings.ProcessorCap, _settings.Brightness));
-                Remember(_settings with { Enabled = true, LeftoverScheme = _saver.Scheme });
+                Remember(_settings with
+                {
+                    Enabled = true,
+                    LeftoverScheme = _saver.Scheme,
+                    PreviousScheme = _saver.PreviousScheme
+                });
                 Status = Strings.Current.Format("Saver_On", levers.Count);
             }
             else
             {
                 await Task.Run(_saver.TurnOff);
-                Remember(_settings with { Enabled = false, LeftoverScheme = null });
+                Remember(_settings with { Enabled = false, LeftoverScheme = null, PreviousScheme = null });
                 Status = Strings.Current["Saver_Off"];
             }
         }
@@ -130,6 +154,9 @@ public sealed class BatterySaverViewModel : ObservableObject, IFeatureModule
         {
             _busy = false;
             OnPropertyChanged(nameof(IsBusy));
+            OnPropertyChanged(nameof(IsOn));
+            OnPropertyChanged(nameof(CanAdjust));
+            OnPropertyChanged(nameof(CanSwitch));
         }
     }
 

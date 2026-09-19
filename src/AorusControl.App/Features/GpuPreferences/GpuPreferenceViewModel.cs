@@ -161,7 +161,7 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
             running => running is null ? Task.CompletedTask : AddAsync(running.Path));
         CloseRunningCommand = new AsyncRelayCommand<GpuUsageViewModel>(CloseRunningAsync);
         RefreshRunningCommand = new AsyncRelayCommand(RefreshRunningAsync);
-        ApplyNowCommand = new AsyncRelayCommand(() => ApplyAsync("Von Hand angewendet"));
+        ApplyNowCommand = new AsyncRelayCommand(() => ApplyAsync(Strings.Current["Gpu_ManualApply"]));
     }
 
     /// <summary>Set by the shell when the page is on screen. Reading the graphics counters
@@ -209,7 +209,7 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
     {
         get
         {
-            if (!_runningRead) return "Noch nicht gelesen.";
+            if (!_runningRead) return Strings.Current["Gpu_NotCheckedYet"] + ".";
             if (!_runningReadable) return Strings.Current["Gpu_CountersUnreadable"];
             int onNvidia = Running.Count(program => program.IsNvidia);
             return Running.Count == 0
@@ -245,7 +245,7 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
         set
         {
             if (!SetProperty(ref _automatic, value)) return;
-            if (value) _ = ApplyAsync("Automatik eingeschaltet");
+            if (value) _ = ApplyAsync(Strings.Current["Gpu_AutomaticEnabled"]);
             else Status = AutomaticOff;
         }
     }
@@ -544,7 +544,8 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
     private void OnPowerModeChanged(object? sender, Microsoft.Win32.PowerModeChangedEventArgs args)
     {
         if (_disposed || args.Mode is not (Microsoft.Win32.PowerModes.StatusChange or Microsoft.Win32.PowerModes.Resume)) return;
-        _ = System.Windows.Application.Current?.Dispatcher.InvokeAsync(() => ApplyAsync("Stromquelle gewechselt"));
+        _ = System.Windows.Application.Current?.Dispatcher.InvokeAsync(() =>
+            ApplyAsync(Strings.Current["Gpu_PowerSourceChanged"]));
     }
 
     public void Dispose()

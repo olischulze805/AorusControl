@@ -45,6 +45,8 @@ internal static class BatterySaverTests
             Check(saver.On && saver.Cap == 50 && saver.Brightness == 30, "switching on applies the stored values");
             Check(store.Saved!.Enabled && store.Saved.LeftoverScheme == saver.Scheme,
                 "and the scheme it created is written down, so a crash does not leave it in the user's plan list for ever");
+            Check(store.Saved.PreviousScheme == saver.PreviousScheme,
+                "and the original plan is saved so a restarted app can still return to it");
 
             // A drag is one rewrite, not one per value.
             vm.Brightness = 55;
@@ -69,6 +71,20 @@ internal static class BatterySaverTests
             Check(stillOn.On, "a stored choice is put back in force at the next start");
             vm.Dispose();
             Check(stillOn.On, "and closing the window does not undo it");
+        }
+
+        // A normal close leaves the copied plan active. The next process adopts that exact
+        // copy instead of duplicating an already capped plan and losing the original one.
+        Guid activeCopy = Guid.NewGuid();
+        Guid original = Guid.NewGuid();
+        var resumed = new FakeSaver { ActiveScheme = activeCopy };
+        var resumedStore = new FakeSaverStore(new BatterySaverSettings(true, 50, 30, activeCopy, original));
+        using (var vm = new BatterySaverViewModel(resumed, resumedStore, new ManualWait().Wait))
+        {
+            await vm.StartAsync();
+            Check(resumed.On && resumed.Scheme == activeCopy && resumed.PreviousScheme == original,
+                "an active saved plan is adopted with its real original plan");
+            Check(resumed.Applications == 0, "and is not duplicated on every app restart");
         }
 
         // A scheme left behind by a killed run is removed at the next start.
@@ -127,6 +143,17 @@ internal static class BatterySaverTests
 
         public bool IsOn => On;
         public Guid Scheme { get; private set; }
+        public Guid PreviousScheme { get; private set; }
+        public Guid ActiveScheme { get; set; }
+
+        public bool Resume(Guid scheme, Guid previousScheme)
+        {
+            if (ActiveScheme != scheme) return false;
+            On = true;
+            Scheme = scheme;
+            PreviousScheme = previousScheme;
+            return true;
+        }
 
         public void DiscardLeftover(Guid scheme) => Discarded.Add(scheme);
 
@@ -137,6 +164,8 @@ internal static class BatterySaverTests
             Cap = processorCap;
             Brightness = brightness;
             Scheme = Scheme == Guid.Empty ? Guid.NewGuid() : Scheme;
+            PreviousScheme = PreviousScheme == Guid.Empty ? Guid.NewGuid() : PreviousScheme;
+            ActiveScheme = Scheme;
             Applications++;
             return BatterySaverPlan.Levers(processorCap, brightness);
         }
@@ -144,7 +173,9 @@ internal static class BatterySaverTests
         public void TurnOff()
         {
             On = false;
+            ActiveScheme = PreviousScheme;
             Scheme = Guid.Empty;
+            PreviousScheme = Guid.Empty;
         }
     }
 
