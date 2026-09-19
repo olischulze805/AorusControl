@@ -13,9 +13,10 @@
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <AssemblyName>AorusControl</AssemblyName>
     <RootNamespace>AorusControl.App</RootNamespace>
+    <StartupObject>AorusControl.App.Program</StartupObject>
     <!-- Bump this on every user-visible release. tools/Build-Release.ps1 defaults to it,
          and the app reads it back from the running assembly to compare against the feed. -->
-    <Version>0.5.8</Version>
+    <Version>0.5.9</Version>
   </PropertyGroup>
 
   <ItemGroup>

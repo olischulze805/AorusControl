@@ -9,6 +9,7 @@ Fans, keyboard lighting, battery and graphics switching — in one window that s
 stays out of the way, and never claims more than it has measured.
 
 [![Release](https://img.shields.io/github/v/release/olischulze805/AorusControl?label=release&color=35C7E6)](https://github.com/olischulze805/AorusControl/releases/latest)
+[![CI](https://github.com/olischulze805/AorusControl/actions/workflows/ci.yml/badge.svg)](https://github.com/olischulze805/AorusControl/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-35C7E6)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2011-35C7E6)](#install)
 [![Built with](https://img.shields.io/badge/.NET-10-35C7E6)](https://dotnet.microsoft.com/)
@@ -136,11 +137,21 @@ The second command is the logic suite; the third lays the real window out offscr
 widths in both languages and writes the pictures to `research/runs/ui/`. Neither needs the
 laptop.
 
-To build a release installer:
+CI and the release script pass `--verify-only`: they run the same layout checks without
+regenerating the tracked README screenshots.
+
+To build and verify a release installer locally (the version must match the app project):
 
 ```powershell
-powershell -File tools\Build-Release.ps1 -Version 0.5.8
+pwsh tools/Build-Release.ps1 -Version 0.5.9
 ```
+
+Published releases are automated. Update the version in
+`src/AorusControl.App/AorusControl.App.csproj`, add `research/releases/v<version>.md`, commit
+both, then push the matching tag (for example `v0.5.9`). GitHub Actions validates that all
+three versions agree, runs the build plus logic and offscreen UI checks, creates the installer,
+full and delta update packages, writes SHA-256 checksums, and publishes the GitHub release.
+If any check fails, no release is created.
 
 Other useful scripts: `tools\Start-AorusControl.cmd` runs a build tree,
 `tools\Start-FanNormalRestore.cmd` puts the fans back under firmware control if anything ever

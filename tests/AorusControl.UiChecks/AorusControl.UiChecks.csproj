@@ -5,6 +5,7 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../TestProcessSettings.cs" Link="TestProcessSettings.cs" />
     <ProjectReference Include="../../src/AorusControl.App/AorusControl.App.csproj" />
   </ItemGroup>
 </Project>

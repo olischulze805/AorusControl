@@ -15,15 +15,11 @@ public partial class App : System.Windows.Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        // Velopack's install/update hooks have already run as the first instruction in Main.
         // Before any store is opened: earlier versions kept these files in what is now the
         // installer's own folder.
         AppData.MigrateFromInstallFolder();
         AppLog.Initialize("app");
-        // Must come before anything else draws: the installer relaunches the app with its
-        // own arguments for first run, update and uninstall, and this is what answers them.
-        Velopack.VelopackApp.Build()
-            .OnFirstRun(_ => AppLog.Info("update", "Erste Ausführung nach der Installation."))
-            .Run();
         // A crash the user only sees as a closing window is a crash nobody can report;
         // both of these paths put it on disk before anything else happens.
         DispatcherUnhandledException += (_, args) =>

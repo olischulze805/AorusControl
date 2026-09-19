@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Build and verify
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        shell: pwsh
+        run: |
+          dotnet restore AorusControl.slnx
+          dotnet restore tests/AorusControl.App.SmokeTests/AorusControl.App.SmokeTests.csproj
+          dotnet restore tests/AorusControl.UiChecks/AorusControl.UiChecks.csproj
+
+      - name: Build
+        run: dotnet build AorusControl.slnx --configuration Release --no-restore
+
+      - name: Run logic checks
+        run: dotnet run --project tests/AorusControl.App.SmokeTests --configuration Release --no-restore
+
+      - name: Run offscreen UI checks
+        run: dotnet run --project tests/AorusControl.UiChecks --configuration Release --no-restore -- --verify-only
+
+      - name: Keep UI renders when verification fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-check-renders
+          path: research/runs/ui/
+          if-no-files-found: ignore
+          retention-days: 7

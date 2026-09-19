@@ -6,14 +6,15 @@ internal static class GermanStrings
     public static readonly IReadOnlyDictionary<string, string> Table =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["About_ApplyAndRestart"] = "Übernehmen und neu starten",
+            ["About_ApplyAndRestart"] = "Neu starten und installieren",
             ["About_Autostart"] = "Autostart",
             ["About_CheckNow"] = "Jetzt prüfen",
-            ["About_InstallUpdate"] = "Update installieren",
+            ["About_DownloadUpdate"] = "Update herunterladen",
             ["About_Language"] = "Sprache",
             ["About_LanguageHint"] = "Gilt sofort, ohne Neustart.",
             ["About_Log"] = "Protokoll",
             ["About_OpenLogFolder"] = "Protokollordner öffnen",
+            ["About_ReleaseNotes"] = "Versionshinweise",
             ["About_Updates"] = "Updates",
             ["About_Version"] = "Version ",
             ["Bat_ChargeLimit"] = "Ladelimit",
@@ -183,8 +184,10 @@ internal static class GermanStrings
             ["Upd_CheckFailed"] = "Update-Prüfung fehlgeschlagen: {0}",
             ["Upd_NotCheckedYet"] = "Noch nicht geprüft.",
             ["Upd_NotInstalled"] = "Diese Version läuft nicht aus einer Installation - Updates gelten nur für die per Setup installierte App.",
+            ["Upd_InstalledVersion"] = "Installiert: Version {0}",
             ["Upd_Ready"] = "Version {0} ist bereit - jetzt neu starten oder beim nächsten Start übernehmen.",
             ["Upd_UpToDate"] = "Version {0} ist aktuell.",
+            ["Upd_VersionTransition"] = "Installiert: {0}  →  Verfügbar: {1}",
             ["Curve_Applied"] = "Übernommen, aktiv und gespeichert · {0} Punkte.",
             ["Curve_FileLoaded"] = "Kurve geladen · noch nicht aktiv. Mit „Kurve übernehmen“ aktivieren.",
             ["Curve_FileSaved"] = "Kurvendatei gespeichert. Zum Aktivieren „Kurve übernehmen“ verwenden.",

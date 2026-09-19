@@ -6,14 +6,15 @@ internal static class EnglishStrings
     public static readonly IReadOnlyDictionary<string, string> Table =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["About_ApplyAndRestart"] = "Apply and restart",
+            ["About_ApplyAndRestart"] = "Restart and install",
             ["About_Autostart"] = "Start with Windows",
             ["About_CheckNow"] = "Check now",
-            ["About_InstallUpdate"] = "Install update",
+            ["About_DownloadUpdate"] = "Download update",
             ["About_Language"] = "Language",
             ["About_LanguageHint"] = "Applies at once, no restart.",
             ["About_Log"] = "Log",
             ["About_OpenLogFolder"] = "Open log folder",
+            ["About_ReleaseNotes"] = "Release notes",
             ["About_Updates"] = "Updates",
             ["About_Version"] = "Version ",
             ["Bat_ChargeLimit"] = "Charge limit",
@@ -183,8 +184,10 @@ internal static class EnglishStrings
             ["Upd_CheckFailed"] = "The update check failed: {0}",
             ["Upd_NotCheckedYet"] = "Not checked yet.",
             ["Upd_NotInstalled"] = "This copy is not running from an installation - updates only apply to the app installed by the setup.",
+            ["Upd_InstalledVersion"] = "Installed: version {0}",
             ["Upd_Ready"] = "Version {0} is ready - restart now, or let it apply at the next start.",
             ["Upd_UpToDate"] = "Version {0} is current.",
+            ["Upd_VersionTransition"] = "Installed: {0}  →  Available: {1}",
             ["Curve_Applied"] = "Applied, in force and saved · {0} points.",
             ["Curve_FileLoaded"] = "Curve loaded · not in force yet. Use \"Apply curve\" to put it in force.",
             ["Curve_FileSaved"] = "Curve file saved. Use \"Apply curve\" to put it in force.",

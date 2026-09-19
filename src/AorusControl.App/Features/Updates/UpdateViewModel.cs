@@ -1,107 +1,113 @@
-using AorusControl.App.Localization;
-using System.Reflection;
 using AorusControl.App.Infrastructure;
+using AorusControl.App.Localization;
 using AorusControl.Core.Features.Diagnostics;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Reflection;
 using Velopack;
 using Velopack.Exceptions;
 using Velopack.Sources;
 
 namespace AorusControl.App.Features.Updates;
 
-/// <summary>
-/// Finds, downloads and applies releases published on the project's GitHub releases page.
-///
-/// Velopack rather than a hand-rolled downloader: it ships the installer and the updater as
-/// one thing, applies deltas, and swaps the installed copy without a UAC prompt because the
-/// app lives under the user's own LocalAppData. That last part is what makes automatic
-/// updates acceptable here at all - an updater that needs an admin prompt every time is one
-/// people learn to dismiss.
-///
-/// Nothing is downloaded or installed without the user asking: check is one button, install
-/// is another, and the new version only takes effect on the next start unless they choose to
-/// restart. An app that controls fans and lighting should not swap itself out from under a
-/// running session.
-/// </summary>
+/// <summary>Checks, downloads and applies releases from the GitHub release feed.</summary>
 public sealed class UpdateViewModel : ObservableObject
 {
+    private const string RepositoryUrl = "https://github.com/olischulze805/AorusControl";
     private readonly UpdateManager? _updates;
     private readonly Func<TimeSpan, CancellationToken, Task> _wait;
     private readonly CancellationTokenSource _closing = new();
-    // A property rather than a const: it has to be able to change language.
-    private static string NotAnInstallation => Strings.Current["Upd_NotInstalled"];
-
-    private readonly string _unavailableReason;
     private UpdateInfo? _available;
     private bool _busy, _downloaded, _notInstalled;
-    private string _status = Strings.Current["Upd_NotCheckedYet"];
+    private int _downloadProgress;
+    private UpdateStage _stage = UpdateStage.NotChecked;
+    private string? _failureDetails;
+    private bool _downloadFailure;
+
+    private static string NotAnInstallation => Strings.Current["Upd_NotInstalled"];
 
     public UpdateViewModel(IUpdateSource? source = null, Func<TimeSpan, CancellationToken, Task>? wait = null)
     {
         _wait = wait ?? Task.Delay;
         try
         {
-            _updates = new UpdateManager(source ?? new GithubSource("https://github.com/olischulze805/AorusControl", null, prerelease: false));
-            _unavailableReason = NotAnInstallation;
+            _updates = new UpdateManager(source ?? new GithubSource(RepositoryUrl, null, prerelease: false));
         }
         catch (Exception error)
         {
-            // Thrown when the app is not running from an installed copy - a development
-            // build, or a folder someone unzipped. Not a failure worth an error dialog, but
-            // it must be said out loud rather than silently doing nothing.
             _updates = null;
+            _stage = UpdateStage.Unsupported;
             AppLog.Info("update", "Kein installiertes Paket gefunden: " + error.Message);
-            _unavailableReason = NotAnInstallation;
-            _status = _unavailableReason;
         }
 
         CheckCommand = new AsyncRelayCommand(CheckAsync);
         InstallCommand = new AsyncRelayCommand(InstallAsync);
         RestartCommand = new RelayCommand(RequestRestart);
+        OpenReleasePageCommand = new RelayCommand(OpenReleasePage, () => HasUpdate);
+        Strings.Current.PropertyChanged += OnLanguageChanged;
     }
 
-    /// <summary>The running version, from the assembly rather than a constant, so it cannot
-    /// disagree with what was actually built.</summary>
+    /// <summary>The actual running assembly version, never a separately maintained label.</summary>
     public string CurrentVersion => Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.0";
 
-    public bool IsBusy { get => _busy; private set { SetProperty(ref _busy, value); Raise(); } }
-    public string Status { get => _status; private set => SetProperty(ref _status, value); }
-    /// <summary>
-    /// False in a build tree or an unzipped folder. Velopack only reports that when a check is
-    /// actually attempted - constructing the manager succeeds either way - so this is set the
-    /// first time a check comes back with "not installed", and the section then says so
-    /// instead of offering buttons that cannot work.
-    /// </summary>
+    public bool IsBusy { get => _busy; private set { SetProperty(ref _busy, value); RaiseState(); } }
+    public string Status => _stage switch
+    {
+        UpdateStage.Checking => Strings.Current["Upd_Checking"],
+        UpdateStage.UpToDate => Strings.Current.Format("Upd_UpToDate", CurrentVersion),
+        UpdateStage.Available => Strings.Current.Format("Upd_Available", AvailableVersion),
+        UpdateStage.Downloading => Strings.Current.Format("Upd_DownloadingProgress", DownloadProgress),
+        UpdateStage.Ready => Strings.Current.Format("Upd_Ready", AvailableVersion),
+        UpdateStage.Unsupported => NotAnInstallation,
+        UpdateStage.Failed when _downloadFailure => Strings.Current.Format("Upd_DownloadFailed", _failureDetails),
+        UpdateStage.Failed => Strings.Current.Format("Upd_CheckFailed", _failureDetails),
+        _ => Strings.Current["Upd_NotCheckedYet"]
+    };
+
     public bool IsSupported => _updates is not null && !_notInstalled;
     public bool HasUpdate => _available is not null;
-    public bool IsDownloaded { get => _downloaded; private set { SetProperty(ref _downloaded, value); Raise(); } }
+    public bool IsDownloaded { get => _downloaded; private set { SetProperty(ref _downloaded, value); RaiseState(); } }
     public string? AvailableVersion => _available?.TargetFullRelease.Version.ToString();
+    public string VersionSummary => HasUpdate
+        ? Strings.Current.Format("Upd_VersionTransition", CurrentVersion, AvailableVersion)
+        : Strings.Current.Format("Upd_InstalledVersion", CurrentVersion);
+    public int DownloadProgress
+    {
+        get => _downloadProgress;
+        private set => SetProperty(ref _downloadProgress, Math.Clamp(value, 0, 100));
+    }
+    public bool IsDownloading => _stage == UpdateStage.Downloading;
+    public bool HasReleasePage => HasUpdate;
     public bool CanCheck => IsSupported && !IsBusy;
     public bool CanInstall => IsSupported && !IsBusy && HasUpdate && !IsDownloaded;
 
     public AsyncRelayCommand CheckCommand { get; }
     public AsyncRelayCommand InstallCommand { get; }
     public RelayCommand RestartCommand { get; }
+    public RelayCommand OpenReleasePageCommand { get; }
 
-    /// <summary>Asks the window to shut the app down for the update. The restart cannot start
-    /// from here: the fans and the lighting have to be handed back to the firmware first, and
-    /// that is the window's close sequence, not this module's business.</summary>
     public event EventHandler? RestartRequested;
+    public event EventHandler? UpdateFound;
 
     private void RequestRestart()
     {
-        if (!IsDownloaded) return;
-        RestartRequested?.Invoke(this, EventArgs.Empty);
+        if (IsDownloaded) RestartRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>
-    /// Hands the downloaded update to Velopack's updater and tells it to relaunch afterwards.
-    ///
-    /// Called at the very end of the close sequence, once the hardware is already back under
-    /// firmware control - deliberately not Velopack's ApplyUpdatesAndRestart, which kills the
-    /// process on the spot and would leave the fans pinned wherever they happened to be. The
-    /// updater waits for this process to exit (up to a minute), swaps the files, and starts
-    /// the new version.
-    /// </summary>
+    private void OpenReleasePage()
+    {
+        if (!HasUpdate) return;
+        try
+        {
+            Process.Start(new ProcessStartInfo($"{RepositoryUrl}/releases/tag/v{AvailableVersion}") { UseShellExecute = true });
+        }
+        catch (Exception error)
+        {
+            AppLog.Error("update", "Release-Seite konnte nicht geöffnet werden.", error);
+        }
+    }
+
+    /// <summary>Called after the close sequence has safely handed the hardware back.</summary>
     public void ApplyDownloadedUpdateOnExit()
     {
         if (_updates is null || !IsDownloaded) return;
@@ -112,27 +118,13 @@ public sealed class UpdateViewModel : ObservableObject
         }
         catch (Exception error)
         {
-            // Nothing is lost: the downloaded version stays staged and is applied the next
-            // time the app starts anyway.
             AppLog.Error("update", "Update konnte beim Beenden nicht übernommen werden.", error);
         }
     }
 
     public Task CheckAsync() => CheckAsync(announceFailure: true);
 
-    /// <summary>
-    /// Looks once, quietly, shortly after launch, and only says something if there is
-    /// actually a newer version - <see cref="UpdateFound"/> is what the tray icon listens to.
-    ///
-    /// Quiet matters more here than anywhere else: an app that greets every launch with
-    /// "update check failed" because the laptop is on a café network has trained the user to
-    /// ignore it by the time an update really is waiting. A failed automatic check goes to
-    /// the log and nowhere else; pressing the button still reports failures out loud, because
-    /// then somebody is waiting for an answer.
-    ///
-    /// The delay keeps launch to itself: the device reads matter first, and nobody is looking
-    /// at the update card in the first seconds anyway.
-    /// </summary>
+    /// <summary>Checks once after launch without surfacing transient network failures.</summary>
     public async Task CheckOnStartupAsync()
     {
         if (!CanCheck) return;
@@ -144,66 +136,98 @@ public sealed class UpdateViewModel : ObservableObject
         if (HasUpdate) UpdateFound?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Raised when an automatic check found a newer version. Nothing is downloaded;
-    /// the user is told, and decides.</summary>
-    public event EventHandler? UpdateFound;
-
     private async Task CheckAsync(bool announceFailure)
     {
         if (!CanCheck) return;
         IsBusy = true;
-        if (announceFailure) Status = Strings.Current["Upd_Checking"];
+        UpdateStage previousStage = _stage;
+        if (announceFailure) SetStage(UpdateStage.Checking);
         try
         {
             _available = await _updates!.CheckForUpdatesAsync();
-            Status = _available is null
-                ? Strings.Current.Format("Upd_UpToDate", CurrentVersion)
-                : Strings.Current.Format("Upd_Available", AvailableVersion);
+            _failureDetails = null;
+            IsDownloaded = false;
+            SetStage(_available is null ? UpdateStage.UpToDate : UpdateStage.Available);
         }
         catch (NotInstalledException)
         {
-            // Not a failure: nobody can update a copy that was never installed. Said once, in
-            // the section itself, and logged as information rather than as something broken.
             _notInstalled = true;
-            Status = _unavailableReason;
+            SetStage(UpdateStage.Unsupported);
             AppLog.Info("update", "Läuft nicht aus einer Installation; Update-Prüfung entfällt.");
         }
         catch (Exception error)
         {
             AppLog.Error("update", "Update-Prüfung fehlgeschlagen.", error);
-            if (announceFailure) Status = Strings.Current.Format("Upd_CheckFailed", error.Message);
+            if (announceFailure)
+            {
+                _failureDetails = error.Message;
+                _downloadFailure = false;
+                SetStage(UpdateStage.Failed);
+            }
+            else SetStage(previousStage);
         }
-        finally { IsBusy = false; Raise(); }
+        finally { IsBusy = false; RaiseState(); }
     }
 
-    /// <summary>Stops a pending automatic check from firing into a closing app.</summary>
-    public void CancelStartupCheck() => _closing.Cancel();
+    /// <summary>Stops pending update work from reaching an app that is closing.</summary>
+    public void CancelStartupCheck()
+    {
+        _closing.Cancel();
+        Strings.Current.PropertyChanged -= OnLanguageChanged;
+    }
 
     public async Task InstallAsync()
     {
         if (!CanInstall) return;
         IsBusy = true;
-        Status = Strings.Current["Upd_Downloading"];
+        DownloadProgress = 0;
+        SetStage(UpdateStage.Downloading);
         try
         {
-            await _updates!.DownloadUpdatesAsync(_available!, progress =>
-                Status = Strings.Current.Format("Upd_DownloadingProgress", progress));
+            IProgress<int> progress = new Progress<int>(value =>
+            {
+                DownloadProgress = value;
+                OnPropertyChanged(nameof(Status));
+            });
+            await _updates!.DownloadUpdatesAsync(_available!, progress.Report, _closing.Token);
+            DownloadProgress = 100;
             IsDownloaded = true;
-            Status = Strings.Current.Format("Upd_Ready", AvailableVersion);
+            SetStage(UpdateStage.Ready);
         }
+        catch (OperationCanceledException) when (_closing.IsCancellationRequested) { }
         catch (Exception error)
         {
             AppLog.Error("update", "Update-Download fehlgeschlagen.", error);
-            Status = Strings.Current.Format("Upd_DownloadFailed", error.Message);
+            _failureDetails = error.Message;
+            _downloadFailure = true;
+            SetStage(UpdateStage.Failed);
         }
         finally { IsBusy = false; }
     }
 
-    private void Raise()
+    private void SetStage(UpdateStage stage)
+    {
+        _stage = stage;
+        OnPropertyChanged(nameof(Status));
+        OnPropertyChanged(nameof(IsDownloading));
+    }
+
+    private void RaiseState()
     {
         OnPropertyChanged(nameof(HasUpdate));
         OnPropertyChanged(nameof(AvailableVersion));
+        OnPropertyChanged(nameof(VersionSummary));
+        OnPropertyChanged(nameof(HasReleasePage));
         OnPropertyChanged(nameof(CanCheck));
         OnPropertyChanged(nameof(CanInstall));
+        OpenReleasePageCommand.RaiseCanExecuteChanged();
     }
+
+    private void OnLanguageChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        OnPropertyChanged(nameof(Status));
+        OnPropertyChanged(nameof(VersionSummary));
+    }
+
+    private enum UpdateStage { NotChecked, Checking, UpToDate, Available, Downloading, Ready, Unsupported, Failed }
 }

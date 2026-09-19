@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Verify, package and publish
+    runs-on: windows-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Validate tag, project version and release notes
+        id: version
+        shell: pwsh
+        run: |
+          $version = '${{ github.ref_name }}'.TrimStart('v')
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid release tag: ${{ github.ref_name }}" }
+          $project = [xml](Get-Content 'src/AorusControl.App/AorusControl.App.csproj')
+          $projectVersion = $project.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+          if ($projectVersion -ne $version) { throw "Tag version $version does not match project version $projectVersion." }
+          $notes = "research/releases/v$version.md"
+          if (-not (Test-Path $notes)) { throw "Release notes are missing: $notes" }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "notes=$notes" >> $env:GITHUB_OUTPUT
+
+      - name: Restore previous full package for delta generation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/releases | Out-Null
+          gh release download --repo $env:GITHUB_REPOSITORY --pattern 'AorusControl-*-full.nupkg' --pattern 'releases.win.json' --dir artifacts/releases
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host 'No previous release assets found; a full package will still be created.'
+            $global:LASTEXITCODE = 0
+          }
+
+      - name: Verify and package
+        shell: pwsh
+        run: ./tools/Build-Release.ps1 -Version '${{ steps.version.outputs.version }}'
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AorusControl-${{ steps.version.outputs.version }}
+          path: |
+            artifacts/releases/AorusControl-${{ steps.version.outputs.version }}-Setup.exe
+            artifacts/releases/AorusControl-${{ steps.version.outputs.version }}-full.nupkg
+            artifacts/releases/AorusControl-${{ steps.version.outputs.version }}-delta.nupkg
+            artifacts/releases/releases.win.json
+            artifacts/releases/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $assets = @(
+            "artifacts/releases/AorusControl-$version-Setup.exe",
+            "artifacts/releases/AorusControl-$version-full.nupkg",
+            "artifacts/releases/releases.win.json",
+            "artifacts/releases/SHA256SUMS.txt"
+          )
+          $delta = "artifacts/releases/AorusControl-$version-delta.nupkg"
+          if (Test-Path $delta) { $assets += $delta }
+          gh release create "v$version" $assets --verify-tag --title "AORUS Control $version" --notes-file '${{ steps.version.outputs.notes }}'

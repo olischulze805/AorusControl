@@ -11,6 +11,8 @@ using AorusControl.Core.Features.Startup;
 using AorusControl.Core.Features.Worker;
 using AorusControl.App.Infrastructure;
 
+TestProcessSettings.DisableNativeCrashDialogs();
+
 string instanceName = @"Local\AorusControl.Test." + Guid.NewGuid().ToString("N");
 using (var primary = new SingleInstanceGate(instanceName))
 using (var secondary = new SingleInstanceGate(instanceName))

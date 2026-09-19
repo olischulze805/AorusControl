@@ -16,6 +16,8 @@ using AorusControl.Core.Features.PowerProfiles;
 using AorusControl.Core.Models;
 using AorusControl.Core.Services;
 
+TestProcessSettings.DisableNativeCrashDialogs();
+
 // Lays out the REAL windows offscreen against fakes, at several widths. Two things it is
 // for: proving the layout still works when the window is narrow (nothing clipped, nothing
 // pushed off the edge), and catching the XAML mistakes a compiler cannot see - a missing
@@ -63,7 +65,9 @@ var thread = new Thread(() =>
         RenderCoolingStates(output);
         RenderGraphicsPage(output);
         RenderEnglish(output);
-        RenderReadmeShots();
+        // The ordinary developer command refreshes the README pictures as before. CI and
+        // release builds verify the exact same layouts without mutating tracked source files.
+        if (!args.Contains("--verify-only", StringComparer.OrdinalIgnoreCase)) RenderReadmeShots();
         RenderToolTip(output);
         Console.WriteLine("PASS: main window laid out at every checked width; no native window or hardware started.");
         app.Shutdown();

@@ -705,7 +705,7 @@
                                      setting up for manual mode, it simply has no effect right
                                      now. One line below says so once, instead of repeating the
                                      same sentence under all three swatches. -->
-                                <Grid Margin="0,18,0,0">
+                                <Grid Margin="0,16,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="*" />
@@ -1217,7 +1217,12 @@
                                         <ColumnDefinition Width="*" MinWidth="120" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Updates.Status}" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="13" />
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Updates.VersionSummary}" FontSize="12"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <TextBlock Text="{Binding Updates.Status}" Margin="0,5,0,0"
+                                                   TextWrapping="Wrap" FontSize="13" />
+                                    </StackPanel>
                                     <ui:Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Margin="16,0,0,0"
                                                Content="{loc:T About_CheckNow}"
                                                Command="{Binding Updates.CheckCommand}"
@@ -1225,13 +1230,22 @@
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowClockwise24" /></ui:Button.Icon>
                                     </ui:Button>
                                 </Grid>
+                                <ProgressBar Height="4" Margin="0,16,0,0" Minimum="0" Maximum="100"
+                                             Value="{Binding Updates.DownloadProgress, Mode=OneWay}"
+                                             Visibility="{Binding Updates.IsDownloading, Converter={StaticResource BoolVisible}}" />
                                 <WrapPanel Margin="0,14,0,-10">
                                     <ui:Button Style="{StaticResource PrimaryButton}" Margin="0,0,10,10"
-                                               Content="{loc:T About_InstallUpdate}"
+                                               Content="{loc:T About_DownloadUpdate}"
                                                Command="{Binding Updates.InstallCommand}"
                                                IsEnabled="{Binding Updates.CanInstall}"
                                                Visibility="{Binding Updates.HasUpdate, Converter={StaticResource BoolVisible}}">
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowDownload24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                    <ui:Button Style="{StaticResource SecondaryButton}" Margin="0,0,10,10"
+                                               Content="{loc:T About_ReleaseNotes}"
+                                               Command="{Binding Updates.OpenReleasePageCommand}"
+                                               Visibility="{Binding Updates.HasReleasePage, Converter={StaticResource BoolVisible}}">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="Open24" /></ui:Button.Icon>
                                     </ui:Button>
                                     <ui:Button Style="{StaticResource PrimaryButton}" Margin="0,0,10,10"
                                                Content="{loc:T About_ApplyAndRestart}"
