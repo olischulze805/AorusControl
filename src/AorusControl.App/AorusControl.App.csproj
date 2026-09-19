@@ -16,7 +16,7 @@
     <StartupObject>AorusControl.App.Program</StartupObject>
     <!-- Bump this on every user-visible release. tools/Build-Release.ps1 defaults to it,
          and the app reads it back from the running assembly to compare against the feed. -->
-    <Version>0.5.9</Version>
+    <Version>0.5.10</Version>
   </PropertyGroup>
 
   <ItemGroup>
