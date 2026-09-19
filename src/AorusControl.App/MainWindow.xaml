@@ -814,7 +814,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="{loc:T Saver_Brightness}" Style="{StaticResource TileLabel}"
-                                               VerticalAlignment="Center" MinWidth="92" />
+                                               VerticalAlignment="Center" MinWidth="124" Margin="0,0,10,0" />
                                     <Grid Grid.Column="1">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
@@ -833,7 +833,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="{loc:T Saver_CpuCap}" Style="{StaticResource TileLabel}"
-                                               VerticalAlignment="Center" MinWidth="92" />
+                                               VerticalAlignment="Center" MinWidth="124" Margin="0,0,10,0" />
                                     <Grid Grid.Column="1">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
