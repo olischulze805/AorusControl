@@ -65,6 +65,7 @@ var thread = new Thread(() =>
         RenderCoolingStates(output);
         RenderGraphicsPage(output);
         RenderEnglish(output);
+        RenderApplyStates(output);
         // The ordinary developer command refreshes the README pictures as before. CI and
         // release builds verify the exact same layouts without mutating tracked source files.
         if (!args.Contains("--verify-only", StringComparer.OrdinalIgnoreCase)) RenderReadmeShots();
@@ -102,6 +103,36 @@ static void RenderMainWindow(string output)
             Save(content, output, $"main-{section.ToLowerInvariant()}-{width}.png", width, 1500);
         }
     }
+}
+
+/// <summary>
+/// The three states of the mark beside a value that applies itself.
+///
+/// It replaced three sentences of explanation, so it had better be legible. Animations do not
+/// advance in an offscreen render - there is no compositor here - which is exactly why the
+/// tick has to be drawn at full strength by default rather than only while fading.
+/// </summary>
+static void RenderApplyStates(string output)
+{
+    var panel = new StackPanel { Orientation = Orientation.Horizontal, Background = Brushes.Transparent };
+    foreach (AorusControl.App.Infrastructure.ApplyState state in
+             Enum.GetValues<AorusControl.App.Infrastructure.ApplyState>())
+    {
+        panel.Children.Add(new Border
+        {
+            Width = 64,
+            Height = 48,
+            Child = new AorusControl.App.Controls.ApplyIndicator
+            {
+                State = state,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            }
+        });
+    }
+    var frame = new Border { Background = new SolidColorBrush(Color.FromRgb(0x21, 0x24, 0x29)), Child = panel };
+    Layout(frame, 256, 48);
+    Save(frame, output, "apply-states.png", 256, 48);
 }
 
 /// <summary>

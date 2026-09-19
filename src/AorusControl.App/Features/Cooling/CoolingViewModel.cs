@@ -29,6 +29,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     private readonly Func<Task> _refreshTelemetry;
     private readonly Action _startMonitoring;
     private readonly Debouncer _applyFixed;
+    private ApplyState _applyState = ApplyState.Idle;
 
     private bool _busy, _closing, _disposed, _controlsEnabled, _restoreNormalOnExit, _fixedActive, _unsavedCurve;
     private Guid? _fixedLease;
@@ -182,7 +183,7 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
             // Following the slider while Fixed is already held is what the user expects;
             // silently ENTERING a mode that pins the fans because a slider was brushed is
             // not, so that still needs the button.
-            if (changed && _fixedActive) _applyFixed.Schedule();
+            if (changed && _fixedActive) { Apply = ApplyState.Applying; _applyFixed.Schedule(); }
         }
     }
 
@@ -261,6 +262,10 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
     /// <summary>The waiting Fixed re-apply, exposed for the same reason.</summary>
     internal Debouncer PendingFixedWrite => _applyFixed;
 
+    /// <summary>Where the pending fixed value stands, for the mark beside it. Same reason as
+    /// on the charge limit: the slider applies itself, and showing that beats saying it.</summary>
+    public ApplyState Apply { get => _applyState; private set => SetProperty(ref _applyState, value); }
+
     public async Task StartAsync()
     {
         try
@@ -332,7 +337,8 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
 
         _busy = true;
         ControlsEnabled = false;
-        Status = Strings.Current.Format("Fan_SettingFixed", FixedFanRaw);
+        Apply = ApplyState.Applying;
+        Status = string.Empty;
         try
         {
             // The lease client validates telemetry itself before writing; Fixed mode is
@@ -349,11 +355,13 @@ public sealed class CoolingViewModel : ObservableObject, IFeatureModule
             _startMonitoring();
             Show(await _fan.ReadAsync(), $"Fixed {FixedFanRaw}");
             await _refreshTelemetry();
+            Apply = ApplyState.Confirmed;
         }
         catch (Exception exception)
         {
             AppLog.Error("fan", $"Fixed {FixedFanRaw} fehlgeschlagen.", exception);
             Status = Strings.Current.Format("Cool_FixedFailed", exception.Message);
+            Apply = ApplyState.Failed;
             await AppendReadbackAsync();
         }
         finally

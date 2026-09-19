@@ -147,3 +147,44 @@ Freigabe fehlschlug - der übliche Grund dafür ist auf diesem Gerät aber, dass
 USB-Bus gefallen ist (siehe `KEYBOARD-HANG.md`). Ein Laptop, dessen Tastatur gestorben ist,
 darf nicht zusätzlich das Schließen seines Kontrollprogramms verweigern. Die Lüfter blockieren
 weiterhin: ein festgesetzter Lüfter ist eine Sicherheitsfrage, Beleuchtung nicht.
+
+## Zeigen statt erklären (2026-09-18, abends)
+
+Das Ladelimit erklärte sich selbst. Über dem Regler stand dauerhaft „Der Regler übernimmt
+sich kurz nach dem Loslassen von selbst", beim Ziehen kam „80 % wird übernommen …", danach
+„Einstellung übernommen und rückgelesen". Drei Sätze für einen Vorgang, den man auch einfach
+sehen kann.
+
+Eine Oberfläche, die ihren eigenen Mechanismus in einem festen Etikett beschreibt, sagt
+damit: ich kann ihn nicht vorführen. Genau das war hier der Fall.
+
+### Was an die Stelle getreten ist
+
+`ApplyIndicator`, ein sechzehn Pixel breites Zeichen neben dem Wert:
+
+| Zustand | Was zu sehen ist |
+| --- | --- |
+| Ruhe | nichts - der Platz bleibt reserviert, damit nichts springt |
+| Unterwegs | ein drehender Bogen im Akzentton, samt blassem Restring |
+| Bestätigt | ein Haken, der nach gut einer Sekunde von selbst verschwindet |
+| Abgelehnt | ein Punkt in der Warnfarbe, der stehen bleibt |
+
+Der Zustand liegt in `Infrastructure/ApplyState.cs`, nicht beim Zeichnen: was eine anstehende
+Änderung gerade tut, ist Zustand, und der Ring ist nur eine Art, ihn zu zeigen.
+
+### Dreimal dasselbe Muster
+
+Das Zeichen steht jetzt an allen drei Stellen, die sich selbst übernehmen - Ladelimit,
+Akkusparmodus, fester Lüfterwert. Die Statuszeilen darunter sind dadurch **stumm im
+Normalfall** und tragen nur noch Fehler; wo sie schweigen, verschwinden sie ganz, statt eine
+Lücke zu hinterlassen.
+
+Beim Sparmodus fiel dabei noch etwas anderes weg: Die Zeile „Eingeschaltet · 2 Einstellungen"
+sagte, was der Schalter zwei Zentimeter weiter rechts schon sagte.
+
+### Ein Detail, das nur in der Prüfung auffällt
+
+Animationen laufen im Offscreen-Rendering nicht - es gibt dort keinen Compositor. Ein Haken,
+der erst beim Ausblenden existiert, wäre auf keinem Prüfbild zu sehen und damit nicht
+prüfbar. Deshalb ist der Vollwert die Voreinstellung und die Animation blendet von dort aus
+weg. `research/runs/ui/apply-states.png` zeigt alle vier Zustände nebeneinander.

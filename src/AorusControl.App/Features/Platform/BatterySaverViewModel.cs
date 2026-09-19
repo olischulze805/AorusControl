@@ -25,6 +25,7 @@ public sealed class BatterySaverViewModel : ObservableObject, IFeatureModule
     private readonly Debouncer _apply;
     private BatterySaverSettings _settings;
     private bool _busy, _disposed, _applyingStored;
+    private ApplyState _applyState = ApplyState.Idle;
     private string _status = string.Empty;
 
     public BatterySaverViewModel(
@@ -70,6 +71,7 @@ public sealed class BatterySaverViewModel : ObservableObject, IFeatureModule
                 return;
             }
             _settings = _settings with { Enabled = value };
+            Apply = ApplyState.Applying;
             OnPropertyChanged();
             OnPropertyChanged(nameof(CanAdjust));
             _ = SwitchAsync(value);
@@ -80,6 +82,10 @@ public sealed class BatterySaverViewModel : ObservableObject, IFeatureModule
     /// apply, not a setting with nothing to act on.</summary>
     public bool CanAdjust => !_disposed && !_busy;
     public bool CanSwitch => !_disposed && !_busy;
+
+    /// <summary>Where the pending change stands, for the mark beside the switch. The switch
+    /// already says on or off; a line of text repeating it was saying nothing twice.</summary>
+    public ApplyState Apply { get => _applyState; private set => SetProperty(ref _applyState, value); }
 
     public string Status { get => _status; private set => SetProperty(ref _status, value); }
 
@@ -94,8 +100,6 @@ public sealed class BatterySaverViewModel : ObservableObject, IFeatureModule
             {
                 if (_settings.Enabled)
                 {
-                    Status = Strings.Current.Format("Saver_On", BatterySaverPlan.Levers(
-                        _settings.ProcessorCap, _settings.Brightness).Count);
                     return;
                 }
 
@@ -128,19 +132,22 @@ public sealed class BatterySaverViewModel : ObservableObject, IFeatureModule
                     LeftoverScheme = _saver.Scheme,
                     PreviousScheme = _saver.PreviousScheme
                 });
-                Status = Strings.Current.Format("Saver_On", levers.Count);
+                Status = string.Empty;
+                Apply = ApplyState.Confirmed;
             }
             else
             {
                 await Task.Run(_saver.TurnOff);
                 Remember(_settings with { Enabled = false, LeftoverScheme = null, PreviousScheme = null });
-                Status = Strings.Current["Saver_Off"];
+                Status = string.Empty;
+                Apply = ApplyState.Confirmed;
             }
         }
         catch (Exception exception)
         {
             AppLog.Error("saver", "Akkusparmodus konnte nicht umgeschaltet werden.", exception);
             Status = Strings.Current.Format("Saver_Failed", exception.Message);
+            Apply = ApplyState.Failed;
             // The switch has to show what the machine is doing, not what was asked for.
             _applyingStored = true;
             try
@@ -179,6 +186,8 @@ public sealed class BatterySaverViewModel : ObservableObject, IFeatureModule
         OnPropertyChanged(nameof(BrightnessText));
         OnPropertyChanged(nameof(Savings));
         Remember(next);
+        // Only a change that will actually reach the device is worth announcing as pending.
+        if (_settings.Enabled) Apply = ApplyState.Applying;
         _apply.Schedule();
     }
 

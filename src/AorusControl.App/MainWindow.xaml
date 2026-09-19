@@ -375,7 +375,8 @@
                                     </RadioButton>
                                 </WrapPanel>
                                 <TextBlock Text="{Binding Cooling.Status}" Style="{StaticResource StatusText}"
-                                           ToolTip="{Binding Cooling.StatusDetail}" />
+                                           ToolTip="{Binding Cooling.StatusDetail}"
+                                           Visibility="{Binding Cooling.Status, Converter={StaticResource TextVisible}}" />
 
 
                                 <!-- Ein Diagramm für alle Modi: es zeigt, was der laufende Modus tut,
@@ -458,7 +459,11 @@
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="{Binding Cooling.FixedFanPercentText}" Style="{StaticResource SliderReadout}" />
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Cooling.FixedFanPercentText}" Style="{StaticResource SliderReadout}" />
+                                        <ctrl:ApplyIndicator State="{Binding Cooling.Apply}" Margin="10,0,0,0"
+                                                             VerticalAlignment="Center" />
+                                    </StackPanel>
                                     <StackPanel Grid.Column="1" Margin="22,0,0,0">
                                         <Slider Style="{StaticResource ValueSlider}" MinWidth="170"
                                                 Minimum="0" Maximum="100" SmallChange="1" LargeChange="5"
@@ -803,9 +808,12 @@
                                         <TextBlock Text="{loc:T Saver_Title}" Style="{StaticResource CardTitle}" />
                                         <ui:SymbolIcon Style="{StaticResource InfoDot}" ToolTip="{loc:T Tip_BatterySaver}" />
                                     </StackPanel>
-                                    <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
-                                                     IsChecked="{Binding Saver.IsOn, Mode=TwoWay}"
-                                                     IsEnabled="{Binding Saver.CanSwitch}" />
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <ctrl:ApplyIndicator State="{Binding Saver.Apply}" Margin="0,0,12,0"
+                                                             VerticalAlignment="Center" />
+                                        <ui:ToggleSwitch IsChecked="{Binding Saver.IsOn, Mode=TwoWay}"
+                                                         IsEnabled="{Binding Saver.CanSwitch}" />
+                                    </StackPanel>
                                 </Grid>
                                 <TextBlock Text="{Binding Saver.Savings}" Style="{StaticResource Hint}" TextWrapping="Wrap" />
 
@@ -872,8 +880,15 @@
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Style="{StaticResource SliderReadout}"
-                                               Text="{Binding Battery.SelectedLimit, StringFormat={}{0} %}" />
+                                    <!-- Der Wert und daneben das Zeichen, ob er unterwegs,
+                                         bestätigt oder abgelehnt ist. Das ersetzt drei Sätze,
+                                         die vorher erklärt haben, was hier ohnehin passiert. -->
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Style="{StaticResource SliderReadout}"
+                                                   Text="{Binding Battery.SelectedLimit, StringFormat={}{0} %}" />
+                                        <ctrl:ApplyIndicator State="{Binding Battery.Apply}" Margin="10,0,0,0"
+                                                             VerticalAlignment="Center" />
+                                    </StackPanel>
                                     <StackPanel Grid.Column="1" Margin="22,0,0,0">
                                         <Slider Style="{StaticResource ValueSlider}" MinWidth="170"
                                                 Minimum="60" Maximum="100" TickFrequency="10"
@@ -897,7 +912,10 @@
                                         <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowClockwise24" /></ui:Button.Icon>
                                     </ui:Button>
                                 </WrapPanel>
-                                <TextBlock Text="{Binding Battery.Status}" Style="{StaticResource StatusText}" />
+                                <!-- Nur noch Fehler stehen hier. Der Normalfall ist stumm,
+                                     und eine stumme Zeile darf keine Lücke hinterlassen. -->
+                                <TextBlock Text="{Binding Battery.Status}" Style="{StaticResource StatusText}"
+                                           Visibility="{Binding Battery.Status, Converter={StaticResource TextVisible}}" />
                             </StackPanel>
                         </Border>
                     </StackPanel>

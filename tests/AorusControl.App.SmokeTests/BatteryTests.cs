@@ -1,3 +1,4 @@
+using AorusControl.App.Infrastructure;
 using AorusControl.App.ViewModels;
 using AorusControl.Core.Models;
 using AorusControl.Core.Services;
@@ -34,6 +35,21 @@ internal static class BatteryTests
         Check(controller.State == new BatteryChargeState(0, 100), "and off goes back to standard charging");
         await vm.RefreshAsync();
         Check(!vm.IsLimitEnabled, "a readback leaves the switch where the device is");
+
+        // The mark beside the value replaced three sentences of explanation, so what it says
+        // has to be right: pending while a change is on its way, a tick once the device has
+        // confirmed it, a dot when it refused.
+        Check(vm.Apply == ApplyState.Confirmed, "a completed write leaves the tick showing");
+        vm.SelectedLimit = 75;
+        Check(vm.Apply == ApplyState.Applying, "and moving the slider puts it back to pending at once");
+        await vm.ApplyLimitAsync();
+        Check(vm.Apply == ApplyState.Confirmed, "confirmed again after the readback");
+        vm.SelectedLimit = 59;
+        await vm.ApplyLimitAsync();
+        Check(vm.Apply == ApplyState.Failed, "a value out of range is a refusal, not a quiet nothing");
+        // Back to where the next case expects the device to be.
+        vm.SelectedLimit = 80;
+        await vm.ApplyStandardAsync();
 
         controller.FailWrite = true;
         vm.SelectedLimit = 60;

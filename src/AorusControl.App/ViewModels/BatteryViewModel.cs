@@ -1,4 +1,5 @@
 using AorusControl.App.Localization;
+using AorusControl.App.Controls;
 using AorusControl.App.Infrastructure;
 using AorusControl.Core.Features.Battery;
 using AorusControl.Core.Features.Diagnostics;
@@ -59,14 +60,14 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
     public bool CanApply => _supported && !IsBusy && !_disposed;
 
     /// <summary>Whether the device answered about its charge policy at all. The tray text
-    /// needs it: Strings.Current["Bat_StandardCharging"] on a machine that never replied would be a claim.</summary>
+    /// needs it: saying "standard charging" about a machine that never replied would be a claim.</summary>
     public bool IsSupported => _supported;
 
     /// <summary>
     /// Whether a charge limit is in force at all - the switch above the slider.
     ///
     /// Two mutually exclusive states that take effect at once is the definition of a switch.
-    /// It used to be a button marked Strings.Current["Bat_StandardCharging"], which could only travel in one
+    /// It used to be a button marked "Standardladen", which could only travel in one
     /// direction: getting the limit back meant nudging the slider until the app noticed, and
     /// which of the two states was active could only be read out of a line of prose.
     /// </summary>
@@ -80,7 +81,7 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
             // Not while a readback is populating the card - that would write back the state
             // the device has just reported.
             if (_applyingDeviceState) return;
-            Status = value ? Strings.Current.Format("Bat_SettingLimit", SelectedLimit) : Strings.Current["Bat_SettingStandard"];
+            Apply = ApplyState.Applying;
             // Through the same queue as the slider. Called directly, a flick of the switch
             // while a read was still running was simply dropped - and the switch then showed
             // a state the device was never asked for, until the next readback corrected it.
@@ -100,6 +101,16 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
     /// what they do in the meantime into a single later write.</summary>
     public bool CanAdjust => _supported && !_disposed;
     public bool CanRefresh => !IsBusy && !_disposed;
+
+    /// <summary>
+    /// Where the pending change stands, for the mark beside the value.
+    ///
+    /// This replaced three sentences: a permanent line explaining that the slider applies
+    /// itself, one saying a value was being applied, and one saying it had been applied and
+    /// read back. An interface that has to explain its own mechanism in words is one that
+    /// cannot show it.
+    /// </summary>
+    public ApplyState Apply { get => _apply; private set => SetProperty(ref _apply, value); }
     public int SelectedLimit
     {
         get => _selectedLimit;
@@ -109,7 +120,7 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
             // Not while the readback is populating the slider - that would write back the
             // value the device just reported.
             if (_applyingDeviceState) return;
-            Status = Strings.Current.Format("Bat_Applying", value);
+            Apply = ApplyState.Applying;
             // Moving the slider is a request for a limit, whatever the switch did last.
             _pendingStandard = false;
             _applyLimit.Schedule();
@@ -117,6 +128,7 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
     }
 
     private bool _applyingDeviceState;
+    private ApplyState _apply = ApplyState.Idle;
     private bool _limitEnabled = true;
     /// <summary>Which of the two the queued write means. The switch and the slider share one
     /// queue so they cannot overtake each other, and this is how it knows which one spoke last.</summary>
@@ -154,7 +166,7 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
             DeviceCompatibility compatibility = await Task.Run(controller.CheckCompatibility);
             if (!compatibility.IsSupported) { ActivePolicy = Strings.Current["Bat_DeviceNotApproved"]; Status = compatibility.Message; return; }
             ShowState(await controller.ReadAsync());
-            Status = Strings.Current["Bat_Ready"];
+            Status = string.Empty;
             if (restoreSaved) restore = PendingRestore();
         }
         catch (Exception exception) { ActivePolicy = Strings.Current["Common_Unavailable"]; Status = Strings.Current.Format("Bat_ReadFailed", exception.Message); }
@@ -205,7 +217,7 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
     private async Task ChangeAsync(int? limit, bool remember = true)
     {
         if (!CanApply) return;
-        if (limit is < 60 or > 100) { Status = Strings.Current["Bat_RangeHint"]; return; }
+        if (limit is < 60 or > 100) { Status = Strings.Current["Bat_RangeHint"]; Apply = ApplyState.Failed; return; }
         IsBusy = true;
         try
         {
@@ -216,7 +228,8 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
             // Saved only after the read-back confirmed it, so the file always describes a
             // setting that really took effect rather than one that was merely asked for.
             if (remember) Remember(limit);
-            Status = Strings.Current["Bat_Confirmed"];
+            Status = string.Empty;
+            Apply = ApplyState.Confirmed;
         }
         catch (Exception exception)
         {
@@ -225,6 +238,7 @@ public sealed class BatteryViewModel : ObservableObject, IFeatureModule
             try { ShowState(await controller.ReadAsync()); }
             catch { /* Preserve unknown state and the original error; require refresh. */ }
             Status = Strings.Current.Format("Bat_ChangeFailed", exception.Message);
+            Apply = ApplyState.Failed;
         }
         finally { IsBusy = false; }
     }
