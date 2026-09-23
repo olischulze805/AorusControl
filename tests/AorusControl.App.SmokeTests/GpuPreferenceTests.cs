@@ -16,7 +16,40 @@ internal static class GpuPreferenceTests
         Suggest();
         Picker();
         await Module();
-        Console.WriteLine("PASS: GPU preference parsing, foreign settings kept, registry round trip, per-program rules, file migration, suggestions, program search and the module");
+        await PowerWatcher();
+        Console.WriteLine("PASS: GPU preference parsing, foreign settings kept, registry round trip, per-program rules, file migration, suggestions, program search, automatic power watching and the module");
+    }
+
+    private static async Task PowerWatcher()
+    {
+        const string game = @"C:\App\game.exe";
+        var registry = new FakeGpuPreferenceStore();
+        registry.Seed(game, "GpuPreference=1;");
+        var settings = new FakeGpuPreferenceSettings();
+        settings.Save([new ManagedProgram(game, GpuPreference.Integrated)]);
+        LaptopPowerSource source = LaptopPowerSource.Unknown;
+
+        // Keep the real background loop asleep. Its individual check is exercised directly,
+        // which makes the startup race deterministic instead of adding a two-second test.
+        using var module = new GpuPreferenceViewModel(registry, settings, () => source,
+            new FakeGpuActivity(), new FakeProgramCloser(), confirm: _ => false,
+            powerWatchWait: (_, token) => Task.Delay(Timeout.InfiniteTimeSpan, token));
+        await module.StartAsync();
+        Check(registry.Writes == 0, "an unknown source at early startup is left untouched");
+
+        source = LaptopPowerSource.Ac;
+        await module.CheckPowerSourceAsync();
+        Check(registry.Find(game)!.Preference == GpuPreference.Nvidia,
+            "the fallback watcher applies the mains rule as soon as the source becomes known");
+
+        int before = registry.Writes;
+        await module.CheckPowerSourceAsync();
+        Check(registry.Writes == before, "an unchanged source causes no repeated registry writes");
+
+        source = LaptopPowerSource.Battery;
+        await module.CheckPowerSourceAsync();
+        Check(registry.Find(game)!.Preference == GpuPreference.Integrated,
+            "the fallback watcher applies the battery rule without opening the graphics page");
     }
 
     private static async Task Module()

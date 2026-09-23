@@ -118,17 +118,23 @@ public sealed class GpuUsageViewModel(GpuUser user, bool managed)
 /// only takes effect when a program starts. Nothing here moves a running program, forces a
 /// program that picks its own adapter, or switches the card itself off.
 ///
-/// The switch follows the power source through <see cref="Microsoft.Win32.SystemEvents"/>, so
-/// it also happens while the window is closed and the app sits in the notification area.
+/// The switch follows the power source through <see cref="Microsoft.Win32.SystemEvents"/>.
+/// A small fallback watcher also checks the cheap Windows power-status value, because the
+/// event can be missed during an early tray start or around resume. Neither path queries the
+/// NVIDIA card, so watching the source cannot wake it.
 /// </summary>
 public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
 {
+    private static readonly TimeSpan PowerWatchInterval = TimeSpan.FromSeconds(2);
     private readonly IGpuPreferenceStore _registry;
     private readonly IGpuPreferenceSettingsStore _settings;
     private readonly Func<LaptopPowerSource> _readPowerSource;
+    private readonly Func<TimeSpan, CancellationToken, Task> _powerWatchWait;
     private readonly IGpuActivityReader _activity;
     private readonly IProgramCloser _closer;
     private readonly Func<string, bool> _confirm;
+    private readonly CancellationTokenSource _lifetime = new();
+    private Task? _powerWatch;
     private bool _visible;
     private readonly List<ManagedProgram> _managed = [];
     private bool _busy, _disposed, _started, _automatic = true, _runningRead, _runningReadable, _runningBusy;
@@ -142,11 +148,13 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
         Func<LaptopPowerSource> readPowerSource,
         IGpuActivityReader? activity = null,
         IProgramCloser? closer = null,
-        Func<string, bool>? confirm = null)
+        Func<string, bool>? confirm = null,
+        Func<TimeSpan, CancellationToken, Task>? powerWatchWait = null)
     {
         _registry = registry;
         _settings = settings;
         _readPowerSource = readPowerSource;
+        _powerWatchWait = powerWatchWait ?? Task.Delay;
         _activity = activity ?? new WindowsGpuActivityReader();
         _closer = closer ?? new ProgramCloser();
         // Ending somebody's program is not something to do on a single click, and the dialog
@@ -277,6 +285,7 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
 
         Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
         await ApplyAsync(Strings.Current["Gpu_CheckedAtStart"]);
+        _powerWatch = WatchPowerSourceAsync(_lifetime.Token);
     }
 
     /// <summary>Adds a program to the list, remembering what Windows had set for it.</summary>
@@ -372,6 +381,7 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
             IReadOnlyList<GpuSwitchStep> steps = GpuSwitchPlan.Steps(_source, _managed, current);
 
             int written = 0;
+            int failed = 0;
             foreach (GpuSwitchStep step in steps)
             {
                 try
@@ -382,6 +392,7 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
                 }
                 catch (Exception exception)
                 {
+                    failed++;
                     AppLog.Error("gpu", $"Grafikeinstellung für {step.Name} nicht geschrieben.", exception);
                 }
             }
@@ -395,8 +406,56 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
                 : _source == LaptopPowerSource.Unknown
                     ? Strings.Current["Gpu_SourceUnknown"]
                     : Strings.Current.Format("Gpu_Applied", reason, written, _managed.Count);
+
+            if (_source == LaptopPowerSource.Unknown)
+                AppLog.Warn("gpu", $"Automatik ({reason}): Stromquelle noch unbekannt; erneute Prüfung läuft im Hintergrund.");
+            else
+                AppLog.Info("gpu", $"Automatik ({reason}): Stromquelle={_source}, verwaltet={_managed.Count}, geändert={written}, Fehler={failed}.");
         }
         finally { _busy = false; Show(); }
+    }
+
+    /// <summary>
+    /// Fallback for missed Windows notifications and for the short interval during logon in
+    /// which GetSystemPowerStatus can still report an unknown source. This only reads the
+    /// Windows power-status structure; it does not enumerate or poll either graphics card.
+    /// </summary>
+    private async Task WatchPowerSourceAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await _powerWatchWait(PowerWatchInterval, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("gpu", "Stromquellen-Wächter konnte nicht warten.", exception);
+                return;
+            }
+
+            try { await CheckPowerSourceAsync(); }
+            catch (Exception exception)
+            {
+                // A temporary Windows/API error must not permanently stop later changes.
+                AppLog.Error("gpu", "Stromquelle konnte nicht automatisch geprüft werden.", exception);
+            }
+        }
+    }
+
+    /// <summary>One watcher pass, kept separate so the startup recovery is testable without
+    /// sleeping. Unknown is deliberately ignored: it is not a third profile and the next
+    /// pass will try again.</summary>
+    internal async Task CheckPowerSourceAsync()
+    {
+        if (_disposed) return;
+        LaptopPowerSource detected = _readPowerSource();
+        if (detected == LaptopPowerSource.Unknown || detected == _source) return;
+        await ApplyAsync(Strings.Current["Gpu_PowerSourceChanged"]);
     }
 
     /// <summary>
@@ -552,6 +611,8 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
     {
         if (_disposed) return;
         _disposed = true;
+        _lifetime.Cancel();
         Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+        _lifetime.Dispose();
     }
 }

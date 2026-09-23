@@ -125,6 +125,29 @@ Beim Ändern einer Regel wird das Programm aus `lastWritten` entfernt: Der Wert 
 Registry ist dann kein Beleg mehr dafür, dass ihn jemand von Hand gesetzt hat - die Frage,
 die er beantwortet hat, ist eine andere geworden.
 
+## Zuverlässiger Wechsel im Hintergrund (2026-09-23)
+
+Ein realer Neustart zeigte eine Lücke: Das Grafikmodul wurde beim Tray-Start korrekt geladen,
+aber `GetSystemPowerStatus` lieferte bei dieser frühen ersten Prüfung noch keine brauchbare
+Quelle oder die spätere `SystemEvents.PowerModeChanged`-Benachrichtigung kam nicht an. Danach
+gab es keine erneute Prüfung. Erst **Jetzt anwenden** brachte die gespeicherten Regeln in die
+Windows-Registry; das Öffnen der Seite selbst war nicht der Auslöser.
+
+Die Anwendung verwendet deshalb jetzt zwei Wege zusammen:
+
+1. `SystemEvents.PowerModeChanged` bleibt der schnelle Weg für Statuswechsel und Resume.
+2. Ein Fallback prüft alle zwei Sekunden ausschließlich `GetSystemPowerStatus`. Nur wenn eine
+   bekannte Quelle von der zuletzt verarbeiteten Quelle abweicht, werden die Regeln angewandt.
+
+Damit wird auch ein beim Anmelden zunächst unbekannter Zustand nachgeholt und ein verlorenes
+Windows-Ereignis repariert. `Unknown` löst niemals ein Profil aus, eine unveränderte Quelle
+führt zu keinen Registry-Schreibvorgängen. Die Abfrage liest nur den Windows-Stromstatus und
+fragt weder Intel- noch NVIDIA-Sensoren ab; sie kann die RTX daher nicht aufwecken. Der Wächter
+läuft unabhängig von der sichtbaren Seite und wird beim Beenden der App abgebrochen.
+
+Ein Smoke-Test bildet beide Fehlerfälle ab: Start mit unbekannter Quelle, danach Netzbetrieb,
+anschließend Wechsel auf Akku - ohne Navigation zur Grafikseite und ohne manuellen Knopf.
+
 ## Lokale Belege
 
 HKCU\Software\Microsoft\DirectX\UserGpuPreferences existiert. Beispielsweise theHunter: GpuPreference=2; mehrere Anwendungen: GpuPreference=1; Chrome: GpuPreference=0. VLC nutzt bereits eine explizite Adapterzuordnung: SpecificAdapter=10DE&249D&15461458 zusammen mit GpuPreference=1073741824 und weiteren Grafikoptionen. Netflix verwendet eine Paket-/App-ID statt eines EXE-Pfads.
