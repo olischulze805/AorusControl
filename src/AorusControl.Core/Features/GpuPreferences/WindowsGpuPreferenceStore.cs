@@ -23,6 +23,10 @@ public interface IGpuPreferenceStore
     IReadOnlyList<GpuPreferenceProgram> List();
     GpuPreferenceProgram? Find(string name);
     void Set(string name, GpuPreference preference);
+
+    /// <summary>Calls back whenever anything in the store changes, ours or not. Null where
+    /// there is nothing to watch, which is every store but the real one.</summary>
+    IDisposable? Watch(Action changed) => null;
 }
 
 /// <summary>
@@ -82,4 +86,72 @@ public sealed class WindowsGpuPreferenceStore(string? keyPath = null) : IGpuPref
         if (key.GetValue(name) as string != updated)
             throw new InvalidOperationException("Die Grafikeinstellung wurde geschrieben, kam aber anders zurück.");
     }
+
+    public IDisposable Watch(Action changed) =>
+        new RegistryKeyWatcher(Registry.CurrentUser.CreateSubKey(_keyPath, writable: false), changed);
+}
+
+/// <summary>
+/// Tells about every value written into one key, as it happens.
+///
+/// Needed because this app is not the only writer. NVIDIA's session service
+/// (nvxdsyncplugin.dll) mirrors its own per-program GPU profiles into this key at logon, and
+/// its profile puts Chrome on the Intel chip - so a rule this app wrote the evening before was
+/// quietly gone again by the time the browser started. A notification rather than a timer:
+/// the kernel signals an event, a pool thread wakes, nothing runs in between.
+/// </summary>
+internal sealed class RegistryKeyWatcher : IDisposable
+{
+    private const int ChangeLastSet = 0x4;
+    // Lets the notification outlive the thread that asked for it; without it, the pool
+    // thread that re-arms the watch exiting would end it.
+    private const int ThreadAgnostic = 0x10000000;
+
+    private readonly RegistryKey _key;
+    private readonly Action _changed;
+    private readonly AutoResetEvent _signal = new(false);
+    private readonly RegisteredWaitHandle _wait;
+    private bool _disposed;
+
+    public RegistryKeyWatcher(RegistryKey key, Action changed)
+    {
+        _key = key;
+        _changed = changed;
+        Arm();
+        _wait = ThreadPool.RegisterWaitForSingleObject(_signal, (_, _) => OnSignal(), null, Timeout.Infinite, executeOnlyOnce: false);
+    }
+
+    private void Arm()
+    {
+        int error = RegNotifyChangeKeyValue(_key.Handle, false, ChangeLastSet | ThreadAgnostic,
+            _signal.SafeWaitHandle, true);
+        if (error != 0) throw new System.ComponentModel.Win32Exception(error);
+    }
+
+    private void OnSignal()
+    {
+        lock (_signal)
+        {
+            if (_disposed) return;
+            // Re-armed before the callback, so a write that lands while it runs is not missed.
+            try { Arm(); } catch { /* The key went away; there is nothing left to watch. */ }
+        }
+        _changed();
+    }
+
+    public void Dispose()
+    {
+        lock (_signal)
+        {
+            if (_disposed) return;
+            _disposed = true;
+        }
+        _wait.Unregister(null);
+        _key.Dispose();
+        _signal.Dispose();
+    }
+
+    [System.Runtime.InteropServices.DllImport("advapi32.dll")]
+    private static extern int RegNotifyChangeKeyValue(Microsoft.Win32.SafeHandles.SafeRegistryHandle key,
+        bool watchSubtree, int filter, Microsoft.Win32.SafeHandles.SafeWaitHandle signal, bool asynchronous);
 }

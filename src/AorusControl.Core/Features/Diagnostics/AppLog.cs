@@ -28,6 +28,35 @@ public static class AppLog
     /// <summary>The folder shown to the user, so "where are the logs" has one answer.</summary>
     public static string Directory { get; } = Path.Combine(AppData.Directory, "logs");
 
+    /// <summary>The switch for <see cref="Detail"/>, kept as an empty file beside the logs:
+    /// both processes can see it without sharing a settings format, and deleting the folder
+    /// switches it off again.</summary>
+    private static readonly string DetailedMarker = Path.Combine(Directory, "detailed.on");
+    private static bool _detailed;
+
+    /// <summary>Whether <see cref="Detail"/> writes anything. Off by default: the everyday log
+    /// is for failures, and a record of every decision is only worth its size while somebody
+    /// is chasing one.</summary>
+    public static bool Detailed
+    {
+        get => _detailed;
+        set
+        {
+            try
+            {
+                System.IO.Directory.CreateDirectory(Directory);
+                if (value) File.WriteAllText(DetailedMarker, string.Empty);
+                else File.Delete(DetailedMarker);
+            }
+            catch
+            {
+                // Still honoured for this session; it just will not survive a restart.
+            }
+            _detailed = value;
+            Info("log", value ? "Ausführliches Protokoll eingeschaltet." : "Ausführliches Protokoll ausgeschaltet.");
+        }
+    }
+
     /// <param name="role">Distinguishes the writers, e.g. "app" or "worker"; each gets its
     /// own file so the two processes never contend for one handle.</param>
     public static void Initialize(string role)
@@ -37,8 +66,16 @@ public static class AppLog
             _role = string.IsNullOrWhiteSpace(role) ? "app" : role;
             _prepared = false;
             _started = true;
+            _detailed = File.Exists(DetailedMarker);
         }
         Info("start", $"AORUS Control ({_role}) gestartet.");
+    }
+
+    /// <summary>Step-by-step record of what a feature decided and why; written only while
+    /// <see cref="Detailed"/> is on.</summary>
+    public static void Detail(string area, string message)
+    {
+        if (_detailed) Write("DEBUG", area, message, null);
     }
 
     public static void Info(string area, string message) => Write("INFO ", area, message, null);

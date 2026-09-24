@@ -9,8 +9,8 @@ namespace AorusControl.Core.Features.GpuPreferences;
 /// <param name="OnAc">What it gets while the laptop is plugged in.</param>
 /// <param name="OnBattery">What it gets while it runs on battery.</param>
 /// <param name="LastWritten">The value this app last put there, or null if it never has.
-/// Kept with the program rather than in a dictionary beside it, because it has to survive a
-/// restart: it is the only way to tell a value somebody changed by hand from one we set.</param>
+/// Kept with the program so it survives a restart: removing a program hands the original
+/// setting back only if the value is still the one this app left there.</param>
 public sealed record ManagedProgram(
     string Name,
     GpuPreference? Original,
@@ -39,9 +39,14 @@ public sealed record GpuSwitchStep(string Name, GpuPreference Target);
 /// carries its own pair rather than the rule being wired into this class.
 ///
 /// Deciding is separate from writing because the interesting rules are all decisions: an
-/// unknown power source must change nothing (better a stale preference than a wrong one), a
-/// program already at its target must not be rewritten, and one whose preference somebody
-/// changed by hand since we wrote it is no longer ours to manage.
+/// unknown power source must change nothing (better a stale preference than a wrong one), and
+/// a program already at its target must not be rewritten.
+///
+/// A value that differs from the rule is corrected, whoever put it there. This used to be
+/// read as a decision somebody made by hand and left alone - but the one writer that turned
+/// up in practice was NVIDIA's service syncing its own profiles at logon, which put Chrome
+/// back on the Intel chip every morning and switched the rule off with it. The list in this
+/// app is where the user decides; a program they want Windows to handle is removed from it.
 /// </summary>
 public static class GpuSwitchPlan
 {
@@ -72,13 +77,7 @@ public static class GpuSwitchPlan
             if (entry is { IsManageable: false }) continue;
 
             GpuPreference target = program.For(source);
-            GpuPreference? now = entry?.Preference;
-            if (now == target) continue;
-            // Changed elsewhere since we last wrote it - by the user in Windows' settings, or
-            // by the program's own installer. That is a decision, and it is not ours to
-            // overrule. It outlives this session because it is stored with the program.
-            if (program.LastWritten is { } ours && now is not null && now != ours) continue;
-
+            if (entry?.Preference == target) continue;
             steps.Add(new GpuSwitchStep(program.Name, target));
         }
         return steps;

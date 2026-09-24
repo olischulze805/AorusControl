@@ -120,12 +120,23 @@ internal static class GpuPreferenceTests
         await module.ApplyNowCommand.ExecuteAsync();
         Check(registry.Writes == before, "applying again writes nothing when it is already right");
 
-        // Somebody sets it back by hand in Windows. That is a decision, not drift.
+        // Something else writes the RTX back while the rule says Intel. The module hears it
+        // through the key watch and puts it back.
+        Check(registry.Watcher is not null, "the module watches the key for outside writes");
         registry.Set(game, GpuPreference.Nvidia);
-        before = registry.Writes;
-        await module.ApplyNowCommand.ExecuteAsync();
-        Check(registry.Writes == before, "a manual change is not overruled");
-        Check(module.Programs[0].State.Contains("von Hand"), "and is visible as such");
+        await module.StoreChangedAsync();
+        Check(registry.Find(game)!.Preference == GpuPreference.Integrated, "an outside change is corrected");
+
+        // A program that keeps insisting is answered three times in a minute, then left - two
+        // services rewriting one value at each other would never stop.
+        for (int round = 0; round < 3; round++)
+        {
+            registry.Set(game, GpuPreference.Nvidia);
+            await module.StoreChangedAsync();
+        }
+        Check(registry.Find(game)!.Preference == GpuPreference.Nvidia, "the fourth rewrite inside a minute is left standing");
+        Check(module.Programs[0].State.Contains("anderen Programm"), "and the row says something else keeps resetting it");
+        registry.Set(game, GpuPreference.Integrated);
 
         source = LaptopPowerSource.Unknown;
         before = registry.Writes;
@@ -138,6 +149,13 @@ internal static class GpuPreferenceTests
         await module.ApplyNowCommand.ExecuteAsync();
         Check(registry.Writes == before, "with the automatic off nothing is written either");
 
+        // With the automatic off, a change made in Windows stands - and removing the program
+        // does not reset over it either.
+        registry.Set(game, GpuPreference.Nvidia);
+        before = registry.Writes;
+        await module.StoreChangedAsync();
+        Check(registry.Writes == before, "an outside change while the automatic is off is left alone");
+
         await module.RemoveCommand.ExecuteAsync(module.Programs[0]);
         Check(module.Programs.Count == 0, "removing takes it off the list");
         Check(registry.Find(game)!.Preference == GpuPreference.Nvidia,
@@ -145,9 +163,10 @@ internal static class GpuPreferenceTests
     }
 
     /// <summary>
-    /// The promise "a change you make yourself in Windows is not overruled" used to last
-    /// exactly one session: what this app had written lived in a dictionary in memory, and a
-    /// restart forgot it and quietly took the program back over.
+    /// The bug this is here for: Chrome set to the RTX in the evening was on the Intel chip
+    /// again the next morning. NVIDIA's session service had synced its own profile into the key
+    /// at logon, and the app took that for a decision made by hand and left it - until a rule
+    /// change made it forget. A freshly started app has to put its rule back.
     /// </summary>
     private static async Task Restart()
     {
@@ -166,15 +185,15 @@ internal static class GpuPreferenceTests
             Check(registry.Find(game)!.Preference == GpuPreference.Nvidia, "adopted and set on mains");
         }
 
-        // The user opens Windows' own graphics settings and puts it back.
+        // Logon: NVIDIA's sync writes its own profile over it before the app has started.
         registry.Set(game, GpuPreference.Integrated);
 
         using (var afterRestart = New())
         {
             await afterRestart.StartAsync();
-            Check(registry.Find(game)!.Preference == GpuPreference.Integrated,
-                "a freshly started app leaves that decision alone");
-            Check(afterRestart.Programs[0].State.Contains("von Hand"), "and says why it is not acting");
+            Check(registry.Find(game)!.Preference == GpuPreference.Nvidia,
+                "a freshly started app puts the rule back");
+            Check(!afterRestart.Programs[0].State.Contains("anderen Programm"), "and the row shows no conflict");
         }
     }
 
@@ -316,6 +335,18 @@ internal static class GpuPreferenceTests
             store.Set(@"C:\App\hdr.exe", GpuPreference.Nvidia);
             Check(store.Find(@"C:\App\hdr.exe")!.Raw == "AutoHDREnable=4147;GpuPreference=2;",
                 "the HDR setting beside it survives the switch");
+
+            // The watch hears a write by somebody else, repeatedly - it re-arms itself.
+            using var heard = new SemaphoreSlim(0);
+            using (store.Watch(() => heard.Release()))
+            {
+                for (int round = 0; round < 2; round++)
+                {
+                    using (RegistryKey key = Registry.CurrentUser.OpenSubKey(keyPath, writable: true)!)
+                        key.SetValue(@"C:\App\hdr.exe", $"GpuPreference={round};");
+                    Check(heard.Wait(TimeSpan.FromSeconds(5)), $"an outside write is noticed (write {round + 1})");
+                }
+            }
         }
         finally
         {
@@ -373,13 +404,12 @@ internal static class GpuPreferenceTests
         Check(GpuSwitchPlan.Steps(LaptopPowerSource.Battery, managed,
             Current((game.Name, "GpuPreference=1;"), (editor.Name, "GpuPreference=1;"))).Count == 0, "a program already there is not rewritten");
 
-        // Somebody set the game back to the RTX by hand after we last wrote the Intel chip.
-        // That is a decision, not drift, and it is left standing.
-        var afterManualChange = GpuSwitchPlan.Steps(LaptopPowerSource.Battery,
+        // Something else set the game back to the RTX after we last wrote the Intel chip -
+        // in practice NVIDIA's service syncing its profiles at logon. The rule still holds.
+        var afterOutsideChange = GpuSwitchPlan.Steps(LaptopPowerSource.Battery,
             [game with { LastWritten = GpuPreference.Integrated }, editor],
             Current((game.Name, "GpuPreference=2;"), (editor.Name, "GpuPreference=2;")));
-        Check(afterManualChange.Count == 1 && afterManualChange[0].Name == editor.Name,
-            "a manually changed program is skipped, the others still follow");
+        Check(afterOutsideChange.Count == 2, "a program changed from outside is put back like the others");
 
         // A program with its own rules: a browser belongs on the Intel chip on mains too.
         var browser = new ManagedProgram(@"C:\Approwser.exe", null,

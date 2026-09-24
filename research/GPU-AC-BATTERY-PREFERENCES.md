@@ -148,6 +148,59 @@ läuft unabhängig von der sichtbaren Seite und wird beim Beenden der App abgebr
 Ein Smoke-Test bildet beide Fehlerfälle ab: Start mit unbekannter Quelle, danach Netzbetrieb,
 anschließend Wechsel auf Akku - ohne Navigation zur Grafikseite und ohne manuellen Knopf.
 
+## Chrome jeden Morgen wieder auf Intel (2026-09-24)
+
+Befund: Chrome stand abends auf der RTX, nach dem Einschalten am nächsten Tag lief es auf der
+Intel-Grafik. Erst eine Regeländerung in der App hin und zurück half.
+
+Das Protokoll vom 24.09. klärt den Ablauf eindeutig:
+
+| Zeit | Ereignis |
+| --- | --- |
+| 17:57:11 | Windows gestartet |
+| 17:57:39 | NVIDIA-Container in der Benutzersitzung gestartet |
+| 17:57:57 | App: `Stromquelle=Ac, verwaltet=4, geändert=0` |
+| 18:02:57 | Regel für chrome.exe geändert: `geändert=0` |
+| 18:03:02 | Regel zurück auf RTX: `geändert=1` |
+
+Die erste Regeländerung schrieb nichts, die zweite schrieb. Das geht nur, wenn die Registry
+zu diesem Zeitpunkt schon den Wert der ersten Änderung enthielt, also **nicht** RTX. Beim
+Start stand dort also ein fremder Wert, und `GpuSwitchPlan` hat ihn wegen `lastWritten = RTX`
+als „von Hand geändert“ gelesen und liegen lassen. Die Regeländerung löscht `lastWritten`,
+deshalb funktionierte der Umweg.
+
+Wer schreibt? Eine Suche nach `UserGpuPreferences` (ASCII und UTF-16) in den Binärdateien:
+Chrome und Gigabyte Control Center enthalten den Namen nicht, NVIDIA schon, unter anderem
+`NvContainer\plugins\Session\NvCpl\nvxdsyncplugin.dll` - ein Sync-Plugin, das in der
+Benutzersitzung läuft und die „Bevorzugter Grafikprozessor“-Profile der NVIDIA-Systemsteuerung
+mit dem Windows-Schlüssel abgleicht. Es startet 18 s vor der App. Das ist der einzige gefundene Schreiber, aber noch kein Beweis; das neue Protokoll zeigt es beim nächsten Start (siehe unten).
+
+Umsetzung:
+
+1. **Die Regel gilt, egal wer geschrieben hat.** Die Annahme „ein fremder Wert ist eine
+   Entscheidung von Hand“ war in der Praxis falsch: Der einzige fremde Schreiber war ein Dienst.
+   Wer ein Programm Windows überlassen will, nimmt es aus der Liste oder schaltet die Automatik
+   aus. `lastWritten` bleibt nur für das Zurückgeben beim Entfernen.
+2. **Der Schlüssel wird überwacht** (`RegNotifyChangeKeyValue`, ereignisgesteuert, keine
+   Abfrage in Intervallen). Schreibt jemand nach dem Start der App, wird der Wert nach einer
+   Sekunde Ruhe korrigiert.
+3. **Schutz vor Hin-und-her:** Wird ein Programm öfter als dreimal pro Minute von außen
+   zurückgesetzt, hört die App für diese Minute auf, dagegen zu schreiben, und meldet es.
+4. **Protokoll:** Jede Änderung wird immer protokolliert, als `chrome.exe: Integrated → Nvidia
+   (Grund)`, jede Korrektur fremder Werte als `von außen auf … gesetzt`. Der neue Schalter
+   **Ausführlich protokollieren** unter Info schreibt zusätzlich bei jeder Prüfung Registry-Wert,
+   Regel und zuletzt geschriebenen Wert jedes Programms mit.
+
+Ist das der beste Weg? Die Alternativen:
+
+- **NVIDIA-Profil ändern** (NVAPI DRS): Das würde den Sync an der Quelle stoppen, hängt aber an
+  einer herstellerspezifischen, kaum dokumentierten Schnittstelle, spricht den NVIDIA-Treiber an
+  (und kann die RTX wecken) und hilft nur bei NVIDIA.
+- **Chrome-Startparameter** (`--force_high_performance_gpu`): gilt nur für Chrome und nur für
+  Starts über die angepasste Verknüpfung.
+- **Windows-Schlüssel mit Überwachung** (umgesetzt): Das ist derselbe Wert, den die Windows-
+  Einstellungen schreiben, er gilt für jedes Programm und kommt ohne den Treiber aus.
+
 ## Lokale Belege
 
 HKCU\Software\Microsoft\DirectX\UserGpuPreferences existiert. Beispielsweise theHunter: GpuPreference=2; mehrere Anwendungen: GpuPreference=1; Chrome: GpuPreference=0. VLC nutzt bereits eine explizite Adapterzuordnung: SpecificAdapter=10DE&249D&15461458 zusammen mit GpuPreference=1073741824 und weiteren Grafikoptionen. Netflix verwendet eine Paket-/App-ID statt eines EXE-Pfads.

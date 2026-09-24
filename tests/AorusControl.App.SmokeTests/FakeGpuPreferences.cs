@@ -24,6 +24,16 @@ internal sealed class FakeGpuPreferenceStore : IGpuPreferenceStore
     }
 
     public void Seed(string name, string raw) => _entries[name] = raw;
+
+    /// <summary>What the module asked to be told about; a test calls it to play the part of
+    /// another program writing into the key.</summary>
+    public Action? Watcher { get; private set; }
+
+    public IDisposable? Watch(Action changed)
+    {
+        Watcher = changed;
+        return null;
+    }
 }
 
 internal sealed class FakeGpuPreferenceSettings : IGpuPreferenceSettingsStore

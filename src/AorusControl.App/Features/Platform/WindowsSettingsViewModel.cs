@@ -112,6 +112,19 @@ public sealed class WindowsSettingsViewModel : ObservableObject, IFeatureModule
     /// rather than a scavenger hunt.</summary>
     public string LogDirectory => AppLog.Directory;
 
+    /// <summary>Every decision instead of only the failures, for chasing something that
+    /// happens without an error - like a setting that is quietly gone after a restart.</summary>
+    public bool DetailedLog
+    {
+        get => AppLog.Detailed;
+        set
+        {
+            if (value == AppLog.Detailed) return;
+            AppLog.Detailed = value;
+            OnPropertyChanged();
+        }
+    }
+
     public async Task StartAsync()
     {
         await LoadPowerModeAsync();

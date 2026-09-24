@@ -122,10 +122,23 @@ public sealed class GpuUsageViewModel(GpuUser user, bool managed)
 /// A small fallback watcher also checks the cheap Windows power-status value, because the
 /// event can be missed during an early tray start or around resume. Neither path queries the
 /// NVIDIA card, so watching the source cannot wake it.
+///
+/// The registry key itself is watched as well, because other software writes into it: NVIDIA's
+/// session service syncs its own profiles there at logon and set Chrome back to the Intel chip.
+/// A managed program that is changed from outside is put back and the change is logged.
 /// </summary>
 public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
 {
     private static readonly TimeSpan PowerWatchInterval = TimeSpan.FromSeconds(2);
+
+    /// <summary>More outside writes to one program than this within <see cref="FightWindow"/>
+    /// is another program insisting, not a one-off sync, and answering every one of them would
+    /// be two services rewriting a registry value at each other forever.</summary>
+    private const int MaxCorrections = 3;
+    private static readonly TimeSpan FightWindow = TimeSpan.FromMinutes(1);
+    private readonly Dictionary<string, (int Count, DateTime Since)> _corrections = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Debouncer _storeChanged;
+    private IDisposable? _watch;
     private readonly IGpuPreferenceStore _registry;
     private readonly IGpuPreferenceSettingsStore _settings;
     private readonly Func<LaptopPowerSource> _readPowerSource;
@@ -170,6 +183,9 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
         CloseRunningCommand = new AsyncRelayCommand<GpuUsageViewModel>(CloseRunningAsync);
         RefreshRunningCommand = new AsyncRelayCommand(RefreshRunningAsync);
         ApplyNowCommand = new AsyncRelayCommand(() => ApplyAsync(Strings.Current["Gpu_ManualApply"]));
+        // One write in the key raises several notifications, and our own writes raise them
+        // too; a second's quiet collects them into one look at the registry.
+        _storeChanged = new Debouncer(TimeSpan.FromSeconds(1), () => OnUi(StoreChangedAsync));
     }
 
     /// <summary>Set by the shell when the page is on screen. Reading the graphics counters
@@ -286,7 +302,27 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
         Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
         await ApplyAsync(Strings.Current["Gpu_CheckedAtStart"]);
         _powerWatch = WatchPowerSourceAsync(_lifetime.Token);
+        try { _watch = _registry.Watch(_storeChanged.Schedule); }
+        catch (Exception exception)
+        {
+            // The rules still apply at start and on every change of supply; only an outside
+            // write in between would go unanswered.
+            AppLog.Error("gpu", "Grafikeinstellungen können nicht überwacht werden.", exception);
+        }
     }
+
+    /// <summary>Somebody wrote into Windows' graphics preferences - possibly us.</summary>
+    internal Task StoreChangedAsync()
+    {
+        if (_disposed) return Task.CompletedTask;
+        AppLog.Detail("gpu", "Windows-Grafikeinstellungen wurden geändert; Regeln werden geprüft.");
+        return ApplyAsync(Strings.Current["Gpu_ChangedOutside"], quiet: true);
+    }
+
+    private static Task OnUi(Func<Task> action) =>
+        System.Windows.Application.Current?.Dispatcher is { } dispatcher
+            ? dispatcher.InvokeAsync(action).Task.Unwrap()
+            : action();
 
     /// <summary>Adds a program to the list, remembering what Windows had set for it.</summary>
     public async Task AddAsync(string executablePath)
@@ -326,6 +362,7 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
         // The app owns this value again from here on: the rule changed, so the value the
         // registry holds is no longer evidence that somebody else set it by hand.
         _managed[index] = _managed[index] with { OnAc = onAc, OnBattery = onBattery, LastWritten = null };
+        _corrections.Remove(program.Name);
         Persist();
         await ApplyAsync(Strings.Current.Format("Gpu_RuleChanged", program.DisplayName));
     }
@@ -366,7 +403,9 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
     }
 
     /// <summary>Brings every managed program in line with the current power source.</summary>
-    private async Task ApplyAsync(string reason)
+    /// <param name="quiet">For the registry watcher, which also hears this app's own writes:
+    /// a pass that finds everything in order leaves the status line and the log alone.</param>
+    private async Task ApplyAsync(string reason, bool quiet = false)
     {
         if (_busy || _disposed) return;
         _busy = true;
@@ -378,7 +417,11 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
 
             Dictionary<string, GpuPreferenceProgram> current = await Task.Run(() =>
                 _registry.List().ToDictionary(program => program.Name, StringComparer.OrdinalIgnoreCase));
-            IReadOnlyList<GpuSwitchStep> steps = GpuSwitchPlan.Steps(_source, _managed, current);
+            LogState(reason, current);
+            IReadOnlyList<GpuSwitchStep> steps = GpuSwitchPlan.Steps(_source, _managed, current)
+                .Where(step => MayCorrect(step, current))
+                .ToArray();
+            if (quiet && steps.Count == 0) return;
 
             int written = 0;
             int failed = 0;
@@ -387,6 +430,8 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
                 try
                 {
                     await Task.Run(() => _registry.Set(step.Name, step.Target));
+                    current.TryGetValue(step.Name, out GpuPreferenceProgram? before);
+                    AppLog.Info("gpu", $"{DisplayName(step.Name)}: {Describe(before?.Preference)} → {step.Target} ({reason}).");
                     Remember(step.Name, step.Target);
                     written++;
                 }
@@ -556,11 +601,11 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
                 null => Strings.Current["Gpu_NoSettingInWindows"],
                 { } set => Strings.Current.Format("Gpu_NowOn", GpuChoice.Name(set))
             };
-            // What the rules would give it right now. A value somewhere else than that, which
-            // this app did not put there, was somebody's own decision and stays.
+            // Normally corrected within a second; still showing means the write failed or
+            // another program keeps putting its own value back.
             if (entry?.Preference is { } now && _source != LaptopPowerSource.Unknown
                 && now != program.For(_source) && _automatic)
-                state += " · " + Strings.Current["Gpu_ChangedByHand"];
+                state += " · " + Strings.Current["Gpu_ChangedElsewhere"];
             Programs.Add(new GpuProgramViewModel(program, state,
                 (onAc, onBattery) => ChangeRulesAsync(program, onAc, onBattery)));
         }
@@ -580,6 +625,53 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
             return [];
         }
     }
+
+    /// <summary>
+    /// Whether a step may go ahead. It always may, unless it would undo somebody else's write
+    /// for the fourth time inside a minute - then that other program is fighting for the
+    /// value, and the only way to stop two services rewriting it at each other is for one of
+    /// them to give up and say so.
+    /// </summary>
+    private bool MayCorrect(GpuSwitchStep step, IReadOnlyDictionary<string, GpuPreferenceProgram> current)
+    {
+        ManagedProgram? program = _managed.FirstOrDefault(entry => entry.Name == step.Name);
+        current.TryGetValue(step.Name, out GpuPreferenceProgram? entry);
+        // Only a value this app wrote and somebody replaced is an outside change; a program
+        // that is simply due for the other supply's rule is not.
+        if (program?.LastWritten is not { } ours || entry?.Preference == ours) return true;
+
+        DateTime now = DateTime.UtcNow;
+        (int count, DateTime since) = _corrections.GetValueOrDefault(step.Name, (0, now));
+        if (now - since > FightWindow) (count, since) = (0, now);
+        _corrections[step.Name] = (++count, since);
+
+        AppLog.Info("gpu", $"{program.DisplayName}: von außen auf {Describe(entry?.Preference)} gesetzt, "
+            + $"AORUS Control hatte {ours} geschrieben ({count}. Mal).");
+        if (count <= MaxCorrections) return true;
+        if (count == MaxCorrections + 1)
+            AppLog.Warn("gpu", $"{program.DisplayName}: ein anderes Programm setzt den Wert immer wieder zurück; "
+                + "AORUS Control hört für diese Minute auf, dagegen zu schreiben.");
+        return false;
+    }
+
+    /// <summary>The detailed log's view of one pass: every managed program, what the
+    /// registry says and what the rule wants.</summary>
+    private void LogState(string reason, IReadOnlyDictionary<string, GpuPreferenceProgram> current)
+    {
+        if (!AppLog.Detailed) return;
+        AppLog.Detail("gpu", $"Prüfung ({reason}): Stromquelle={_source}, Programme={_managed.Count}.");
+        foreach (ManagedProgram program in _managed)
+        {
+            current.TryGetValue(program.Name, out GpuPreferenceProgram? entry);
+            string wanted = _source == LaptopPowerSource.Unknown ? "?" : program.For(_source).ToString();
+            AppLog.Detail("gpu", $"  {program.DisplayName}: Registry=\"{entry?.Raw}\", Regel={wanted}, "
+                + $"zuletzt geschrieben={Describe(program.LastWritten)}.");
+        }
+    }
+
+    private static string Describe(GpuPreference? preference) => preference?.ToString() ?? "kein Eintrag";
+
+    private static string DisplayName(string name) => name.Contains('\\') ? System.IO.Path.GetFileName(name) : name;
 
     /// <summary>Records what was just written, on the program itself.</summary>
     private void Remember(string name, GpuPreference target)
@@ -612,6 +704,8 @@ public sealed class GpuPreferenceViewModel : ObservableObject, IFeatureModule
         if (_disposed) return;
         _disposed = true;
         _lifetime.Cancel();
+        _watch?.Dispose();
+        _storeChanged.Cancel();
         Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         _lifetime.Dispose();
     }
