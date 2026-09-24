@@ -161,6 +161,7 @@ public partial class App : System.Windows.Application
     private void ShowWindow()
     {
         if (Dispatcher.HasShutdownStarted || MainWindow is null) return;
+        (MainWindow as AorusControl.App.MainWindow)?.FitToScreen();
         MainWindow.Show();
         if (MainWindow.WindowState == WindowState.Minimized) MainWindow.WindowState = WindowState.Normal;
         MainWindow.Activate();

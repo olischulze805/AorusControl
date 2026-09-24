@@ -23,6 +23,34 @@ public partial class MainWindow : FluentWindow
 
     public MainWindow() : this(new MainWindowViewModel()) { }
 
+    /// <summary>
+    /// Shrinks the window to the screen it opens on and puts it inside the usable area.
+    ///
+    /// 1180 × 880 is the size the layout is designed at, but a 15.6" panel at 125 % leaves only
+    /// 816 points above the taskbar. Centred on the whole screen, that pushed the title bar -
+    /// and with it minimise, maximise and close - off the top, and the bottom behind the
+    /// taskbar. The designed size stays the upper limit; a size or place the user chose that
+    /// still fits is left as it is.
+    /// </summary>
+    internal void FitToScreen()
+    {
+        if (WindowState != WindowState.Normal) return;
+        const double gap = 16;
+        Rect area = SystemParameters.WorkArea;
+        MinWidth = Math.Min(MinWidth, area.Width - 2 * gap);
+        MinHeight = Math.Min(MinHeight, area.Height - 2 * gap);
+        Width = Math.Min(Width, area.Width - 2 * gap);
+        Height = Math.Min(Height, area.Height - 2 * gap);
+
+        bool fits = !double.IsNaN(Left) && !double.IsNaN(Top)
+            && Left >= area.Left && Top >= area.Top
+            && Left + Width <= area.Right && Top + Height <= area.Bottom;
+        if (fits) return;
+        WindowStartupLocation = WindowStartupLocation.Manual;
+        Left = area.Left + (area.Width - Width) / 2;
+        Top = area.Top + (area.Height - Height) / 2;
+    }
+
     /// <summary>Takes the ViewModel so the render checks can lay this window out against
     /// fakes. Nothing else differs - it is the same window, the same XAML, the same
     /// styles, which is the only way an offscreen render proves anything.</summary>
